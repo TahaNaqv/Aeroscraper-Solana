@@ -1,0 +1,9 @@
+[package]
+name = "aerospacer-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anchor-lang = "0.31.1"
+anchor-spl = "0.31.1"
+spl-token = "4.0.0" 
