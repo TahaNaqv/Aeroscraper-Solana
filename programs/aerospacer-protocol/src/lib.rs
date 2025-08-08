@@ -11,7 +11,7 @@ pub mod query;
 
 use instructions::*;
 
-declare_id!("6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN");
+declare_id!("mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD");
 
 #[program]
 pub mod aerospacer_protocol {

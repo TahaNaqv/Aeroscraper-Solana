@@ -16,6 +16,7 @@ aerospacer_solana = "6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN"
 aerospacer_protocol = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD"
 aerospacer_oracle = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c"
 aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
+aerospacer_solana = "6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN"
 
 [registry]
 url = "https://api.apr.dev"

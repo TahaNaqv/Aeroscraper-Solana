@@ -5,8 +5,14 @@ pub enum AerospacerFeesError {
     #[msg("Unauthorized")]
     Unauthorized,
     
-    #[msg("Invalid amount")]
-    InvalidAmount,
+    #[msg("No fees to distribute")]
+    NoFeesToDistribute,
+    
+    #[msg("Overflow occurred")]
+    Overflow,
+    
+    #[msg("Invalid fee distribution")]
+    InvalidFeeDistribution,
     
     #[msg("Transfer failed")]
     TransferFailed,

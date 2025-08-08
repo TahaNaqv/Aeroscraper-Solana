@@ -20,11 +20,6 @@ pub fn handler(ctx: Context<Initialize>) -> Result<()> {
     state.stake_contract_address = Pubkey::default(); // Will be set later
     state.total_fees_collected = 0;
     
-    // Set default fee distribution addresses (equivalent to INJECTIVE's FEE_ADDR_1 and FEE_ADDR_2)
-    // In production, these would be actual fee recipient addresses
-    state.fee_address_1 = Pubkey::default(); // TODO: Set actual fee address 1
-    state.fee_address_2 = Pubkey::default(); // TODO: Set actual fee address 2
-    
     msg!("Aerospacer Fee Distributor initialized successfully");
     msg!("Admin: {}", state.admin);
     msg!("Stake enabled: {}", state.is_stake_enabled);

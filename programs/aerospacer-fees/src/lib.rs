@@ -7,8 +7,9 @@ pub mod msg;
 
 use instructions::*;
 use crate::state::ConfigResponse;
+use crate::instructions::distribute_fee::DistributeFeeParams;
 
-declare_id!("8kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN");
+declare_id!("8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4");
 
 #[program]
 pub mod aerospacer_fees {
@@ -26,8 +27,8 @@ pub mod aerospacer_fees {
         instructions::set_stake_contract_address::handler(ctx, params)
     }
 
-    pub fn distribute_fee(ctx: Context<DistributeFee>) -> Result<()> {
-        instructions::distribute_fee::handler(ctx)
+    pub fn distribute_fee(ctx: Context<DistributeFee>, params: DistributeFeeParams) -> Result<()> {
+        instructions::distribute_fee::handler(ctx, params)
     }
 
     pub fn get_config(ctx: Context<GetConfig>) -> Result<ConfigResponse> {

@@ -1,34 +1,33 @@
 use anchor_lang::prelude::*;
 
-// Initialize message
+// Initialize message (equivalent to INJECTIVE's InstantiateMsg)
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct InitializeMsg {
     pub admin: Pubkey,
     pub stake_contract: Pubkey,
 }
 
-// Execute messages
+// Execute messages (equivalent to INJECTIVE's ExecuteMsg)
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct ToggleStakeContractMsg {}
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct SetStakeContractAddressMsg {
-    pub new_address: Pubkey,
+    pub address: String, // Equivalent to INJECTIVE's address: String
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct DistributeFeeMsg {
-    pub amount: u64,
-}
+pub struct DistributeFeeMsg {}
 
-// Query messages
+// Query messages (equivalent to INJECTIVE's QueryMsg)
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct GetFeeStateMsg {}
+pub struct GetConfigMsg {}
 
-// Response structures
+// Response structures (equivalent to INJECTIVE's ConfigResponse)
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct FeeStateResponse {
-    pub total_fees_collected: u64,
-    pub stake_contract_enabled: bool,
+pub struct ConfigResponse {
+    pub admin: Pubkey,
+    pub is_stake_enabled: bool,
     pub stake_contract_address: Pubkey,
+    pub total_fees_collected: u64,
 } 

@@ -8,7 +8,7 @@ pub mod msg;
 use instructions::*;
 use crate::state::PriceResponse;
 
-declare_id!("7kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN");
+declare_id!("8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c");
 
 #[program]
 pub mod aerospacer_oracle {
