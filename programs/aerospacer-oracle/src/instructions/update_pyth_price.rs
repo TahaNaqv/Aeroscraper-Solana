@@ -4,30 +4,37 @@ use crate::error::AerospacerOracleError;
 use pyth_sdk_solana::load_price_feed_from_account_info;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct GetPriceParams {
+pub struct UpdatePythPriceParams {
+    /// Asset denomination to update price for
     pub denom: String,
 }
 
 #[derive(Accounts)]
-#[instruction(params: GetPriceParams)]
-pub struct GetPrice<'info> {
+#[instruction(params: UpdatePythPriceParams)]
+pub struct UpdatePythPrice<'info> {
     #[account(mut)]
+    pub admin: Signer<'info>,
+    
+    #[account(
+        mut,
+        constraint = state.admin == admin.key() @ AerospacerOracleError::Unauthorized
+    )]
     pub state: Account<'info, OracleStateAccount>,
     
-    /// CHECK: This is the Pyth price account that contains the price data
+    /// CHECK: Pyth price account to update from
     pub pyth_price_account: AccountInfo<'info>,
     
     /// CHECK: Clock sysvar for timestamp validation
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceResponse> {
-    let state = &ctx.accounts.state;
+pub fn handler(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> Result<()> {
+    let state = &mut ctx.accounts.state;
     let clock = &ctx.accounts.clock;
     
     // Find the collateral data for the requested denom
     let collateral_data = state.collateral_data
-        .iter()
+        .iter_mut()
         .find(|d| d.denom == params.denom)
         .ok_or(AerospacerOracleError::PriceFeedNotFound)?;
     
@@ -55,29 +62,23 @@ pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceRe
     // Get current time for staleness validation
     let current_time = clock.unix_timestamp;
     
-    // Get price with hardcoded staleness validation (60 seconds)
+    // Get latest price with hardcoded staleness validation (60 seconds)
     let price = price_feed.get_price_no_older_than(current_time, 60)
         .ok_or(AerospacerOracleError::PriceTooOld)?;
 
     // Validate price data integrity with hardcoded confidence
-    require!(price.price > 0, AerospacerOracleError::InvalidPriceData);
+    require!(price.price > 0, AerospacerOracleError::PythPriceValidationFailed);
     require!(price.conf >= 1000, AerospacerOracleError::PythPriceValidationFailed);
+
     
-    msg!("Price query successful");
+    // Update the last update timestamp
+    state.last_update = clock.unix_timestamp;
+    
+    msg!("Pyth price update successful");
     msg!("Denom: {}", params.denom);
-    msg!("Price ID: {}", collateral_data.price_id);
-    msg!("Decimal: {}", collateral_data.decimal);
+    msg!("New Price: {} ± {} x 10^{}", price.price, price.conf, price.expo);
     msg!("Publish Time: {}", price.publish_time);
-    msg!("Price: {} ± {} x 10^{}", price.price, price.conf, price.expo);
-    msg!("Real Pyth data extracted successfully using official SDK");
+    msg!("Updated at: {}", clock.unix_timestamp);
     
-    // Return price response with validated Pyth data
-    Ok(PriceResponse {
-        denom: params.denom,
-        price: price.price,
-        decimal: collateral_data.decimal,
-        timestamp: price.publish_time,
-        confidence: price.conf,
-        exponent: price.expo,
-    })
+    Ok(())
 }
