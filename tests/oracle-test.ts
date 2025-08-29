@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
-import { PublicKey, Keypair, SystemProgram, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
+import { PublicKey, Keypair, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
 import { expect } from "chai";
 
 describe("Aerospacer Oracle Contract", () => {
@@ -13,7 +13,12 @@ describe("Aerospacer Oracle Contract", () => {
   // Test accounts
   const admin = Keypair.generate();
   const oracleState = Keypair.generate();
-  const mockPythPriceFeed = Keypair.generate();
+  // Real Pyth Network price feed addresses (Solana mainnet)
+  const PYTH_PRICE_FEEDS = {
+    SOL: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), // SOL/USD
+    ETH: new PublicKey("JBu1AL4odM4xJ8KHzom4H2kqhxwoBNBBovqyUa3c5Mfu"), // ETH/USD
+    BTC: new PublicKey("GVXRSBjFkR9uX3sQxinPVv7qE8FeBDFa9MTFaXosM9X"), // BTC/USD
+  };
 
   // Test data - using a valid 64-character hex string without "0x" prefix
   const testOracleAddress = Keypair.generate().publicKey;
@@ -25,6 +30,11 @@ describe("Aerospacer Oracle Contract", () => {
     // Airdrop SOL to admin
     const signature = await provider.connection.requestAirdrop(admin.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
     await provider.connection.confirmTransaction(signature);
+    
+    console.log("🔗 Using real Pyth Network price feeds:");
+    console.log("- SOL/USD:", PYTH_PRICE_FEEDS.SOL.toString());
+    console.log("- ETH/USD:", PYTH_PRICE_FEEDS.ETH.toString());
+    console.log("- BTC/USD:", PYTH_PRICE_FEEDS.BTC.toString());
   });
 
   it("Should initialize the oracle contract", async () => {
@@ -36,8 +46,6 @@ describe("Aerospacer Oracle Contract", () => {
         .accounts({
           state: oracleState.publicKey,
           admin: admin.publicKey,
-          systemProgram: SystemProgram.programId,
-          clock: SYSVAR_CLOCK_PUBKEY,
         })
         .signers([admin, oracleState])
         .rpc();
@@ -62,7 +70,7 @@ describe("Aerospacer Oracle Contract", () => {
           denom: testDenom,
           decimal: testDecimal,
           priceId: testPriceId,
-          pythPriceAccount: mockPythPriceFeed.publicKey,
+          pythPriceAccount: PYTH_PRICE_FEEDS.SOL,
         })
         .accounts({
           admin: admin.publicKey,

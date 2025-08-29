@@ -18,7 +18,12 @@ pub struct OracleStateAccount {
 
 impl OracleStateAccount {
     /// Calculate required account space
-    pub const LEN: usize = 32 + 32 + 1000 + 8; // admin + oracle_address + collateral_data + last_update
+    /// admin: 32 bytes (Pubkey)
+    /// oracle_address: 32 bytes (Pubkey) 
+    /// collateral_data: 4000 bytes (Vec<CollateralData> with room for ~20 assets)
+    /// last_update: 8 bytes (i64)
+    /// Total: 8 + 32 + 32 + 4000 + 8 = 4080 bytes
+    pub const LEN: usize = 8 + 32 + 32 + 4000 + 8;
 }
 
 /// Collateral asset data structure for oracle integration
