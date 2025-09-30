@@ -147,9 +147,9 @@ describe("Working Aerospacer Tests", () => {
       console.log("Testing program IDs...");
       
       // Check program IDs - use actual localnet IDs from deployment
-      const expectedProtocolId = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD";
-      const expectedOracleId = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c";
-      const expectedFeesId = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4";
+      const expectedProtocolId = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24";
+      const expectedOracleId = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx";
+      const expectedFeesId = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC";
       
       assert.equal(protocolProgram.programId.toString(), expectedProtocolId);
       assert.equal(oracleProgram.programId.toString(), expectedOracleId);

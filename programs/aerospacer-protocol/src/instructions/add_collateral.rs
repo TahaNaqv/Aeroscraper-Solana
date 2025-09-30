@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
-use aerospacer_utils::{self, *};
+use crate::utils::*;
+use crate::error::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct Add_collateralParams {
@@ -33,6 +34,14 @@ pub struct Add_collateral<'info> {
     #[account(mut)]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
 
+    /// CHECK: Per-denom collateral total PDA
+    #[account(
+        mut,
+        seeds = [b"total_collateral", params.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub total_collateral_by_denom: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -49,24 +58,24 @@ pub fn handler(ctx: Context<Add_collateral>, params: Add_collateralParams) -> Re
     validate_collateral_params(
         params.amount,
         ctx.accounts.user_collateral_account.mint,
-        aerospacer_utils::MINIMUM_LOAN_AMOUNT / 1000, // Minimum amount for adding collateral
+        MINIMUM_COLLATERAL_AMOUNT, // Minimum amount for adding collateral
     )?;
 
     // Calculate protocol fee using Utils
     let protocol_fee_amount = calculate_protocol_fee(
         params.amount,
-        state.protocol_fee as u64,
+        state.protocol_fee,
     )?;
 
     let net_collateral_amount = calculate_net_amount(
         params.amount,
-        state.protocol_fee as u64,
+        state.protocol_fee,
     )?;
 
     // Get collateral price from oracle using Utils
     let collateral_price = query_collateral_price(
         state.oracle_program,
-        params.collateral_denom.clone(),
+        &params.collateral_denom,
     )?;
 
     // Update trove collateral using safe math
@@ -81,21 +90,26 @@ pub fn handler(ctx: Context<Add_collateral>, params: Add_collateralParams) -> Re
 
     // Validate the updated trove meets minimum collateral ratio using Utils
     validate_trove_parameters(
-        trove.collateral_amount,
-        trove.debt_amount,
+        trove,
         state.minimum_collateral_ratio as u64,
         collateral_price,
     )?;
 
-    // Update state totals using safe math
-    if let Some(index) = state.collateral_denoms.iter().position(|d| d == &params.collateral_denom) {
-        state.total_collateral_amounts[index] = safe_add(
-            state.total_collateral_amounts[index],
-            net_collateral_amount,
-        )?;
-    } else {
-        return Err(ErrorCode::InvalidCollateralDenom.into());
-    }
+        // Update per-denom collateral total PDA
+        if !ctx.accounts.total_collateral_by_denom.data_is_empty() {
+            let mut data = ctx.accounts.total_collateral_by_denom.try_borrow_mut_data()?;
+            let mut total_collateral: TotalCollateralByDenom = 
+                TotalCollateralByDenom::try_deserialize(&mut data.as_ref())?;
+            total_collateral.total_amount = safe_add(
+                total_collateral.total_amount,
+                net_collateral_amount,
+            )?;
+            total_collateral.last_updated = Clock::get()?.unix_timestamp;
+            
+            total_collateral.try_serialize(&mut *data)?;
+        } else {
+            return Err(AerospacerProtocolError::InvalidCollateralDenom.into());
+        }
 
     // Transfer collateral from user to protocol
     let transfer_ctx = CpiContext::new(

@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
 use crate::utils::*;
+use crate::error::AerospacerProtocolError;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct Remove_collateralParams {
@@ -33,6 +34,14 @@ pub struct Remove_collateral<'info> {
     #[account(mut)]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
     
+    /// CHECK: Per-denom collateral total PDA
+    #[account(
+        mut,
+        seeds = [b"total_collateral", params.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub total_collateral_by_denom: AccountInfo<'info>,
+    
     pub token_program: Program<'info, Token>,
 }
 
@@ -53,7 +62,7 @@ pub fn handler(ctx: Context<Remove_collateral>, params: Remove_collateralParams)
     // Get collateral price from oracle
     let collateral_price = query_collateral_price(
         state.oracle_program,
-        params.collateral_denom.clone(),
+        &params.collateral_denom,
     )?;
     
     // Calculate new collateral amount (equivalent to INJECTIVE's USER_COLLATERAL_AMOUNT update)
@@ -77,20 +86,26 @@ pub fn handler(ctx: Context<Remove_collateral>, params: Remove_collateralParams)
     
     // Validate the updated trove meets minimum collateral ratio (equivalent to INJECTIVE's check_trove_icr_with_ratio)
     validate_trove_parameters(
-        trove.collateral_amount,
-        trove.debt_amount,
+        &trove,
         state.minimum_collateral_ratio as u64,
         collateral_price,
     )?;
     
-    // Update state totals (equivalent to INJECTIVE's TOTAL_COLLATERAL_AMOUNT update)
-    if let Some(index) = state.collateral_denoms.iter().position(|d| d == &params.collateral_denom) {
-        state.total_collateral_amounts[index] = state.total_collateral_amounts[index]
-            .checked_sub(params.amount)
-            .ok_or(ErrorCode::Overflow)?;
-    } else {
-        return Err(ErrorCode::InvalidCollateralDenom.into());
-    }
+        // Update per-denom collateral total PDA
+        if !ctx.accounts.total_collateral_by_denom.data_is_empty() {
+            let mut data = ctx.accounts.total_collateral_by_denom.try_borrow_mut_data()?;
+            let mut total_collateral: TotalCollateralByDenom = 
+                TotalCollateralByDenom::try_deserialize(&mut data.as_ref())?;
+            total_collateral.total_amount = safe_sub(
+                total_collateral.total_amount,
+                params.amount,
+            )?;
+            total_collateral.last_updated = Clock::get()?.unix_timestamp;
+            
+            total_collateral.try_serialize(&mut *data)?;
+        } else {
+            return Err(AerospacerProtocolError::InvalidCollateralDenom.into());
+        }
     
     // Transfer collateral from protocol to user (equivalent to INJECTIVE's BankMsg::Send)
     let transfer_ctx = CpiContext::new(

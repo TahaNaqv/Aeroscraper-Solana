@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
-use aerospacer_utils::*;
+use crate::utils::*;
+use crate::error::*;
+use crate::msg::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct Repay_loanParams {
@@ -35,6 +37,14 @@ pub struct Repay_loan<'info> {
     /// CHECK: This is the stable coin mint account
     pub stable_coin_mint: UncheckedAccount<'info>,
 
+    /// CHECK: Per-denom collateral total PDA
+    #[account(
+        mut,
+        seeds = [b"total_collateral", trove.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub total_collateral_by_denom: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -50,7 +60,7 @@ pub fn handler(ctx: Context<Repay_loan>, params: Repay_loanParams) -> Result<()>
     // Get collateral price from oracle using Utils
     let collateral_price = query_collateral_price(
         state.oracle_program,
-        trove.collateral_denom.clone(),
+        &trove.collateral_denom,
     )?;
 
     // Update state total debt using safe math
@@ -64,13 +74,19 @@ pub fn handler(ctx: Context<Repay_loan>, params: Repay_loanParams) -> Result<()>
         trove.collateral_ratio = 0;
         trove.is_active = false;
 
-        // Update state collateral totals using safe math
-        if let Some(index) = state.collateral_denoms.iter().position(|d| d == &trove.collateral_denom) {
-            state.total_collateral_amounts[index] = safe_sub(
-                state.total_collateral_amounts[index],
-                trove.collateral_amount,
-            )?;
-        }
+            // Update per-denom collateral total PDA
+            if !ctx.accounts.total_collateral_by_denom.data_is_empty() {
+                let mut data = ctx.accounts.total_collateral_by_denom.try_borrow_mut_data()?;
+                let mut total_collateral: TotalCollateralByDenom = 
+                    TotalCollateralByDenom::try_deserialize(&mut data.as_ref())?;
+                total_collateral.total_amount = safe_sub(
+                    total_collateral.total_amount,
+                    trove.collateral_amount,
+                )?;
+                total_collateral.last_updated = Clock::get()?.unix_timestamp;
+                
+                total_collateral.try_serialize(&mut *data)?;
+            }
 
         msg!("Trove fully repaid and closed");
     } else {
@@ -86,8 +102,7 @@ pub fn handler(ctx: Context<Repay_loan>, params: Repay_loanParams) -> Result<()>
 
         // Validate the updated trove meets minimum collateral ratio using Utils
         validate_trove_parameters(
-            trove.collateral_amount,
-            trove.debt_amount,
+            &trove,
             state.minimum_collateral_ratio as u64,
             collateral_price,
         )?;

@@ -14,9 +14,9 @@
 
 | Program | Program ID | Status | Transaction |
 |---------|------------|--------|-------------|
-| **aerospacer_oracle** | `8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c` | ✅ Deployed | `tcuhwxRJmhXzKp1aVq4MeQzokvQ2QWCtGadrUJN1LywpW67RVDYAGpBKkgZ7ALh6htwSQT8R3e1tVpy74mzby5Z` |
-| **aerospacer_protocol** | `mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD` | ✅ Deployed | `5Ei6SkPN8y3ha899Ryu2PSZJ9GkcKbxsACgs4apXYmYCT9d8asqCTYzMfyUH4MjSwXSYzQYESL7aszRrjS2ZuLiM` |
-| **aerospacer_fees** | `8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4` | ✅ Deployed | `5gqhcSttv6t9nNrxbpUmdgGkV12rBPFmt2rpfqhD6DSQAFdwPWKsPAmKRiY9zrFo8vX4UM9u6dAzUxj91ZEVS8hq` |
+| **aerospacer_oracle** | `5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx` | ✅ Deployed | `tcuhwxRJmhXzKp1aVq4MeQzokvQ2QWCtGadrUJN1LywpW67RVDYAGpBKkgZ7ALh6htwSQT8R3e1tVpy74mzby5Z` |
+| **aerospacer_protocol** | `9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24` | ✅ Deployed | `5Ei6SkPN8y3ha899Ryu2PSZJ9GkcKbxsACgs4apXYmYCT9d8asqCTYzMfyUH4MjSwXSYzQYESL7aszRrjS2ZuLiM` |
+| **aerospacer_fees** | `3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC` | ✅ Deployed | `5gqhcSttv6t9nNrxbpUmdgGkV12rBPFmt2rpfqhD6DSQAFdwPWKsPAmKRiY9zrFo8vX4UM9u6dAzUxj91ZEVS8hq` |
 | **aerospacer_solana** | `6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN` | ✅ Deployed | `4HsGU9t3gfZAvudN6nhnhsPE3ARKuvksUJzPPnM2Nm65AAL2J9m9e5Pn4GdQXZXKg1vrUxf6XmWzSPhwLVP2SZnR` |
 
 ---
@@ -26,9 +26,9 @@
 ### **Devnet Program IDs**
 ```toml
 [programs.devnet]
-aerospacer_protocol = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD"
-aerospacer_oracle = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c"
-aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
+aerospacer_protocol = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24"
+aerospacer_oracle = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx"
+aerospacer_fees = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC"
 ```
 
 ### **Account Information**
@@ -45,9 +45,9 @@ aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
 1. **Verify Deployment**
    ```bash
    # Verify all programs are deployed
-   solana program show 8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c
-   solana program show mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD
-   solana program show 8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4
+   solana program show 5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx
+   solana program show 9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24
+   solana program show 3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC
    solana program show 6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN
    ```
 
@@ -129,13 +129,13 @@ aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
 ### **Check Program Status**
 ```bash
 # Check Oracle Program
-solana program show 8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c
+solana program show 5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx
 
 # Check Protocol Program  
-solana program show mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD
+solana program show 9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24
 
 # Check Fees Program
-solana program show 8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4
+solana program show 3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC
 
 # Check account balance
 solana balance

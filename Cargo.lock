@@ -16,7 +16,6 @@ dependencies = [
 name = "aerospacer-fees"
 version = "0.1.0"
 dependencies = [
- "aerospacer-utils",
  "anchor-lang",
  "anchor-spl",
  "spl-token 4.0.2",
@@ -26,7 +25,6 @@ dependencies = [
 name = "aerospacer-oracle"
 version = "0.1.0"
 dependencies = [
- "aerospacer-utils",
  "anchor-lang",
  "bincode",
  "hex",
@@ -37,26 +35,9 @@ dependencies = [
 name = "aerospacer-protocol"
 version = "0.1.0"
 dependencies = [
- "aerospacer-utils",
  "anchor-lang",
  "anchor-spl",
  "pyth-solana-receiver-sdk",
- "spl-token 4.0.2",
-]
-
-[[package]]
-name = "aerospacer-solana"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
-]
-
-[[package]]
-name = "aerospacer-utils"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
  "spl-token 4.0.2",
 ]
 

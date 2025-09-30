@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
-use aerospacer_utils::{self, *};
+use crate::utils::*;
+use crate::error::AerospacerProtocolError;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct Open_troveParams {
@@ -43,6 +44,14 @@ pub struct Open_trove<'info> {
     #[account(mut)]
     pub protocol_stablecoin_account: Account<'info, TokenAccount>,
 
+    /// CHECK: Per-denom collateral total PDA
+    #[account(
+        mut,
+        seeds = [b"total_collateral", params.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub total_collateral_by_denom: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -51,39 +60,36 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     let trove = &mut ctx.accounts.trove;
     let state = &mut ctx.accounts.state;
 
-    // Use Utils Library for validation
-    if params.loan_amount < aerospacer_utils::MINIMUM_LOAN_AMOUNT {
-        return Err(ErrorCode::LoanAmountBelowMinimum.into());
+    // Use local validation functions
+    if params.loan_amount < crate::state::MINIMUM_LOAN_AMOUNT {
+        return Err(AerospacerProtocolError::LoanAmountBelowMinimum.into());
     }
 
-    // Validate collateral parameters using Utils
-    validate_collateral_params(
-        params.collateral_amount,
-        ctx.accounts.user_collateral_account.mint,
-        aerospacer_utils::MINIMUM_LOAN_AMOUNT / 100, // Minimum collateral amount
-    )?;
+    // Validate collateral parameters
+    if params.collateral_amount < crate::state::MINIMUM_COLLATERAL_AMOUNT {
+        return Err(AerospacerProtocolError::CollateralBelowMinimum.into());
+    }
 
-    // Get collateral price from oracle using Utils
+    // Get collateral price from oracle
     let collateral_price = query_collateral_price(
         state.oracle_program,
-        params.collateral_denom.clone(),
+        &params.collateral_denom,
     )?;
 
-    // Calculate protocol fee using Utils
+    // Calculate protocol fee
     let protocol_fee_amount = calculate_protocol_fee(
         params.collateral_amount,
-        state.protocol_fee as u64,
+        state.protocol_fee,
     )?;
 
     let net_collateral_amount = calculate_net_amount(
         params.collateral_amount,
-        state.protocol_fee as u64,
+        state.protocol_fee,
     )?;
 
-    // Validate trove parameters using Utils
+    // Validate trove parameters
     validate_trove_parameters(
-        net_collateral_amount,
-        params.loan_amount,
+        &trove,
         state.minimum_collateral_ratio as u64,
         collateral_price,
     )?;
@@ -104,15 +110,34 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     // Update state totals using safe math
     state.total_debt_amount = safe_add(state.total_debt_amount, params.loan_amount)?;
 
-    // Update collateral totals (simplified - in real implementation you'd use a map)
-    if let Some(index) = state.collateral_denoms.iter().position(|d| d == &params.collateral_denom) {
-        state.total_collateral_amounts[index] = safe_add(
-            state.total_collateral_amounts[index],
+    // Add denom to supported list if not already present
+    if !state.collateral_denoms.contains(&params.collateral_denom) {
+        state.collateral_denoms.push(params.collateral_denom.clone());
+    }
+
+    // Initialize or update per-denom collateral total PDA
+    if ctx.accounts.total_collateral_by_denom.data_is_empty() {
+        // Initialize the PDA account
+        let total_collateral = TotalCollateralByDenom {
+            denom: params.collateral_denom.clone(),
+            total_amount: net_collateral_amount,
+            last_updated: Clock::get()?.unix_timestamp,
+        };
+        
+        let mut data = ctx.accounts.total_collateral_by_denom.try_borrow_mut_data()?;
+        total_collateral.try_serialize(&mut *data)?;
+    } else {
+        // Update existing PDA account
+        let mut data = ctx.accounts.total_collateral_by_denom.try_borrow_mut_data()?;
+        let mut total_collateral: TotalCollateralByDenom = 
+            TotalCollateralByDenom::try_deserialize(&mut data.as_ref())?;
+        total_collateral.total_amount = safe_add(
+            total_collateral.total_amount,
             net_collateral_amount,
         )?;
-    } else {
-        state.collateral_denoms.push(params.collateral_denom.clone());
-        state.total_collateral_amounts.push(net_collateral_amount);
+        total_collateral.last_updated = Clock::get()?.unix_timestamp;
+        
+        total_collateral.try_serialize(&mut *data)?;
     }
 
     // Transfer collateral from user to protocol
@@ -137,7 +162,7 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     );
     anchor_spl::token::mint_to(mint_ctx, params.loan_amount)?;
 
-    // Process protocol fees using Utils
+    // Process protocol fees
     process_protocol_fees(
         state.fee_distributor,
         protocol_fee_amount,
@@ -152,12 +177,5 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     Ok(())
 }
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Loan amount below minimum")]
-    LoanAmountBelowMinimum,
-    #[msg("Trove already exists")]
-    TroveExists,
-    #[msg("Overflow occurred")]
-    Overflow,
-}
+// Constants are defined in crate::state
+

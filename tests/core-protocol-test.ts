@@ -44,9 +44,9 @@ describe("Core Protocol Functionality Test", () => {
     const oracleIdl = require("../target/idl/aerospacer_oracle.json");
     const feesIdl = require("../target/idl/aerospacer_fees.json");
 
-    protocolProgram = new Program(protocolIdl, new PublicKey("mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD"), provider) as Program<AerospacerProtocol>;
-    oracleProgram = new Program(oracleIdl, new PublicKey("8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c"), provider) as Program<AerospacerOracle>;
-    feesProgram = new Program(feesIdl, new PublicKey("8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"), provider) as Program<AerospacerFees>;
+    protocolProgram = new Program(protocolIdl, new PublicKey("9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24"), provider) as Program<AerospacerProtocol>;
+    oracleProgram = new Program(oracleIdl, new PublicKey("5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx"), provider) as Program<AerospacerOracle>;
+    feesProgram = new Program(feesIdl, new PublicKey("3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC"), provider) as Program<AerospacerFees>;
 
     // Derive state PDAs
     const [protocolStatePda] = PublicKey.findProgramAddressSync(

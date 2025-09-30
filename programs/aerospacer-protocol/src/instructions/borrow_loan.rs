@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
-use aerospacer_utils::{self, *};
+use crate::utils::*;
+use crate::error::*;
+use crate::msg::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct Borrow_loanParams {
@@ -43,14 +45,14 @@ pub fn handler(ctx: Context<Borrow_loan>, params: Borrow_loanParams) -> Result<(
     let state = &mut ctx.accounts.state;
 
     // Validate loan amount using Utils
-    if params.amount < aerospacer_utils::MINIMUM_LOAN_AMOUNT {
+    if params.amount < crate::state::MINIMUM_LOAN_AMOUNT {
         return Err(ErrorCode::LoanAmountBelowMinimum.into());
     }
 
     // Get collateral price from oracle using Utils
     let collateral_price = query_collateral_price(
         state.oracle_program,
-        trove.collateral_denom.clone(),
+        &trove.collateral_denom,
     )?;
 
     // Update trove debt using safe math
@@ -69,8 +71,7 @@ pub fn handler(ctx: Context<Borrow_loan>, params: Borrow_loanParams) -> Result<(
 
     // Validate the updated trove meets minimum collateral ratio using Utils
     validate_trove_parameters(
-        trove.collateral_amount,
-        trove.debt_amount,
+        &trove,
         state.minimum_collateral_ratio as u64,
         collateral_price,
     )?;

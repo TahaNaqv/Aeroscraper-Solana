@@ -11,7 +11,7 @@ pub mod query;
 
 use instructions::*;
 
-declare_id!("mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD");
+declare_id!("9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24");
 
 #[program]
 pub mod aerospacer_protocol {
@@ -41,7 +41,7 @@ pub mod aerospacer_protocol {
         instructions::repay_loan::handler(ctx, params)
     }
 
-    pub fn liquidate_troves(ctx: Context<Liquidate_troves>, params: Liquidate_trovesParams) -> Result<()> {
+    pub fn liquidate_troves(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> Result<()> {
         instructions::liquidate_troves::handler(ctx, params)
     }
 

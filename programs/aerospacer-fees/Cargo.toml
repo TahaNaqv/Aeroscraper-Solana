@@ -20,5 +20,4 @@ default = []
 [dependencies]
 anchor-lang = "0.31.1"
 anchor-spl = "0.31.1"
-spl-token = "4.0.0"
-aerospacer-utils = { path = "../../libs/aerospacer-utils" } 
+spl-token = "4.0.0" 

@@ -35,7 +35,6 @@ pub fn handler(ctx: Context<Initialize>, params: InitializeParams) -> Result<()>
     state.protocol_fee = DEFAULT_PROTOCOL_FEE; // 5%
     state.total_debt_amount = 0;
     state.total_stake_amount = 0;
-    state.total_collateral_amounts = Vec::new();
     state.collateral_denoms = Vec::new();
     
     msg!("Aerospacer Protocol initialized successfully");

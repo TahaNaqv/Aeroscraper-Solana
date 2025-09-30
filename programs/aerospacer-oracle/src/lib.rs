@@ -8,7 +8,7 @@ pub mod msg;
 use instructions::*;
 use crate::state::{PriceResponse, ConfigResponse};
 
-declare_id!("8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c");
+declare_id!("5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx");
 
 /// Aerospacer Oracle Program
 /// 

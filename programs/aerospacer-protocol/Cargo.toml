@@ -11,8 +11,6 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-custom-heap = []
-custom-panic = []
 anchor-debug = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 init-if-needed = ["anchor-lang/init-if-needed"]
@@ -22,5 +20,4 @@ default = []
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 anchor-spl = "0.31.1"
 spl-token = "4.0.0"
-pyth-solana-receiver-sdk = "0.6.1"
-aerospacer-utils = { path = "../../libs/aerospacer-utils" } 
+pyth-solana-receiver-sdk = "0.6.1" 

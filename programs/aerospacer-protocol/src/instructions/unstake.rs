@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::*;
-use aerospacer_utils::*;
+use crate::utils::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct UnstakeParams {

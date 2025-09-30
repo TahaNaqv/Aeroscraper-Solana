@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::token::{Token, TokenAccount, Mint, Transfer};
 use crate::state::*;
-use aerospacer_utils::{self, *};
+use crate::utils::*;
+use crate::error::*;
+use crate::msg::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct StakeParams {
@@ -41,7 +43,7 @@ pub fn handler(ctx: Context<Stake>, params: StakeParams) -> Result<()> {
     let state = &mut ctx.accounts.state;
 
     // Validate stake amount using Utils
-    if params.amount < aerospacer_utils::MINIMUM_LOAN_AMOUNT / 1000 {
+    if params.amount < crate::state::MINIMUM_LOAN_AMOUNT / 1000 {
         return Err(ErrorCode::StakeAmountTooSmall.into());
     }
 

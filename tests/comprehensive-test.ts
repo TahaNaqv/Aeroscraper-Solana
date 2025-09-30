@@ -19,9 +19,9 @@ describe("Comprehensive Protocol Validation Test", () => {
   let collateralMint: PublicKey;
 
   // Program IDs
-  const PROTOCOL_PROGRAM_ID = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD";
-  const ORACLE_PROGRAM_ID = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c";
-  const FEES_PROGRAM_ID = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4";
+  const PROTOCOL_PROGRAM_ID = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24";
+  const ORACLE_PROGRAM_ID = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx";
+  const FEES_PROGRAM_ID = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC";
 
   // State accounts
   let protocolState: PublicKey;

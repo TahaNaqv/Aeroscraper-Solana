@@ -1,5 +1,5 @@
 [toolchain]
-package_manager = "yarn"
+package_manager = "npm"
 anchor_version = "0.28.0"
 
 [features]
@@ -7,16 +7,14 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-aerospacer_protocol = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD"
-aerospacer_oracle = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c"
-aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
-aerospacer_solana = "6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN"
+aerospacer_protocol = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24"
+aerospacer_oracle = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx"
+aerospacer_fees = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC"
 
 [programs.devnet]
-aerospacer_protocol = "mR3CUXYeYLjoxFJ1ieBfC9rLciZwe8feFYvXKdafihD"
-aerospacer_oracle = "8gLDpdg9tFAtAnpZabd2w6V7qQikfqCKzPiNpx9Wcr3c"
-aerospacer_fees = "8PC52W8S5WQ1X6gBBNQr5AvYYxVEa68DahEgFJAueZF4"
-aerospacer_solana = "6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN"
+aerospacer_protocol = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24"
+aerospacer_oracle = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx"
+aerospacer_fees = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC"
 
 [registry]
 url = "https://api.apr.dev"
@@ -26,6 +24,6 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.ts'"
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.ts'"
 deploy_devnet = "anchor deploy --provider.cluster devnet"
 deploy_mainnet = "anchor deploy --provider.cluster mainnet"
