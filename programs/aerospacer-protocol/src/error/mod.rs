@@ -1,9 +1,19 @@
 use anchor_lang::prelude::*;
 
+// Exact replication of INJECTIVE error.rs
 #[error_code]
 pub enum AerospacerProtocolError {
     #[msg("Unauthorized")]
     Unauthorized,
+    
+    #[msg("Invalid reply ID")]
+    InvalidReplyID,
+    
+    #[msg("Error while instantiating cw20 contract")]
+    ReplyError,
+    
+    #[msg("Invalid funds")]
+    InvalidFunds,
     
     #[msg("Invalid amount")]
     InvalidAmount,
@@ -17,6 +27,12 @@ pub enum AerospacerProtocolError {
     #[msg("Invalid collateral ratio")]
     InvalidCollateralRatio,
     
+    #[msg("No liquidation collateral rewards found for sender")]
+    CollateralRewardsNotFound,
+    
+    #[msg("Not enough liquidity for redeem")]
+    NotEnoughLiquidityForRedeem,
+    
     #[msg("Collateral below minimum")]
     CollateralBelowMinimum,
     
@@ -29,90 +45,24 @@ pub enum AerospacerProtocolError {
     #[msg("Invalid list")]
     InvalidList,
     
-    #[msg("Not enough liquidity for redeem")]
-    NotEnoughLiquidityForRedeem,
+    #[msg("Divide by zero error")]
+    DivideByZeroError,
     
-    #[msg("No liquidation collateral rewards found")]
-    CollateralRewardsNotFound,
+    #[msg("Overflow error")]
+    OverflowError,
     
-    #[msg("Invalid funds")]
-    InvalidFunds,
+    #[msg("Funds error")]
+    FundsError,
     
-    #[msg("Missing funds")]
-    MissingFunds,
+    #[msg("Checked from ratio error")]
+    CheckedFromRatioError,
     
-    #[msg("Extra funds")]
-    ExtraFunds,
+    #[msg("Decimal256 range exceeded")]
+    Decimal256RangeExceeded,
     
-    #[msg("Invalid reply ID")]
-    InvalidReplyID,
+    #[msg("Conversion overflow error")]
+    ConversionOverflowError,
     
-    #[msg("Error while instantiating cw20 contract")]
-    ReplyError,
-    
-    #[msg("Invalid collateral denom")]
-    InvalidCollateralDenom,
-    
-    #[msg("Trove not active")]
-    TroveNotActive,
-    
-    #[msg("Insufficient collateral")]
-    InsufficientCollateral,
-    
-    #[msg("Invalid redemption amount")]
-    InvalidRedemptionAmount,
-    
-    #[msg("Redemption failed")]
-    RedemptionFailed,
-    
-    #[msg("Invalid liquidation parameters")]
-    InvalidLiquidationParameters,
-    
-    #[msg("No troves to liquidate")]
-    NoTrovesToLiquidate,
-    
-    #[msg("Liquidation failed")]
-    LiquidationFailed,
-    
-    #[msg("Invalid liquidation list")]
-    InvalidLiquidationList,
-    
-    #[msg("Stake amount too small")]
-    StakeAmountTooSmall,
-    
-    #[msg("Invalid stake parameters")]
-    InvalidStakeParameters,
-    
-    #[msg("Insufficient stake")]
-    InsufficientStake,
-    
-    #[msg("Invalid unstake amount")]
-    InvalidUnstakeAmount,
-    
-    #[msg("No liquidation gains found")]
-    NoLiquidationGains,
-    
-    #[msg("Gains already claimed")]
-    GainsAlreadyClaimed,
-    
-    #[msg("Withdrawal failed")]
-    WithdrawalFailed,
-    
-    #[msg("Insufficient gains")]
-    InsufficientGains,
-    
-    #[msg("Overflow occurred")]
-    Overflow,
-    
-    #[msg("Invalid trove parameters")]
-    InvalidTroveParameters,
-    
-    #[msg("Insufficient collateral ratio")]
-    InsufficientCollateralRatio,
-    
-    #[msg("Account not found")]
-    AccountNotFound,
-    
-    #[msg("Trove not liquidatable")]
-    TroveNotLiquidatable,
-} 
+    #[msg("Checked multiply fraction error")]
+    CheckedMultiplyFractionError,
+}

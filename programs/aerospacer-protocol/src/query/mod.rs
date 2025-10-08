@@ -1,61 +1,127 @@
-pub mod trove;
-pub mod state;
-pub mod stake;
-
-pub use trove::*;
-pub use state::*;
-pub use stake::*;
+use std::collections::HashMap;
 
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::msg::*;
+use crate::error::*;
+use crate::sorted_troves::find_insert_location;
+use crate::utils::{get_liquidation_gains, query_all_collateral_prices, PriceResponse};
 
-/// Query total collateral amounts (equivalent to INJECTIVE's query_total_collateral_amounts)
+// Exact replication of INJECTIVE query/mod.rs
 pub fn query_total_collateral_amounts<'a>(
-    state: &StateAccount,
-    program_id: &Pubkey,
-    remaining_accounts: &'a [AccountInfo<'a>],
+    _state_account: &StateAccount,
+    total_collateral_amount_accounts: &'a [AccountInfo<'a>],
 ) -> Result<Vec<CollateralAmountResponse>> {
-    let mut responses = Vec::new();
-    
-    for denom in &state.collateral_denoms {
-        let amount = crate::utils::get_total_collateral_amount(denom, program_id, remaining_accounts)?;
-        responses.push(CollateralAmountResponse {
-            denom: denom.clone(),
-            amount,
+    let mut res = Vec::new();
+    for account_info in total_collateral_amount_accounts {
+        let total_collateral: Account<TotalCollateralAmount> = Account::try_from(account_info)?;
+        res.push(CollateralAmountResponse {
+            denom: total_collateral.denom.clone(),
+            amount: total_collateral.amount,
         });
     }
-    
-    Ok(responses)
+    Ok(res)
 }
 
-/// Query total debt amount (equivalent to INJECTIVE's query_total_debt_amount)
-pub fn query_total_debt_amount(state: &StateAccount) -> Result<u64> {
-    Ok(state.total_debt_amount)
+pub fn query_total_debt_amount(state_account: &StateAccount) -> Result<u64> {
+    Ok(state_account.total_debt_amount)
 }
 
-/// Query total stake amount (equivalent to INJECTIVE's query_total_stake_amount)
-pub fn query_total_stake_amount(state: &StateAccount) -> Result<u64> {
-    Ok(state.total_stake_amount)
+pub fn query_trove<'a>(
+    user_addr: Pubkey,
+    user_collateral_amount_accounts: &'a [AccountInfo<'a>],
+    user_debt_amount_account: &Account<UserDebtAmount>,
+) -> Result<TroveResponse> {
+    let mut collateral_amounts = Vec::new();
+    for account_info in user_collateral_amount_accounts {
+        let user_collateral: Account<UserCollateralAmount> = Account::try_from(account_info)?;
+        if user_collateral.owner == user_addr {
+            collateral_amounts.push(CollateralAmountResponse {
+                denom: user_collateral.denom.clone(),
+                amount: user_collateral.amount,
+            });
+        }
+    }
+
+    let response = TroveResponse {
+        collateral_amounts,
+        debt_amount: user_debt_amount_account.amount,
+    };
+    Ok(response)
 }
 
-/// Query liquidation gains (equivalent to INJECTIVE's query_liquidation_gains)
-pub fn query_liquidation_gains(
-    _user: Pubkey,
-    _state: &StateAccount,
-) -> Result<u64> {
-    // TODO: Implement liquidation gains calculation
-    // In real implementation, you'd calculate based on user's stake and liquidation events
-    Ok(0) // Placeholder
+pub fn query_total_stake_amount(state_account: &StateAccount) -> Result<u64> {
+    Ok(state_account.total_stake_amount)
 }
 
-/// Find sorted trove insert position (equivalent to INJECTIVE's query_find_sorted_troves_insert_position)
+pub fn query_stake(
+    _user_addr: Pubkey,
+    state_account: &StateAccount,
+    user_stake_amount_account: &Account<UserStakeAmount>,
+) -> Result<StakeResponse> {
+    let total_stake_amount = state_account.total_stake_amount;
+    let stake_amount = user_stake_amount_account.amount;
+
+    let percentage = if total_stake_amount > 0 {
+        (stake_amount * 1_000_000_000_000_000_000) / total_stake_amount // Simplified Decimal256
+    } else {
+        0
+    };
+
+    Ok(StakeResponse {
+        amount: stake_amount,
+        percentage,
+    })
+}
+
+pub fn query_liquidation_gains<'a>(
+    user_addr: Pubkey,
+    state_account: &StateAccount,
+    user_liquidation_collateral_gain_accounts: &'a [AccountInfo<'a>],
+    total_liquidation_collateral_gain_accounts: &'a [AccountInfo<'a>],
+    user_stake_amount_accounts: &'a [AccountInfo<'a>],
+) -> Result<u64> { // Returns Uint256 in Injective, u64 here
+    let res = get_liquidation_gains(
+        user_addr,
+        state_account,
+        user_liquidation_collateral_gain_accounts,
+        total_liquidation_collateral_gain_accounts,
+        user_stake_amount_accounts,
+    );
+
+    if let Ok(collateral_gains) = res {
+        let mut total_amount = 0u64;
+        for collateral_gain in collateral_gains {
+            total_amount = total_amount.checked_add(collateral_gain.amount).ok_or(AerospacerProtocolError::OverflowError)?;
+        }
+        return Ok(total_amount);
+    }
+
+    Ok(0)
+}
+
 pub fn query_find_sorted_troves_insert_position(
-    _icr: u64,
-    _prev_node_id: Option<Pubkey>,
-    _next_node_id: Option<Pubkey>,
+    state_account: &StateAccount,
+    sorted_troves_state: &Account<SortedTrovesState>,
+    icr: u64, // Equivalent to Decimal256
+    prev_node_id: Option<Pubkey>,
+    next_node_id: Option<Pubkey>,
 ) -> Result<(Option<Pubkey>, Option<Pubkey>)> {
-    // TODO: Implement sorted troves position finding
-    // In real implementation, you'd traverse the sorted list to find proper position
-    Ok((_prev_node_id, _next_node_id)) // Placeholder
-} 
+    let collateral_prices = query_all_collateral_prices(state_account)?;
+    
+    // Convert PriceResponse HashMap to u64 HashMap
+    let mut price_map: HashMap<String, u64> = HashMap::new();
+    for (denom, price_response) in collateral_prices {
+        price_map.insert(denom, price_response.price);
+    }
+    
+      let (prev_id, next_id) = find_insert_location(
+        sorted_troves_state,
+        &price_map,
+        icr,
+        prev_node_id,
+        next_node_id,
+        &[],
+    )?;
+    Ok((prev_id, next_id))
+}

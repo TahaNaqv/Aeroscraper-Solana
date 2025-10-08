@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
+use crate::error::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct InitializeParams {
-    pub stable_coin_mint: Pubkey,
-    pub oracle_program: Pubkey,
-    pub fee_distributor: Pubkey,
+    pub stable_coin_code_id: u64,
+    pub oracle_helper_addr: Pubkey,
+    pub fee_distributor_addr: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -26,19 +27,21 @@ pub struct Initialize<'info> {
 pub fn handler(ctx: Context<Initialize>, params: InitializeParams) -> Result<()> {
     let state = &mut ctx.accounts.state;
     
-    // Initialize state like INJECTIVE's instantiate
+    // Initialize state exactly like INJECTIVE's instantiate
     state.admin = ctx.accounts.admin.key();
-    state.stable_coin_mint = params.stable_coin_mint;
-    state.oracle_program = params.oracle_program;
-    state.fee_distributor = params.fee_distributor;
+    state.stable_coin_addr = ctx.accounts.stable_coin_mint.key();
+    state.oracle_helper_addr = params.oracle_helper_addr;
+    state.fee_distributor_addr = params.fee_distributor_addr;
     state.minimum_collateral_ratio = DEFAULT_MINIMUM_COLLATERAL_RATIO; // 115%
     state.protocol_fee = DEFAULT_PROTOCOL_FEE; // 5%
     state.total_debt_amount = 0;
     state.total_stake_amount = 0;
-    state.collateral_denoms = Vec::new();
     
     msg!("Aerospacer Protocol initialized successfully");
     msg!("Admin: {}", state.admin);
+    msg!("Stable Coin: {}", state.stable_coin_addr);
+    msg!("Oracle Helper: {}", state.oracle_helper_addr);
+    msg!("Fee Distributor: {}", state.fee_distributor_addr);
     msg!("Minimum Collateral Ratio: {}%", state.minimum_collateral_ratio);
     msg!("Protocol Fee: {}%", state.protocol_fee);
     

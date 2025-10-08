@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::token::{Token, TokenAccount, Transfer};
 use crate::state::*;
 use crate::utils::*;
+use crate::error::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct UnstakeParams {
-    pub amount: u64,
+    pub amount: u64, // Equivalent to Uint256
 }
 
 #[derive(Accounts)]
@@ -16,11 +17,11 @@ pub struct Unstake<'info> {
 
     #[account(
         mut,
-        seeds = [b"stake", user.key().as_ref()],
+        seeds = [b"user_stake_amount", user.key().as_ref()],
         bump,
-        constraint = stake.owner == user.key() @ ErrorCode::Unauthorized
+        constraint = user_stake_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub stake: Account<'info, StakeAccount>,
+    pub user_stake_amount: Account<'info, UserStakeAmount>,
 
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
@@ -28,71 +29,59 @@ pub struct Unstake<'info> {
     #[account(mut)]
     pub user_stablecoin_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub protocol_stablecoin_account: Account<'info, TokenAccount>,
+    /// CHECK: Protocol stablecoin vault PDA
+    #[account(
+        mut,
+        seeds = [b"protocol_stablecoin_vault"],
+        bump
+    )]
+    pub protocol_stablecoin_vault: AccountInfo<'info>,
 
     pub token_program: Program<'info, Token>,
 }
 
+
+
 pub fn handler(ctx: Context<Unstake>, params: UnstakeParams) -> Result<()> {
-    let stake = &mut ctx.accounts.stake;
+    let user_stake_amount = &mut ctx.accounts.user_stake_amount;
+    // Store state key before borrowing it mutably
+    let state_key = ctx.accounts.state.key();
     let state = &mut ctx.accounts.state;
 
-    // Validate unstake amount
-    if params.amount > stake.amount {
-        return Err(ErrorCode::InsufficientStake.into());
-    }
+    // Check if user has enough stake
+    require!(
+        user_stake_amount.amount >= params.amount,
+        AerospacerProtocolError::InvalidAmount
+    );
 
-    if params.amount == 0 {
-        return Err(ErrorCode::InvalidUnstakeAmount.into());
-    }
+    // Transfer stablecoin back to user from protocol vault (Injective: CW20 transfer)
+    let transfer_seeds = &[
+        b"protocol_stablecoin_vault".as_ref(),
+        &[ctx.bumps.protocol_stablecoin_vault],
+    ];
+    let transfer_signer = &[&transfer_seeds[..]];
 
-    // Update state total stake using safe math
-    state.total_stake_amount = safe_sub(state.total_stake_amount, params.amount)?;
-
-    // Update user stake using safe math
-    let new_stake_amount = safe_sub(stake.amount, params.amount)?;
-    stake.amount = new_stake_amount;
-    stake.total_stake_at_time = state.total_stake_amount;
-    stake.block_height = Clock::get()?.slot;
-
-    // Calculate new stake percentage using Utils
-    if state.total_stake_amount > 0 {
-        stake.percentage = calculate_stake_percentage(
-            state.total_stake_amount,
-            stake.amount,
-        )?;
-    } else {
-        stake.percentage = 0;
-    }
-
-    // Transfer stablecoins from protocol to user
-    let transfer_ctx = CpiContext::new(
+    let transfer_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        anchor_spl::token::Transfer {
-            from: ctx.accounts.protocol_stablecoin_account.to_account_info(),
+        Transfer {
+            from: ctx.accounts.protocol_stablecoin_vault.to_account_info(),
             to: ctx.accounts.user_stablecoin_account.to_account_info(),
-            authority: ctx.accounts.user.to_account_info(),
+            authority: ctx.accounts.protocol_stablecoin_vault.to_account_info(),
         },
+        transfer_signer,
     );
     anchor_spl::token::transfer(transfer_ctx, params.amount)?;
 
-    msg!("Unstake successful");
-    msg!("Unstaked: {} aUSD", params.amount);
-    msg!("Remaining stake: {} aUSD", new_stake_amount);
-    msg!("Stake percentage: {}%", stake.percentage / 100);
+    // Update user stake amount
+    user_stake_amount.amount = safe_sub(user_stake_amount.amount, params.amount)?;
+    user_stake_amount.block_height = Clock::get()?.slot;
+
+    // Update state
+    state.total_stake_amount = safe_sub(state.total_stake_amount, params.amount)?;
+
+    msg!("Unstaked successfully");
+    msg!("Amount: {} aUSD", params.amount);
+    msg!("Remaining stake: {} aUSD", user_stake_amount.amount);
 
     Ok(())
-}
-
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Unauthorized")]
-    Unauthorized,
-    #[msg("Insufficient stake")]
-    InsufficientStake,
-    #[msg("Invalid unstake amount")]
-    InvalidUnstakeAmount,
-    #[msg("Overflow occurred")]
-    Overflow,
 }
