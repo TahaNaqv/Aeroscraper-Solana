@@ -1,49 +1,106 @@
 #!/bin/bash
 
-echo "================================================="
-echo "  Aerospacer Protocol - Solana Development Setup"
-echo "================================================="
+clear
+
+echo "╔═══════════════════════════════════════════════════════════════╗"
+echo "║   Aerospacer Protocol - Solana Development Environment        ║"
+echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "📋 Project Type: Solana Blockchain Smart Contracts"
-echo "🏗️  Architecture: 3 Anchor programs (Protocol, Oracle, Fees)"
+echo "📋 PROJECT TYPE: Solana Blockchain Smart Contracts (DeFi Lending Protocol)"
+echo "🏗️  ARCHITECTURE: 3 Anchor Programs + TypeScript Test Suite"
+echo "📊 STATUS: 98% Complete - Core implementation done"
 echo ""
-echo "🔧 Current Setup Status:"
-echo "  ✅ Rust & Cargo: Installed"
-echo "  ✅ Solana CLI: v1.18.26"
-echo "  ✅ Node.js & NPM: Installed"
-echo "  ⏳ Anchor Framework: Installing..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔧 DEVELOPMENT ENVIRONMENT STATUS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📁 Project Structure:"
-echo "  • programs/aerospacer-protocol  - Core lending logic"
-echo "  • programs/aerospacer-oracle    - Price feed management"
-echo "  • programs/aerospacer-fees      - Fee distribution"
-echo "  • tests/                        - Comprehensive test suite"
-echo ""
-echo "🚀 Next Steps to Build & Run:"
-echo "  1. Wait for Anchor installation to complete"
-echo "  2. Run: anchor build"
-echo "  3. Run: anchor test"
-echo ""
-echo "📖 Documentation:"
-echo "  • README.md - Project overview"
-echo "  • PROJECT_STATUS.md - Implementation status (98% complete)"
-echo "  • TESTING_GUIDE.md - Test suite guide"
-echo ""
-echo "================================================="
-echo ""
-echo "⏳ Checking Anchor installation status..."
-if command -v avm &> /dev/null; then
-    echo "  ✅ AVM (Anchor Version Manager) is installed"
-    avm --version
-elif command -v anchor &> /dev/null; then
-    echo "  ✅ Anchor CLI is installed"
-    anchor --version
+
+# Check each component
+if command -v cargo &> /dev/null; then
+    CARGO_VER=$(cargo --version | awk '{print $2}')
+    echo "  ✅ Rust & Cargo: v$CARGO_VER"
 else
-    echo "  ⏳ Anchor is still installing (this may take 5-10 minutes)"
-    echo "     You can check progress in the console"
+    echo "  ❌ Rust & Cargo: Not installed"
 fi
+
+if command -v solana &> /dev/null; then
+    SOLANA_VER=$(solana --version | awk '{print $2}')
+    echo "  ✅ Solana CLI: v$SOLANA_VER"
+else
+    echo "  ❌ Solana CLI: Not installed"
+fi
+
+if command -v node &> /dev/null; then
+    NODE_VER=$(node --version)
+    echo "  ✅ Node.js: $NODE_VER"
+else
+    echo "  ❌ Node.js: Not installed"
+fi
+
+if command -v anchor &> /dev/null; then
+    ANCHOR_VER=$(anchor --version 2>&1 | grep -oP 'anchor-cli \K[0-9.]+' || echo "installed")
+    echo "  ✅ Anchor CLI: v$ANCHOR_VER"
+else
+    echo "  ⏳ Anchor CLI: Not found (install with: npm install -g @coral-xyz/anchor-cli@0.28.0)"
+fi
+
+if cargo build-sbf --version &> /dev/null; then
+    BPF_VER=$(cargo build-sbf --version | head -1 | awk '{print $2}')
+    echo "  ✅ Solana BPF Tools: v$BPF_VER"
+else
+    echo "  ❌ Solana BPF Tools: Not available"
+fi
+
 echo ""
-echo "To monitor Anchor installation, check background cargo processes:"
-echo "  ps aux | grep cargo"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📁 PROGRAM STRUCTURE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-tail -f /dev/null  # Keep the script running
+echo "  1️⃣  programs/aerospacer-protocol  → Core lending logic (CDPs, liquidation)"
+echo "  2️⃣  programs/aerospacer-oracle    → Price feeds (Pyth integration)"
+echo "  3️⃣  programs/aerospacer-fees      → Fee distribution & economics"
+echo "  🧪 tests/                         → Comprehensive test suite (17 files)"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 QUICK START COMMANDS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  📦 Build programs (5-10 min first time):"
+echo "     $ anchor build"
+echo ""
+echo "  🧪 Run all tests:"
+echo "     $ anchor test"
+echo ""
+echo "  🔍 Quick syntax check (faster):"
+echo "     $ cargo check"
+echo ""
+echo "  🌐 Deploy to devnet:"
+echo "     $ anchor deploy --provider.cluster devnet"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📚 DOCUMENTATION FILES"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  📄 replit.md           → Replit setup guide & troubleshooting"
+echo "  📄 README.md           → Project overview & features"
+echo "  📄 PROJECT_STATUS.md   → Implementation status (98% complete)"
+echo "  📄 TESTING_GUIDE.md    → Test suite documentation"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "⚠️  IMPORTANT NOTES"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  • First build takes 5-10 minutes (Solana BPF compilation)"
+echo "  • Subsequent builds are much faster (incremental compilation)"
+echo "  • Use 'cargo check' for quick syntax validation"
+echo "  • See replit.md for troubleshooting permission issues"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "💡 TIP: Start with 'anchor build' to compile the programs, then run 'anchor test'"
+echo ""
+echo "✨ Environment ready! Check replit.md for detailed setup instructions."
+echo ""
+
+# Keep running
+tail -f /dev/null
