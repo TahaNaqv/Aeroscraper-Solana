@@ -1,0 +1,7 @@
+modules = ["nodejs-20", "rust-stable", "bash"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+packages = ["solana-cli"]
