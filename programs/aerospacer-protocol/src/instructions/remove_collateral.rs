@@ -1,23 +1,22 @@
-use std::collections::HashMap;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 use crate::state::*;
-use crate::utils::*;
 use crate::error::*;
-use crate::trove_helpers::*;
-use crate::sorted_troves::*;
+use crate::trove_management::*;
+use crate::account_management::*;
+use crate::oracle::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct Remove_collateralParams {
-    pub collateral_amount: u64, // Equivalent to Uint256
+pub struct RemoveCollateralParams {
+    pub collateral_amount: u64,
     pub collateral_denom: String,
     pub prev_node_id: Option<Pubkey>,
     pub next_node_id: Option<Pubkey>,
 }
 
 #[derive(Accounts)]
-#[instruction(params: Remove_collateralParams)]
-pub struct Remove_collateral<'info> {
+#[instruction(params: RemoveCollateralParams)]
+pub struct RemoveCollateral<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
@@ -69,70 +68,81 @@ pub struct Remove_collateral<'info> {
     )]
     pub sorted_troves_state: Account<'info, SortedTrovesState>,
 
+    // Oracle context - integration with our aerospacer-oracle
+    /// CHECK: Our oracle program
+    #[account(mut)]
+    pub oracle_program: AccountInfo<'info>,
+    
+    /// CHECK: Oracle state account
+    #[account(mut)]
+    pub oracle_state: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
 
 
-    pub fn handler(ctx: Context<Remove_collateral>, params: Remove_collateralParams) -> Result<()> {
-    let user_debt_amount = &ctx.accounts.user_debt_amount;
-    let user_collateral_amount = &mut ctx.accounts.user_collateral_amount;
-    let liquidity_threshold = &mut ctx.accounts.liquidity_threshold;
-    
-    // Store state key before borrowing it mutably
-    let state_key = ctx.accounts.state.key();
-    let state = &mut ctx.accounts.state;
-
-    // Get collateral prices (equivalent to INJECTIVE's query_all_collateral_prices)
-    let collateral_prices_response = query_all_collateral_prices(&state)?;
-    
-    // Convert PriceResponse HashMap to u64 HashMap for trove helpers
-    let mut collateral_prices: HashMap<String, u64> = HashMap::new();
-    for (denom, price_response) in collateral_prices_response {
-        collateral_prices.insert(denom, price_response.price);
-    }
-
-    // Total collateral and debt amount in the protocol (equivalent to INJECTIVE's TOTAL_COLLATERAL_AMOUNT.load)
-    let old_total_collateral_amount = get_total_collateral_amount(
-        &params.collateral_denom,
-        &state_key,
-        &ctx.remaining_accounts,
-    )?;
-
-    // Calculate new total collateral amount (equivalent to INJECTIVE's checked_sub)
-    let new_total_collateral_amount = safe_sub(old_total_collateral_amount, params.collateral_amount)?;
-
-    // Update total collateral amount (equivalent to INJECTIVE's TOTAL_COLLATERAL_AMOUNT.save)
-    update_total_collateral_from_account_info(
-        &ctx.accounts.total_collateral_amount,
-        -(params.collateral_amount as i64),
-    )?;
-
-    // Existing user collateral and debt amount (equivalent to INJECTIVE's USER_COLLATERAL_AMOUNT.load)
-    let new_collateral_amount = safe_sub(user_collateral_amount.amount, params.collateral_amount)?;
-
-    // New collateral amount for the user (equivalent to INJECTIVE's USER_COLLATERAL_AMOUNT.save)
-    user_collateral_amount.amount = new_collateral_amount;
-
-    // Check the minimum collateral amount (equivalent to INJECTIVE's minimum check)
+pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -> Result<()> {
+    // Validate input parameters
     require!(
-        new_collateral_amount >= MINIMUM_COLLATERAL_AMOUNT,
-        AerospacerProtocolError::CollateralBelowMinimum
+        params.collateral_amount > 0,
+        AerospacerProtocolError::InvalidAmount
     );
-
-    // Update liquidity threshold for the user (equivalent to INJECTIVE's get_trove_icr)
-        let ratio = get_trove_icr(
-            &user_debt_amount,
-            &ctx.remaining_accounts, // user_collateral_amount_accounts
-            &collateral_prices,
-            ctx.accounts.user.key(),
-        )?;
-    liquidity_threshold.ratio = ratio;
-
-    // Check for the minimum collateral ratio (equivalent to INJECTIVE's check_trove_icr_with_ratio)
-    check_trove_icr_with_ratio(state, ratio)?;
-
-    // Transfer collateral from protocol to user (equivalent to INJECTIVE's BankMsg::Send)
+    
+    require!(
+        !params.collateral_denom.is_empty(),
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    require!(
+        params.collateral_amount <= ctx.accounts.user_collateral_amount.amount,
+        AerospacerProtocolError::InsufficientCollateral
+    );
+    
+    // Create context structs for clean architecture
+    let mut trove_ctx = TroveContext {
+        user: ctx.accounts.user.clone(),
+        user_debt_amount: ctx.accounts.user_debt_amount.clone(),
+        liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
+        state: ctx.accounts.state.clone(),
+    };
+    
+    let mut collateral_ctx = CollateralContext {
+        user: ctx.accounts.user.clone(),
+        user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
+        user_collateral_account: ctx.accounts.user_collateral_account.clone(),
+        protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
+        total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
+        token_program: ctx.accounts.token_program.clone(),
+    };
+    
+    let mut sorted_ctx = SortedTrovesContext {
+        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
+        state: ctx.accounts.state.clone(),
+    };
+    
+    let oracle_ctx = OracleContext {
+        oracle_program: ctx.accounts.oracle_program.clone(),
+        oracle_state: ctx.accounts.oracle_state.clone(),
+    };
+    
+    // Use TroveManager for clean implementation
+    let result = TroveManager::remove_collateral(
+        &mut trove_ctx,
+        &mut collateral_ctx,
+        &mut sorted_ctx,
+        &oracle_ctx,
+        params.collateral_amount,
+        params.collateral_denom.clone(),
+    )?;
+    
+    // Update the actual accounts with the results
+    ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
+    ctx.accounts.liquidity_threshold.ratio = result.new_icr;
+    ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
+    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
+    
+    // Transfer collateral from protocol to user
     let transfer_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -143,23 +153,11 @@ pub struct Remove_collateral<'info> {
     );
     anchor_spl::token::transfer(transfer_ctx, params.collateral_amount)?;
 
-    // Reinsert trove into sorted list (equivalent to INJECTIVE's reinsert_trove)
-    // TODO: Fix lifetime issues with reinsert_trove
-    // let sorted_troves_state = &mut ctx.accounts.sorted_troves_state;
-    // reinsert_trove(
-    //     sorted_troves_state,
-    //     &collateral_prices,
-    //     ctx.accounts.user.key(),
-    //     ratio,
-    //     params.prev_node_id,
-    //     params.next_node_id,
-    //     &ctx.remaining_accounts,
-    // )?;
-
     msg!("Collateral removed successfully");
     msg!("Removed: {} {}", params.collateral_amount, params.collateral_denom);
-    msg!("New collateral amount: {}", new_collateral_amount);
-    msg!("Ratio: {}", ratio);
+    msg!("New collateral amount: {}", result.new_collateral_amount);
+    msg!("New ICR: {}", result.new_icr);
+    msg!("Debt amount: {}", result.new_debt_amount);
 
     Ok(())
 }

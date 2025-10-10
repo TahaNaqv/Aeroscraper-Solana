@@ -1,22 +1,22 @@
-use std::collections::HashMap;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Mint, MintTo};
 use crate::state::*;
-use crate::utils::*;
 use crate::error::*;
-use crate::trove_helpers::*;
-use crate::sorted_troves::*;
+use crate::trove_management::*;
+use crate::account_management::*;
+use crate::oracle::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct Borrow_loanParams {
-    pub loan_amount: u64, // Equivalent to Uint256
+pub struct BorrowLoanParams {
+    pub loan_amount: u64,
+    pub collateral_denom: String,
     pub prev_node_id: Option<Pubkey>,
     pub next_node_id: Option<Pubkey>,
 }
 
 #[derive(Accounts)]
-#[instruction(params: Borrow_loanParams)]
-pub struct Borrow_loan<'info> {
+#[instruction(params: BorrowLoanParams)]
+pub struct BorrowLoan<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
@@ -52,46 +52,109 @@ pub struct Borrow_loan<'info> {
     )]
     pub sorted_troves_state: Account<'info, SortedTrovesState>,
 
+    // Collateral context accounts
+    #[account(
+        mut,
+        seeds = [b"user_collateral_amount", user.key().as_ref(), params.collateral_denom.as_bytes()],
+        bump,
+        constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
+    )]
+    pub user_collateral_amount: Account<'info, UserCollateralAmount>,
+
+    #[account(mut)]
+    pub user_collateral_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub protocol_collateral_account: Account<'info, TokenAccount>,
+
+    /// CHECK: Per-denom collateral total PDA
+    #[account(
+        mut,
+        seeds = [b"total_collateral_amount", params.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub total_collateral_amount: AccountInfo<'info>,
+
+    // Oracle context - integration with our aerospacer-oracle
+    /// CHECK: Our oracle program
+    #[account(mut)]
+    pub oracle_program: AccountInfo<'info>,
+    
+    /// CHECK: Oracle state account
+    #[account(mut)]
+    pub oracle_state: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
 
 
-    pub fn handler(ctx: Context<Borrow_loan>, params: Borrow_loanParams) -> Result<()> {
-    let user_debt_amount = &mut ctx.accounts.user_debt_amount;
-    let liquidity_threshold = &mut ctx.accounts.liquidity_threshold;
-    let state = &mut ctx.accounts.state;
-
-    // Get collateral prices (equivalent to INJECTIVE's query_all_collateral_prices)
-    let collateral_prices_response = query_all_collateral_prices(&state)?;
+pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()> {
+    // Validate input parameters
+    require!(
+        params.loan_amount > 0,
+        AerospacerProtocolError::InvalidAmount
+    );
     
-    // Convert PriceResponse HashMap to u64 HashMap for trove helpers
-    let mut collateral_prices: HashMap<String, u64> = HashMap::new();
-    for (denom, price_response) in collateral_prices_response {
-        collateral_prices.insert(denom, price_response.price);
-    }
+    require!(
+        params.loan_amount >= MINIMUM_LOAN_AMOUNT,
+        AerospacerProtocolError::LoanAmountBelowMinimum
+    );
+    
+    require!(
+        !params.collateral_denom.is_empty(),
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    // Check if user has existing trove
+    require!(
+        ctx.accounts.user_debt_amount.amount > 0,
+        AerospacerProtocolError::TroveDoesNotExist
+    );
+    
+    // Create context structs for clean architecture
+    let mut trove_ctx = TroveContext {
+        user: ctx.accounts.user.clone(),
+        user_debt_amount: ctx.accounts.user_debt_amount.clone(),
+        liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
+        state: ctx.accounts.state.clone(),
+    };
+    
+    let mut collateral_ctx = CollateralContext {
+        user: ctx.accounts.user.clone(),
+        user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
+        user_collateral_account: ctx.accounts.user_collateral_account.clone(),
+        protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
+        total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
+        token_program: ctx.accounts.token_program.clone(),
+    };
+    
+    let mut sorted_ctx = SortedTrovesContext {
+        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
+        state: ctx.accounts.state.clone(),
+    };
+    
+    let oracle_ctx = OracleContext {
+        oracle_program: ctx.accounts.oracle_program.clone(),
+        oracle_state: ctx.accounts.oracle_state.clone(),
+    };
+    
+    // Use TroveManager for clean implementation
+    let result = TroveManager::borrow_loan(
+        &mut trove_ctx,
+        &mut collateral_ctx,
+        &mut sorted_ctx,
+        &oracle_ctx,
+        params.loan_amount,
+    )?;
+    
+    // Update the actual accounts with the results
+    ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
+    ctx.accounts.liquidity_threshold.ratio = result.new_icr;
+    ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
+    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
 
-    // New total debt amount (equivalent to INJECTIVE's TOTAL_DEBT_AMOUNT.load and checked_add)
-    let new_total_debt_amount = safe_add(state.total_debt_amount, params.loan_amount)?;
-    state.total_debt_amount = new_total_debt_amount;
-
-    // Update user debt amount (equivalent to INJECTIVE's USER_DEBT_AMOUNT.load and checked_add)
-    let new_debt_amount = safe_add(user_debt_amount.amount, params.loan_amount)?;
-    user_debt_amount.amount = new_debt_amount;
-
-    // Update liquidity threshold for the user (equivalent to INJECTIVE's get_trove_icr)
-        let ratio = get_trove_icr(
-            &user_debt_amount,
-            &ctx.remaining_accounts, // user_collateral_amount_accounts
-            &collateral_prices,
-            ctx.accounts.user.key(),
-        )?;
-    liquidity_threshold.ratio = ratio;
-
-    // Check for the minimum collateral ratio (equivalent to INJECTIVE's check_trove_icr_with_ratio)
-    check_trove_icr_with_ratio(state, ratio)?;
-
-    // Mint stablecoin (equivalent to INJECTIVE's WasmMsg::Execute with Cw20ExecuteMsg::Mint)
+    // Mint stablecoin
     let mint_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         MintTo {
@@ -102,23 +165,12 @@ pub struct Borrow_loan<'info> {
     );
     anchor_spl::token::mint_to(mint_ctx, params.loan_amount)?;
 
-    // Reinsert trove into sorted list (equivalent to INJECTIVE's reinsert_trove)
-    // TODO: Fix lifetime issues with reinsert_trove
-    // let sorted_troves_state = &mut ctx.accounts.sorted_troves_state;
-    // reinsert_trove(
-    //     sorted_troves_state,
-    //     &collateral_prices,
-    //     ctx.accounts.user.key(),
-    //     ratio,
-    //     params.prev_node_id,
-    //     params.next_node_id,
-    //     &ctx.remaining_accounts,
-    // )?;
-
     msg!("Loan borrowed successfully");
     msg!("Amount: {} aUSD", params.loan_amount);
-    msg!("New debt amount: {}", new_debt_amount);
-    msg!("Ratio: {}", ratio);
+    msg!("Collateral denom: {}", params.collateral_denom);
+    msg!("New debt amount: {}", result.new_debt_amount);
+    msg!("New ICR: {}", result.new_icr);
+    msg!("Collateral amount: {}", result.new_collateral_amount);
 
     Ok(())
 }

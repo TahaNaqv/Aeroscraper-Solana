@@ -18,6 +18,9 @@ pub enum AerospacerProtocolError {
     #[msg("Invalid amount")]
     InvalidAmount,
     
+    #[msg("Invalid mint")]
+    InvalidMint,
+    
     #[msg("Trove already exists")]
     TroveExists,
     
@@ -35,6 +38,9 @@ pub enum AerospacerProtocolError {
     
     #[msg("Collateral below minimum")]
     CollateralBelowMinimum,
+    
+    #[msg("Insufficient collateral")]
+    InsufficientCollateral,
     
     #[msg("Loan amount below minimum")]
     LoanAmountBelowMinimum,

@@ -26,7 +26,10 @@ pub struct Unstake<'info> {
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = user_stablecoin_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
+    )]
     pub user_stablecoin_account: Account<'info, TokenAccount>,
 
     /// CHECK: Protocol stablecoin vault PDA
@@ -37,15 +40,30 @@ pub struct Unstake<'info> {
     )]
     pub protocol_stablecoin_vault: AccountInfo<'info>,
 
+    /// CHECK: This is the stable coin mint account
+    #[account(
+        constraint = stable_coin_mint.key() == state.stable_coin_addr @ AerospacerProtocolError::InvalidMint
+    )]
+    pub stable_coin_mint: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
 
 
 pub fn handler(ctx: Context<Unstake>, params: UnstakeParams) -> Result<()> {
+    // Validate input parameters
+    require!(
+        params.amount > 0,
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    require!(
+        params.amount >= MINIMUM_LOAN_AMOUNT, // Use same minimum as loans
+        AerospacerProtocolError::InvalidAmount
+    );
+
     let user_stake_amount = &mut ctx.accounts.user_stake_amount;
-    // Store state key before borrowing it mutably
-    let state_key = ctx.accounts.state.key();
     let state = &mut ctx.accounts.state;
 
     // Check if user has enough stake
@@ -80,8 +98,10 @@ pub fn handler(ctx: Context<Unstake>, params: UnstakeParams) -> Result<()> {
     state.total_stake_amount = safe_sub(state.total_stake_amount, params.amount)?;
 
     msg!("Unstaked successfully");
+    msg!("User: {}", ctx.accounts.user.key());
     msg!("Amount: {} aUSD", params.amount);
     msg!("Remaining stake: {} aUSD", user_stake_amount.amount);
+    msg!("Total protocol stake: {} aUSD", state.total_stake_amount);
 
     Ok(())
 }

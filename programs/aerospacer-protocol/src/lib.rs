@@ -1,14 +1,19 @@
 use anchor_lang::prelude::*;
 
-// Exact replication of INJECTIVE lib.rs
+// Core modules
 pub mod error;
-pub mod instructions;
 pub mod state;
-pub mod utils;
 pub mod msg;
-pub mod sorted_troves;
-pub mod trove_helpers;
 pub mod query;
+
+// New architecture modules
+pub mod account_management;
+pub mod oracle;
+pub mod trove_management;
+
+// Core instruction handlers
+pub mod instructions;
+pub mod utils;
 
 use instructions::*;
 
@@ -29,32 +34,28 @@ pub mod aerospacer_protocol {
     }
 
     // Add collateral to an existing trove (equivalent to INJECTIVE's add_collateral)
-    pub fn add_collateral(ctx: Context<Add_collateral>, params: Add_collateralParams) -> Result<()> {
+    pub fn add_collateral(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Result<()> {
         instructions::add_collateral::handler(ctx, params)
     }
 
     // Remove collateral from an existing trove (equivalent to INJECTIVE's remove_collateral)
-    pub fn remove_collateral(ctx: Context<Remove_collateral>, params: Remove_collateralParams) -> Result<()> {
+    pub fn remove_collateral(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -> Result<()> {
         instructions::remove_collateral::handler(ctx, params)
     }
 
     // Borrow stablecoin from an existing trove (equivalent to INJECTIVE's borrow_loan)
-    pub fn borrow_loan(ctx: Context<Borrow_loan>, params: Borrow_loanParams) -> Result<()> {
+    pub fn borrow_loan(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()> {
         instructions::borrow_loan::handler(ctx, params)
     }
 
     // Repay stablecoin to an existing trove (equivalent to INJECTIVE's repay_loan)
-    pub fn repay_loan(ctx: Context<Repay_loan>, params: Repay_loanParams) -> Result<()> {
-        // For now, return Ok to avoid lifetime issues
-        // TODO: Implement proper repay_loan logic
-        Ok(())
+    pub fn repay_loan(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
+        instructions::repay_loan::handler(ctx, params)
     }
 
     // Liquidate undercollateralized troves (equivalent to INJECTIVE's liquidate_troves)
     pub fn liquidate_troves(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> Result<()> {
-        // For now, return Ok to avoid lifetime issues
-        // TODO: Implement proper liquidate_troves logic
-        Ok(())
+        instructions::liquidate_troves::handler(ctx, params)
     }
 
     // Stake stablecoin to earn liquidation gains (equivalent to INJECTIVE's stake)
@@ -74,8 +75,6 @@ pub mod aerospacer_protocol {
 
     // Swap stablecoin for collateral (equivalent to INJECTIVE's redeem)
     pub fn redeem(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
-        // For now, return Ok to avoid lifetime issues
-        // TODO: Implement proper redeem logic
-        Ok(())
+        instructions::redeem::handler(ctx, params)
     }
 }
