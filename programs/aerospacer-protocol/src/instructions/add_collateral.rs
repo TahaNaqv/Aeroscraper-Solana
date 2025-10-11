@@ -68,6 +68,14 @@ pub struct AddCollateral<'info> {
     )]
     pub sorted_troves_state: Account<'info, SortedTrovesState>,
 
+    // Node account for sorted troves linked list (for reinsertion with new ICR)
+    #[account(
+        mut,
+        seeds = [b"node", user.key().as_ref()],
+        bump
+    )]
+    pub node: Account<'info, Node>,
+
     // Oracle context - integration with our aerospacer-oracle
     /// CHECK: Our oracle program
     #[account(mut)]

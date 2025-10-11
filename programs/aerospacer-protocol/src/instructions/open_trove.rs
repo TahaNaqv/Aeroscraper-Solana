@@ -82,6 +82,16 @@ pub struct Open_trove<'info> {
     )]
     pub sorted_troves_state: Account<'info, SortedTrovesState>,
     
+    // Node account for sorted troves linked list
+    #[account(
+        init,
+        payer = user,
+        space = 8 + Node::LEN,
+        seeds = [b"node", user.key().as_ref()],
+        bump
+    )]
+    pub node: Account<'info, Node>,
+    
     // State account
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
