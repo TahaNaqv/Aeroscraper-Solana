@@ -145,7 +145,6 @@ pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> 
     // Use TroveManager for clean implementation
     let result = TroveManager::liquidate_troves(
         &mut liquidation_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         params.liquidation_list.clone(),
         &ctx.remaining_accounts,

@@ -146,7 +146,6 @@ pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -
     let result = TroveManager::remove_collateral(
         &mut trove_ctx,
         &mut collateral_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         params.collateral_amount,
         params.collateral_denom.clone(),

@@ -247,7 +247,6 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     let result = TroveManager::open_trove(
         &mut trove_ctx,
         &mut collateral_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         net_loan_amount,  // Use net amount for debt recording
         params.collateral_amount,

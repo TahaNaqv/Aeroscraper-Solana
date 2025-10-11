@@ -188,7 +188,6 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     let result = TroveManager::borrow_loan(
         &mut trove_ctx,
         &mut collateral_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         net_loan_amount,
     )?;

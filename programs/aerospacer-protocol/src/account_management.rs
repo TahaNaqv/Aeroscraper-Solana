@@ -215,32 +215,6 @@ impl<'info> CollateralContext<'info> {
 
 /// Sorted troves management
 impl<'info> SortedTrovesContext<'info> {
-    /// Insert a trove into the sorted list (delegates to sorted_troves_simple module)
-    /// Note: This requires the Node account to be passed in the instruction context
-    pub fn insert_trove(
-        &mut self,
-        user: Pubkey,
-        icr: u64,
-        prev_id: Option<Pubkey>,
-        next_id: Option<Pubkey>,
-    ) -> Result<()> {
-        // NOTE: This method is a stub because we don't have access to the user's Node account here
-        // The actual insertion happens in the instruction handler which has the Node account
-        // This method exists to maintain the interface but should not be called directly
-        
-        msg!("SortedTrovesContext::insert_trove called (stub) - use instruction-level logic instead");
-        Ok(())
-    }
-    
-    /// Remove a trove from the sorted list (delegates to sorted_troves_simple module)
-    /// Note: This is a stub - actual removal requires remaining_accounts for neighbor nodes
-    /// Call sorted_troves_simple::remove_trove directly from instruction handlers
-    pub fn remove_trove(&mut self, user: Pubkey) -> Result<()> {
-        msg!("SortedTrovesContext::remove_trove called (stub) - use instruction-level logic instead");
-        msg!("Removal requires remaining_accounts to update neighbor node pointers");
-        Ok(())
-    }
-    
     /// Get the first (riskiest) trove
     pub fn get_first_trove(&self) -> Option<Pubkey> {
         sorted_troves_simple::get_first_trove(&self.sorted_troves_state)

@@ -164,7 +164,6 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
     let result = TroveManager::repay_loan(
         &mut trove_ctx,
         &mut collateral_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         params.amount,
     )?;

@@ -150,7 +150,6 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
     let result = TroveManager::add_collateral(
         &mut trove_ctx,
         &mut collateral_ctx,
-        &mut sorted_ctx,
         &oracle_ctx,
         params.amount,
         params.collateral_denom.clone(),

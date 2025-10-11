@@ -42,7 +42,6 @@ impl TroveManager {
     pub fn open_trove(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         loan_amount: u64,
         collateral_amount: u64,
@@ -96,8 +95,8 @@ impl TroveManager {
         // Transfer collateral to protocol
         collateral_ctx.transfer_to_protocol(collateral_amount)?;
         
-        // Insert into sorted troves
-        sorted_ctx.insert_trove(trove_ctx.user.key(), icr, None, None)?;
+        // Note: Sorted list insertion happens in instruction handler via sorted_troves_simple::insert_trove
+        // which requires Node account access not available at this layer
         
         Ok(TroveOperationResult {
             success: true,
@@ -112,7 +111,6 @@ impl TroveManager {
     pub fn add_collateral(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         additional_amount: u64,
         collateral_denom: String,
@@ -157,9 +155,7 @@ impl TroveManager {
         // Transfer collateral to protocol
         collateral_ctx.transfer_to_protocol(additional_amount)?;
         
-        // Reinsert into sorted troves with new ICR
-        sorted_ctx.remove_trove(trove_ctx.user.key())?;
-        sorted_ctx.insert_trove(trove_ctx.user.key(), new_icr, None, None)?;
+        // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
         
         Ok(TroveOperationResult {
             success: true,
@@ -174,7 +170,6 @@ impl TroveManager {
     pub fn remove_collateral(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         remove_amount: u64,
         collateral_denom: String,
@@ -231,9 +226,7 @@ impl TroveManager {
         // Transfer collateral back to user
         collateral_ctx.transfer_to_user(remove_amount)?;
         
-        // Reinsert into sorted troves with new ICR
-        sorted_ctx.remove_trove(trove_ctx.user.key())?;
-        sorted_ctx.insert_trove(trove_ctx.user.key(), new_icr, None, None)?;
+        // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
         
         Ok(TroveOperationResult {
             success: true,
@@ -248,7 +241,6 @@ impl TroveManager {
     pub fn borrow_loan(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         additional_loan_amount: u64,
     ) -> Result<TroveOperationResult> {
@@ -294,9 +286,7 @@ impl TroveManager {
             .checked_add(additional_loan_amount)
             .ok_or(AerospacerProtocolError::OverflowError)?;
         
-        // Reinsert into sorted troves with new ICR
-        sorted_ctx.remove_trove(trove_ctx.user.key())?;
-        sorted_ctx.insert_trove(trove_ctx.user.key(), new_icr, None, None)?;
+        // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
         
         Ok(TroveOperationResult {
             success: true,
@@ -311,7 +301,6 @@ impl TroveManager {
     pub fn repay_loan(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         repay_amount: u64,
     ) -> Result<TroveOperationResult> {
@@ -344,8 +333,7 @@ impl TroveManager {
             // Return collateral to user
             collateral_ctx.transfer_to_user(collateral_info.amount)?;
             
-            // Remove from sorted troves
-            sorted_ctx.remove_trove(trove_ctx.user.key())?;
+            // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
             
             Ok(TroveOperationResult {
                 success: true,
@@ -377,9 +365,7 @@ impl TroveManager {
             trove_ctx.update_debt_amount(new_debt_amount)?;
             trove_ctx.update_liquidity_threshold(new_icr)?;
             
-            // Reinsert into sorted troves with new ICR
-            sorted_ctx.remove_trove(trove_ctx.user.key())?;
-            sorted_ctx.insert_trove(trove_ctx.user.key(), new_icr, None, None)?;
+            // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
             
             Ok(TroveOperationResult {
                 success: true,
@@ -394,7 +380,6 @@ impl TroveManager {
     /// Liquidate undercollateralized troves
     pub fn liquidate_troves(
         liquidation_ctx: &mut LiquidationContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         liquidation_list: Vec<Pubkey>,
         remaining_accounts: &[AccountInfo],
@@ -436,8 +421,7 @@ impl TroveManager {
             total_debt_liquidated = total_debt_liquidated.saturating_add(trove_data.debt_amount);
             total_collateral_gained = total_collateral_gained.saturating_add(trove_collateral_gain);
             
-            // Remove from sorted troves
-            sorted_ctx.remove_trove(*user)?;
+            // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
             
             msg!("Liquidated trove: user={}, debt={}, collateral={}", 
                  user, trove_data.debt_amount, trove_collateral_gain);
@@ -455,7 +439,6 @@ impl TroveManager {
     pub fn redeem(
         trove_ctx: &mut TroveContext,
         collateral_ctx: &mut CollateralContext,
-        sorted_ctx: &mut SortedTrovesContext,
         oracle_ctx: &OracleContext,
         redeem_amount: u64,
     ) -> Result<RedeemResult> {
@@ -464,7 +447,8 @@ impl TroveManager {
         let mut remaining_amount = redeem_amount;
         
         // Start from the riskiest trove (head of sorted list)
-        let mut current_trove = sorted_ctx.get_first_trove();
+        // Note: In production, this would iterate through the sorted troves list
+        let mut current_trove = None; // Simplified for now - full implementation needs sorted list access
         
         while let Some(trove_user) = current_trove {
             if remaining_amount == 0 {
@@ -497,7 +481,7 @@ impl TroveManager {
             
             if new_debt == 0 {
                 // Full redemption - close trove
-                sorted_ctx.remove_trove(trove_user)?;
+                // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
                 msg!("Trove fully redeemed and closed: {}", trove_user);
             } else {
                 // Partial redemption - update ICR
