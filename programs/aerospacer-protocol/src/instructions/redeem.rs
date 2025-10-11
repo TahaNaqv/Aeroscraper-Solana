@@ -7,6 +7,7 @@ use crate::error::*;
 use crate::trove_management::*;
 use crate::account_management::*;
 use crate::oracle::*;
+use crate::fees_integration::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct RedeemParams {
@@ -106,6 +107,29 @@ pub struct Redeem<'info> {
     #[account(mut)]
     pub oracle_state: AccountInfo<'info>,
 
+    // Fee distribution accounts
+    /// CHECK: Fees program
+    #[account(
+        constraint = fees_program.key() == state.fee_distributor_addr @ AerospacerProtocolError::Unauthorized
+    )]
+    pub fees_program: AccountInfo<'info>,
+    
+    /// CHECK: Fees state account
+    #[account(mut)]
+    pub fees_state: AccountInfo<'info>,
+    
+    /// CHECK: Stability pool token account
+    #[account(mut)]
+    pub stability_pool_token_account: AccountInfo<'info>,
+    
+    /// CHECK: Fee address 1 token account
+    #[account(mut)]
+    pub fee_address_1_token_account: AccountInfo<'info>,
+    
+    /// CHECK: Fee address 2 token account
+    #[account(mut)]
+    pub fee_address_2_token_account: AccountInfo<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -129,13 +153,38 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         AerospacerProtocolError::NotEnoughLiquidityForRedeem
     );
     
-    // Validate user has enough stablecoins
+    // Calculate redemption fee (0.5% typically)
+    let fee_amount = calculate_protocol_fee(params.amount, ctx.accounts.state.protocol_fee)?;
+    let net_redemption_amount = params.amount.saturating_sub(fee_amount);
+    
+    msg!("Redemption fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
+    msg!("Net redemption amount: {} aUSD", net_redemption_amount);
+    
+    // Validate user has enough stablecoins (including fee)
     require!(
         ctx.accounts.user_stablecoin_account.amount >= params.amount,
         AerospacerProtocolError::InvalidAmount
     );
     
-    // Transfer stablecoins from user to protocol
+    // Collect redemption fee via CPI to aerospacer-fees
+    if fee_amount > 0 {
+        let _net_amount = process_protocol_fee(
+            params.amount,
+            ctx.accounts.state.protocol_fee,
+            ctx.accounts.fees_program.to_account_info(),
+            ctx.accounts.user.to_account_info(),
+            ctx.accounts.fees_state.to_account_info(),
+            ctx.accounts.user_stablecoin_account.to_account_info(),
+            ctx.accounts.stability_pool_token_account.to_account_info(),
+            ctx.accounts.fee_address_1_token_account.to_account_info(),
+            ctx.accounts.fee_address_2_token_account.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+        )?;
+        
+        msg!("Redemption fee collected and distributed: {} aUSD", fee_amount);
+    }
+    
+    // Transfer NET redemption amount from user to protocol (after fee deduction)
     let transfer_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -144,9 +193,9 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
             authority: ctx.accounts.user.to_account_info(),
         },
     );
-    anchor_spl::token::transfer(transfer_ctx, params.amount)?;
+    anchor_spl::token::transfer(transfer_ctx, net_redemption_amount)?;
 
-    // Burn stablecoin
+    // Burn NET redemption amount (not including fee)
     let burn_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Burn {
@@ -155,10 +204,10 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
             authority: ctx.accounts.protocol_stablecoin_vault.to_account_info(),
         },
     );
-    anchor_spl::token::burn(burn_ctx, params.amount)?;
+    anchor_spl::token::burn(burn_ctx, net_redemption_amount)?;
 
-    // Implement REAL core redemption logic
-    let mut remaining_amount = params.amount;
+    // Implement REAL core redemption logic using NET amount (after fee)
+    let mut remaining_amount = net_redemption_amount;
     let mut total_collateral_sent = 0u64;
     let mut troves_redeemed = 0u32;
     
@@ -225,12 +274,14 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         current_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state)?;
     }
     
-    // Update global state
-    state.total_debt_amount = state.total_debt_amount.saturating_sub(params.amount - remaining_amount);
+    // Update global state with net redeemed amount
+    state.total_debt_amount = state.total_debt_amount.saturating_sub(net_redemption_amount - remaining_amount);
     
     msg!("Redeemed successfully");
     msg!("User: {}", ctx.accounts.user.key());
-    msg!("Amount: {} aUSD", params.amount);
+    msg!("Gross amount: {} aUSD", params.amount);
+    msg!("Fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
+    msg!("Net redemption: {} aUSD", net_redemption_amount);
     msg!("Collateral sent: {} SOL", total_collateral_sent);
     msg!("Troves redeemed: {}", troves_redeemed);
     msg!("Remaining amount: {} aUSD", remaining_amount);
