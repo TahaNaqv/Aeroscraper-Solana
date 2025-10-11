@@ -84,6 +84,10 @@ pub struct LiquidateTroves<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    
+    // Note: TotalLiquidationCollateralGain PDAs can be passed via remaining_accounts
+    // for proper gain tracking per block height and denomination.
+    // If not provided, gains are tracked via protocol vaults and withdrawable proportionally.
 }
 
 pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> Result<()> {

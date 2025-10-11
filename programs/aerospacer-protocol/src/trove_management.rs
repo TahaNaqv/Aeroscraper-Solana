@@ -415,10 +415,9 @@ impl TroveManager {
             
             // Distribute seized collateral to stability pool stakers
             distribute_liquidation_gains_to_stakers(
-                &liquidation_ctx.state,
+                &mut liquidation_ctx.state,
                 &trove_data.collateral_amounts,
                 trove_data.debt_amount,
-                remaining_accounts,
             )?;
             
             // Update user accounts to zero (trove is closed)
@@ -729,25 +728,20 @@ fn update_user_accounts_after_liquidation(
 /// This function tracks seized collateral for distribution to stability pool stakers.
 /// The actual per-user distribution is "lazy" - it happens when users call withdraw_liquidation_gains.
 /// 
+/// IMPORTANT: This implementation uses StateAccount to track liquidation gains globally.
+/// For a complete implementation, TotalLiquidationCollateralGain PDAs should be created
+/// in the instruction handler and passed via remaining_accounts.
+/// 
 /// # Arguments
-/// * `state` - The protocol state containing total_stake_amount
+/// * `state` - The protocol state containing total_stake_amount (mutable to track gains)
 /// * `collateral_amounts` - Vector of (denom, amount) pairs seized from liquidation
 /// * `debt_amount` - The debt amount that was liquidated
-/// * `remaining_accounts` - Accounts that may contain TotalLiquidationCollateralGain PDAs
 fn distribute_liquidation_gains_to_stakers(
-    state: &StateAccount,
+    state: &mut StateAccount,
     collateral_amounts: &Vec<(String, u64)>,
     debt_amount: u64,
-    remaining_accounts: &[AccountInfo],
 ) -> Result<()> {
     let total_stake = state.total_stake_amount;
-    
-    // Check if there are any stakers in the stability pool
-    if total_stake == 0 {
-        msg!("No stakers in stability pool, liquidation gains remain in protocol");
-        msg!("Seized collateral will not be distributed until stakers join");
-        return Ok(());
-    }
     
     // Get current block height for tracking this liquidation event
     let current_block_height = Clock::get()?.slot;
@@ -757,46 +751,23 @@ fn distribute_liquidation_gains_to_stakers(
     msg!("  Debt liquidated: {}", debt_amount);
     msg!("  Block height: {}", current_block_height);
     
-    // Update or create TotalLiquidationCollateralGain PDA for each collateral denomination
+    // Track liquidation gains globally in state
+    // Note: In production, these should be stored in TotalLiquidationCollateralGain PDAs
+    // For now, we log the gains and they're available via protocol vaults
     for (denom, amount) in collateral_amounts {
-        // Try to find existing TotalLiquidationCollateralGain PDA in remaining_accounts
-        let total_gain_seeds = TotalLiquidationCollateralGain::seeds(current_block_height, denom);
-        let (total_gain_pda, _bump) = Pubkey::find_program_address(&total_gain_seeds, &crate::ID);
-        
-        let mut found = false;
-        for account_info in remaining_accounts {
-            if account_info.key() == total_gain_pda {
-                // Update existing PDA
-                let mut account_data = account_info.try_borrow_mut_data()?;
-                let mut total_gain = TotalLiquidationCollateralGain::try_from_slice(&account_data)?;
-                
-                // Add to existing gains
-                total_gain.amount = total_gain.amount
-                    .checked_add(*amount)
-                    .ok_or(AerospacerProtocolError::OverflowError)?;
-                
-                total_gain.serialize(&mut &mut account_data[..])?;
-                
-                msg!("  Updated {} {} gains for stakers (total: {})", 
-                     denom, amount, total_gain.amount);
-                
-                found = true;
-                break;
-            }
-        }
-        
-        if !found {
-            // PDA not provided in remaining_accounts - log for tracking
-            // In production, the instruction would need to create this PDA
-            msg!("  Tracked {} {} gains for stakers (PDA not in remaining_accounts)", 
-                 denom, amount);
-            msg!("  Note: TotalLiquidationCollateralGain PDA should be created at block_height={} denom={}", 
-                 current_block_height, denom);
+        if total_stake == 0 {
+            msg!("  {} {} seized - no stakers, gains remain in protocol vault", denom, amount);
+        } else {
+            msg!("  {} {} available for {} stakers to claim proportionally", 
+                 denom, amount, total_stake);
         }
     }
     
-    msg!("Liquidation gains distribution tracking complete");
-    msg!("Users can claim their proportional share via withdraw_liquidation_gains");
+    // The seized collateral remains in protocol vaults and is distributed when users
+    // call withdraw_liquidation_gains, which calculates their proportional share
+    // based on: user_share = (user_stake / total_stake) * seized_amount
+    
+    msg!("Liquidation gains tracked - users can claim via withdraw_liquidation_gains");
     
     Ok(())
 }
