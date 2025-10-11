@@ -7,6 +7,8 @@ use crate::oracle::*;
 use crate::trove_management::*;
 use crate::trove_management::TroveManager;
 use crate::state::{DECIMAL_FRACTION_18, MINIMUM_LOAN_AMOUNT, MINIMUM_COLLATERAL_AMOUNT};
+use crate::fees_integration::*;
+use crate::utils::*;
 
 // Oracle integration is now handled via our aerospacer-oracle contract
 
@@ -109,6 +111,29 @@ pub struct Open_trove<'info> {
     #[account(mut)]
     pub oracle_state: AccountInfo<'info>,
     
+    // Fee distribution accounts
+    /// CHECK: Fees program
+    #[account(
+        constraint = fees_program.key() == state.fee_distributor_addr @ AerospacerProtocolError::Unauthorized
+    )]
+    pub fees_program: AccountInfo<'info>,
+    
+    /// CHECK: Fees state account
+    #[account(mut)]
+    pub fees_state: AccountInfo<'info>,
+    
+    /// CHECK: Stability pool token account
+    #[account(mut)]
+    pub stability_pool_token_account: AccountInfo<'info>,
+    
+    /// CHECK: Fee address 1 token account
+    #[account(mut)]
+    pub fee_address_1_token_account: AccountInfo<'info>,
+    
+    /// CHECK: Fee address 2 token account
+    #[account(mut)]
+    pub fee_address_2_token_account: AccountInfo<'info>,
+    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -165,6 +190,13 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     ctx.accounts.liquidity_threshold.owner = ctx.accounts.user.key();
     ctx.accounts.liquidity_threshold.ratio = 0; // Will be set below
     
+    // Calculate opening fee BEFORE trove operations
+    let fee_amount = calculate_protocol_fee(params.loan_amount, ctx.accounts.state.protocol_fee)?;
+    let net_loan_amount = params.loan_amount.saturating_sub(fee_amount);
+    
+    msg!("Opening fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
+    msg!("Net loan amount: {} aUSD", net_loan_amount);
+    
     // Create context structs for clean architecture
     let mut trove_ctx = TroveContext {
         user: ctx.accounts.user.clone(),
@@ -192,13 +224,13 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
         oracle_state: ctx.accounts.oracle_state.clone(),
     };
     
-    // Use TroveManager for clean implementation
+    // Use TroveManager with NET loan amount (after fee)
     let result = TroveManager::open_trove(
         &mut trove_ctx,
         &mut collateral_ctx,
         &mut sorted_ctx,
         &oracle_ctx,
-        params.loan_amount,
+        net_loan_amount,  // Use net amount for debt recording
         params.collateral_amount,
         params.collateral_denom.clone(),
     )?;
@@ -210,7 +242,7 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
     
-    // Mint stablecoins to user
+    // Mint full loan amount to user first (user requested full amount, will pay fee from it)
     let mint_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         MintTo {
@@ -221,10 +253,29 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     );
     anchor_spl::token::mint_to(mint_ctx, params.loan_amount)?;
     
+    // Distribute opening fee via CPI to aerospacer-fees
+    if fee_amount > 0 {
+        let _net_amount = process_protocol_fee(
+            params.loan_amount,
+            ctx.accounts.state.protocol_fee,
+            ctx.accounts.fees_program.to_account_info(),
+            ctx.accounts.user.to_account_info(),
+            ctx.accounts.fees_state.to_account_info(),
+            ctx.accounts.user_stablecoin_account.to_account_info(),
+            ctx.accounts.stability_pool_token_account.to_account_info(),
+            ctx.accounts.fee_address_1_token_account.to_account_info(),
+            ctx.accounts.fee_address_2_token_account.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+        )?;
+        
+        msg!("Opening fee collected and distributed: {} aUSD", fee_amount);
+        msg!("Net loan amount after fee: {} aUSD", net_loan_amount);
+    }
+    
     // Log success
     msg!("Trove opened successfully");
     msg!("User: {}", ctx.accounts.user.key());
-    msg!("Loan amount: {} aUSD", params.loan_amount);
+    msg!("Loan amount: {} aUSD (fee: {})", params.loan_amount, fee_amount);
     msg!("Collateral: {} {}", params.collateral_amount, params.collateral_denom);
     msg!("ICR: {}", result.new_icr);
     
