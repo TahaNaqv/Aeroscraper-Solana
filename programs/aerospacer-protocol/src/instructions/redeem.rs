@@ -246,10 +246,50 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
                 );
                 anchor_spl::token::transfer(collateral_transfer_ctx, collateral_to_send)?;
                 
+                // BUG FIX: Update UserCollateralAmount to reflect decreased collateral
+                // Find the collateral_account for this trove in remaining_accounts
+                for account_chunk in ctx.remaining_accounts.chunks(7) {
+                    if account_chunk.len() >= 7 {
+                        let debt_account = &account_chunk[0];
+                        if let Ok(data) = debt_account.try_borrow_data() {
+                            if let Ok(user_debt) = UserDebtAmount::try_deserialize(&mut &data[..]) {
+                                if user_debt.owner == trove_user {
+                                    drop(data);
+                                    
+                                    // Found the right chunk - update collateral_account at index 1
+                                    let collateral_account = &account_chunk[1];
+                                    let mut collateral_data = collateral_account.try_borrow_mut_data()?;
+                                    let mut user_collateral = UserCollateralAmount::try_deserialize(&mut &collateral_data[..])?;
+                                    
+                                    user_collateral.amount = user_collateral.amount.saturating_sub(collateral_to_send);
+                                    
+                                    // Serialize back to full buffer (including discriminator)
+                                    user_collateral.try_serialize(&mut &mut collateral_data[..])?;
+                                    
+                                    msg!("Updated UserCollateralAmount for {}: {} -> {} (sent: {})", 
+                                        trove_user, *amount, user_collateral.amount, collateral_to_send);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Update global total_collateral_amount PDA
+                let mut total_coll_data = ctx.accounts.total_collateral_amount.try_borrow_mut_data()?;
+                let mut total_collateral: TotalCollateralAmount = TotalCollateralAmount::try_deserialize(&mut &total_coll_data[..])?;
+                total_collateral.amount = total_collateral.amount.saturating_sub(collateral_to_send);
+                total_collateral.try_serialize(&mut &mut total_coll_data[..])?;
+                msg!("Updated global total_collateral_amount: decreased by {}", collateral_to_send);
+                
                 total_collateral_sent = total_collateral_sent.saturating_add(collateral_to_send);
                 msg!("Transferred {} {} to user", collateral_to_send, denom);
             }
         }
+        
+        // CRITICAL: Get next trove BEFORE modifying/removing current trove
+        // This ensures we can continue iteration even if current trove is removed
+        let next_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state, &ctx.remaining_accounts)?;
         
         // Update trove debt (REAL implementation)
         let new_debt = trove_data.debt_amount.saturating_sub(redeem_from_trove);
@@ -267,8 +307,8 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         troves_redeemed += 1;
         remaining_amount = remaining_amount.saturating_sub(redeem_from_trove);
         
-        // Move to next trove via sorted list traversal
-        current_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state, &ctx.remaining_accounts)?;
+        // Move to next trove (already captured before modifications)
+        current_trove = next_trove;
     }
     
     // Update global state with net redeemed amount
@@ -292,9 +332,9 @@ fn parse_trove_data_for_redemption(
     remaining_accounts: &[AccountInfo],
 ) -> Result<TroveData> {
     // Find the trove data in remaining_accounts
-    // Each trove has 4 accounts: UserDebtAmount, UserCollateralAmount, LiquidityThreshold, TokenAccount
-    for account_chunk in remaining_accounts.chunks(4) {
-        if account_chunk.len() >= 4 {
+    // Each trove has 7 accounts: UserDebtAmount, UserCollateralAmount, LiquidityThreshold, TokenAccount, UserNode, PrevNode, NextNode
+    for account_chunk in remaining_accounts.chunks(7) {
+        if account_chunk.len() >= 7 {
             // Parse UserDebtAmount
             let debt_account = &account_chunk[0];
             
@@ -305,7 +345,7 @@ fn parse_trove_data_for_redemption(
             );
             
             let debt_data = debt_account.try_borrow_data()?;
-            let user_debt: UserDebtAmount = UserDebtAmount::try_from_slice(&debt_data)?;
+            let user_debt: UserDebtAmount = UserDebtAmount::try_deserialize(&mut &debt_data[..])?;
             
             if user_debt.owner == *trove_user {
                 // Parse UserCollateralAmount
@@ -318,7 +358,7 @@ fn parse_trove_data_for_redemption(
                 );
                 
                 let collateral_data = collateral_account.try_borrow_data()?;
-                let user_collateral: UserCollateralAmount = UserCollateralAmount::try_from_slice(&collateral_data)?;
+                let user_collateral: UserCollateralAmount = UserCollateralAmount::try_deserialize(&mut &collateral_data[..])?;
                 
                 // Parse LiquidityThreshold
                 let liquidity_account = &account_chunk[2];
@@ -330,7 +370,7 @@ fn parse_trove_data_for_redemption(
                 );
                 
                 let liquidity_data = liquidity_account.try_borrow_data()?;
-                let liquidity_threshold: LiquidityThreshold = LiquidityThreshold::try_from_slice(&liquidity_data)?;
+                let liquidity_threshold: LiquidityThreshold = LiquidityThreshold::try_deserialize(&mut &liquidity_data[..])?;
                 
                 // Validate TokenAccount
                 let token_account = &account_chunk[3];
@@ -353,97 +393,63 @@ fn parse_trove_data_for_redemption(
 }
 
 // Helper function to close trove after full redemption
-// Note: This does SIMPLIFIED cleanup for redemption flow
-// Full sorted list removal requires Node accounts which redemption doesn't provide
 fn close_trove_after_redemption(
     trove_user: &Pubkey,
     sorted_troves_state: &mut Account<SortedTrovesState>,
-    _remaining_accounts: &[AccountInfo],
-) -> Result<()> {
-    // Redemption flow uses 4-account chunks, not Node accounts
-    // So we can't use sorted_troves_simple::remove_trove here
-    // Instead, we do simplified cleanup - decrease size and log
-    
-    if sorted_troves_state.size > 0 {
-        sorted_troves_state.size -= 1;
-    }
-    
-    msg!("Trove fully redeemed (size updated): user={}, new_size={}", 
-        trove_user, sorted_troves_state.size);
-    
-    // Note: Full Node removal should happen when repay_loan reaches debt=0
-    // Redemption is a special case where we modify OTHER users' troves
-    Ok(())
-}
-
-// Helper function to update trove after partial redemption
-fn update_trove_after_partial_redemption(
-    trove_user: &Pubkey,
-    new_debt: u64,
-    sorted_troves_state: &mut Account<SortedTrovesState>,
     remaining_accounts: &[AccountInfo],
 ) -> Result<()> {
-    // Find and update the UserDebtAmount account for this trove
-    for account_chunk in remaining_accounts.chunks(4) {
-        if account_chunk.len() >= 4 {
-            let debt_account = &account_chunk[0];
-            
-            // Try to deserialize as UserDebtAmount
+    // Extract Node accounts from 7-account chunk
+    // Find the chunk for this trove_user first
+    for chunk in remaining_accounts.chunks(7) {
+        if chunk.len() >= 7 {
+            // Verify this is the right trove by checking UserDebtAmount
+            let debt_account = &chunk[0];
             if let Ok(data) = debt_account.try_borrow_data() {
-                if let Ok(user_debt) = UserDebtAmount::try_deserialize(&mut &data[8..]) {
+                if let Ok(user_debt) = UserDebtAmount::try_deserialize(&mut &data[..]) {
                     if user_debt.owner == *trove_user {
-                        // Found the trove's debt account - update it
-                        drop(data); // Release borrow before mutable borrow
+                        drop(data);
                         
-                        let mut data_mut = debt_account.try_borrow_mut_data()?;
-                        let mut user_debt_mut = UserDebtAmount::try_deserialize(&mut &data_mut[8..])?;
-                        user_debt_mut.amount = new_debt;
+                        // Found the right chunk - extract Node accounts
+                        let node_accounts = &chunk[4..7]; // UserNode, PrevNode, NextNode
                         
-                        // Serialize back
-                        let mut writer = &mut data_mut[8..];
-                        user_debt_mut.try_serialize(&mut writer)?;
+                        // Call sorted_troves_simple::remove_trove
+                        use crate::sorted_troves_simple;
+                        sorted_troves_simple::remove_trove(
+                            sorted_troves_state,
+                            *trove_user,
+                            node_accounts,
+                        )?;
                         
-                        msg!("Updated UserDebtAmount for {}: new_debt={}", trove_user, new_debt);
-                        drop(data_mut); // Release borrow before next operations
+                        msg!("Trove fully redeemed - removed from sorted list: {}", trove_user);
                         
-                        // Get liquidity threshold account to update ICR
-                        let liquidity_account = &account_chunk[2];
-                        if let Ok(mut lt_data) = liquidity_account.try_borrow_mut_data() {
-                            if let Ok(mut liquidity_threshold) = LiquidityThreshold::try_deserialize(&mut &lt_data[8..]) {
-                                let old_icr = liquidity_threshold.ratio;
-                                
-                                // Recalculate ICR with new debt using REAL multi-collateral pricing
-                                let collateral_account = &account_chunk[1];
-                                if let Ok(coll_data) = collateral_account.try_borrow_data() {
-                                    if let Ok(user_collateral) = UserCollateralAmount::try_deserialize(&mut &coll_data[8..]) {
-                                        // Use proper ICR calculation
-                                        // This should match the logic in utils/get_trove_icr
-                                        // For now, simplified: ICR = (collateral_value * 100) / debt
-                                        let collateral_value = user_collateral.amount; // Would multiply by price in full impl
-                                        let new_icr = if new_debt > 0 {
-                                            (collateral_value.saturating_mul(100)) / new_debt
-                                        } else {
-                                            u64::MAX // No debt = infinite ICR
-                                        };
-                                        
-                                        liquidity_threshold.ratio = new_icr;
-                                        
-                                        // Serialize updated LiquidityThreshold
-                                        let mut writer = &mut lt_data[8..];
-                                        liquidity_threshold.try_serialize(&mut writer)?;
-                                        
-                                        msg!("Partial redemption - updated ICR: {} -> {} (debt: {})", 
-                                            old_icr, new_icr, new_debt);
-                                        
-                                        // Note: Sorted list reinsert not done here because redemption flow
-                                        // doesn't provide Node accounts. Trove position may be stale until
-                                        // user performs another operation (borrow/add_collateral/etc)
-                                        // that triggers reinsert_trove with proper remaining_accounts
-                                        
-                                        return Ok(());
-                                    }
-                                }
-                            }
+                        // BUG FIX: Zero out the trove's accounts to prevent orphaned state
+                        // 1. Zero out debt_account (chunk[0])
+                        {
+                            let mut debt_data = debt_account.try_borrow_mut_data()?;
+                            let mut user_debt = UserDebtAmount::try_deserialize(&mut &debt_data[..])?;
+                            user_debt.amount = 0;
+                            user_debt.try_serialize(&mut &mut debt_data[..])?;
+                            msg!("Zeroed UserDebtAmount for {}", trove_user);
+                        }
+                        
+                        // 2. Zero out collateral_account (chunk[1])
+                        {
+                            let collateral_account = &chunk[1];
+                            let mut collateral_data = collateral_account.try_borrow_mut_data()?;
+                            let mut user_collateral = UserCollateralAmount::try_deserialize(&mut &collateral_data[..])?;
+                            user_collateral.amount = 0;
+                            user_collateral.try_serialize(&mut &mut collateral_data[..])?;
+                            msg!("Zeroed UserCollateralAmount for {}", trove_user);
+                        }
+                        
+                        // 3. Zero out liquidity_account (chunk[2])
+                        {
+                            let liquidity_account = &chunk[2];
+                            let mut liquidity_data = liquidity_account.try_borrow_mut_data()?;
+                            let mut liquidity_threshold = LiquidityThreshold::try_deserialize(&mut &liquidity_data[..])?;
+                            liquidity_threshold.ratio = 0;
+                            liquidity_threshold.try_serialize(&mut &mut liquidity_data[..])?;
+                            msg!("Zeroed LiquidityThreshold for {}", trove_user);
                         }
                         
                         return Ok(());
@@ -453,7 +459,102 @@ fn update_trove_after_partial_redemption(
         }
     }
     
-    msg!("Warning: Could not find UserDebtAmount for {} in remaining_accounts", trove_user);
+    Err(AerospacerProtocolError::TroveDoesNotExist.into())
+}
+
+// Helper function to update trove after partial redemption
+fn update_trove_after_partial_redemption(
+    trove_user: &Pubkey,
+    new_debt: u64,
+    sorted_troves_state: &mut Account<SortedTrovesState>,
+    remaining_accounts: &[AccountInfo],
+) -> Result<()> {
+    // Find and update the UserDebtAmount and LiquidityThreshold for this trove
+    // Each trove has 7 accounts: UserDebtAmount, UserCollateralAmount, LiquidityThreshold, TokenAccount, UserNode, PrevNode, NextNode
+    for account_chunk in remaining_accounts.chunks(7) {
+        if account_chunk.len() >= 7 {
+            let debt_account = &account_chunk[0];
+            
+            // Check if this is the right trove
+            if let Ok(data) = debt_account.try_borrow_data() {
+                if let Ok(user_debt) = UserDebtAmount::try_deserialize(&mut &data[..]) {
+                    if user_debt.owner == *trove_user {
+                        drop(data);
+                        
+                        // STEP 1: Update UserDebtAmount with proper mut borrow
+                        {
+                            let mut debt_data_mut = debt_account.try_borrow_mut_data()?;
+                            let mut user_debt_mut = UserDebtAmount::try_deserialize(&mut &debt_data_mut[..])?;
+                            user_debt_mut.amount = new_debt;
+                            
+                            // Serialize back to full buffer (including discriminator)
+                            user_debt_mut.try_serialize(&mut &mut debt_data_mut[..])?;
+                            
+                            msg!("Updated UserDebtAmount for {}: new_debt={}", trove_user, new_debt);
+                        }
+                        
+                        // STEP 2: Calculate new ICR from collateral and new debt
+                        let collateral_account = &account_chunk[1];
+                        let liquidity_account = &account_chunk[2];
+                        
+                        let new_icr = {
+                            let coll_data = collateral_account.try_borrow_data()?;
+                            let user_collateral = UserCollateralAmount::try_deserialize(&mut &coll_data[..])?;
+                            
+                            let collateral_value = user_collateral.amount;
+                            if new_debt > 0 {
+                                (collateral_value.saturating_mul(100)) / new_debt
+                            } else {
+                                u64::MAX
+                            }
+                        };
+                        
+                        // STEP 3: Update LiquidityThreshold with new ICR
+                        let old_icr = {
+                            let mut lt_data_mut = liquidity_account.try_borrow_mut_data()?;
+                            let mut liquidity_threshold = LiquidityThreshold::try_deserialize(&mut &lt_data_mut[..])?;
+                            let old_icr = liquidity_threshold.ratio;
+                            
+                            liquidity_threshold.ratio = new_icr;
+                            
+                            // Serialize back to full buffer (including discriminator)
+                            liquidity_threshold.try_serialize(&mut &mut lt_data_mut[..])?;
+                            
+                            old_icr
+                        };
+                        
+                        msg!("Partial redemption - updated ICR: {} -> {} (debt: {})", 
+                            old_icr, new_icr, new_debt);
+                        
+                        // STEP 4: Reinsert trove in sorted list if ICR changed significantly
+                        // Get the user's Node account from chunk[4]
+                        let node_account = &account_chunk[4];
+                        let mut node_data = node_account.try_borrow_mut_data()?;
+                        let mut user_node = Node::try_deserialize(&mut &node_data[..])?;
+                        
+                        use crate::sorted_troves_simple;
+                        sorted_troves_simple::reinsert_trove(
+                            sorted_troves_state,
+                            &mut user_node,
+                            *trove_user,
+                            new_icr,
+                            remaining_accounts,
+                        )?;
+                        
+                        // Serialize updated Node back
+                        user_node.try_serialize(&mut &mut node_data[..])?;
+                        drop(node_data);
+                        
+                        msg!("Trove reinserted in sorted list after partial redemption");
+                        
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+    
+    msg!("Warning: Could not find trove {} in remaining_accounts", trove_user);
     Ok(())
 }
 
@@ -464,56 +565,71 @@ fn get_next_trove_in_sorted_list(
     remaining_accounts: &[AccountInfo],
 ) -> Result<Option<Pubkey>> {
     // Find the current trove's Node account in remaining_accounts to get next_id
-    // Remaining accounts for redemption include Node accounts for sorted list traversal
+    // With 7-account chunks: [UserDebtAmount, UserCollateralAmount, LiquidityThreshold, TokenAccount, UserNode, PrevNode, NextNode]
+    // UserNode is at index 4 within each chunk
     
     // SECURITY: Derive expected Node PDA for current_trove
-    // Node PDAs use seeds: [b"node", user.key().as_ref()]
     let (expected_node_address, _bump) = Pubkey::find_program_address(
         &[b"node", current_trove.as_ref()],
         &crate::ID
     );
     
-    // Search for the expected Node PDA in remaining_accounts
-    for account in remaining_accounts.iter() {
-        // SECURITY: Validate PDA address matches expected derivation
-        if *account.key != expected_node_address {
-            continue; // Skip accounts that don't match expected PDA
-        }
-        
-        // SECURITY: Verify account is owned by this program
-        if account.owner != &crate::ID {
-            msg!("Error: Node PDA {} has invalid owner", account.key());
-            return Err(AerospacerProtocolError::Unauthorized.into());
-        }
-        
-        // Try to deserialize as Node
-        if let Ok(data) = account.try_borrow_data() {
-            // Verify minimum size for Node account (discriminator + data)
-            if data.len() < 8 {
-                msg!("Error: Node PDA {} has invalid size", account.key());
-                return Err(AerospacerProtocolError::InvalidList.into());
-            }
+    // First, try optimized search through 7-account chunks
+    for chunk in remaining_accounts.chunks(7) {
+        if chunk.len() >= 7 {
+            // Check if UserNode (index 4) matches current_trove
+            let node_account = &chunk[4];
             
-            // Deserialize with full buffer (includes discriminator)
-            // try_deserialize will fail if discriminator doesn't match Node type
-            if let Ok(node) = Node::try_deserialize(&mut data.as_ref()) {
-                // Verify node.id matches current_trove (additional integrity check)
-                if node.id != *current_trove {
-                    msg!("Error: Node PDA has mismatched id: expected {}, found {}", current_trove, node.id);
-                    return Err(AerospacerProtocolError::InvalidList.into());
+            if *node_account.key == expected_node_address {
+                // SECURITY: Verify account is owned by this program
+                if node_account.owner != &crate::ID {
+                    msg!("Error: Node PDA {} has invalid owner", node_account.key());
+                    return Err(AerospacerProtocolError::Unauthorized.into());
                 }
                 
-                // Found valid Node PDA, return next_id
-                msg!("Traversing from {} to next: {:?}", current_trove, node.next_id);
-                return Ok(node.next_id);
-            } else {
-                msg!("Error: Failed to deserialize Node PDA {}", account.key());
-                return Err(AerospacerProtocolError::InvalidList.into());
+                // Deserialize Node to get next_id
+                if let Ok(data) = node_account.try_borrow_data() {
+                    if data.len() < 8 {
+                        msg!("Error: Node PDA {} has invalid size", node_account.key());
+                        return Err(AerospacerProtocolError::InvalidList.into());
+                    }
+                    
+                    if let Ok(node) = Node::try_deserialize(&mut data.as_ref()) {
+                        // Verify node.id matches current_trove
+                        if node.id != *current_trove {
+                            msg!("Error: Node PDA has mismatched id: expected {}, found {}", current_trove, node.id);
+                            return Err(AerospacerProtocolError::InvalidList.into());
+                        }
+                        
+                        msg!("Traversing from {} to next: {:?}", current_trove, node.next_id);
+                        return Ok(node.next_id);
+                    }
+                }
             }
         }
     }
     
-    // Node PDA not found in remaining_accounts - this is an error
+    // Fallback: Search all remaining_accounts in case chunks are misaligned
+    for account in remaining_accounts.iter() {
+        if *account.key == expected_node_address {
+            if account.owner != &crate::ID {
+                msg!("Error: Node PDA {} has invalid owner", account.key());
+                return Err(AerospacerProtocolError::Unauthorized.into());
+            }
+            
+            if let Ok(data) = account.try_borrow_data() {
+                if data.len() >= 8 {
+                    if let Ok(node) = Node::try_deserialize(&mut data.as_ref()) {
+                        if node.id == *current_trove {
+                            msg!("Traversing from {} to next: {:?}", current_trove, node.next_id);
+                            return Ok(node.next_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     msg!("Error: Required Node PDA {} not found in remaining_accounts", expected_node_address);
     Err(AerospacerProtocolError::InvalidList.into())
 }
