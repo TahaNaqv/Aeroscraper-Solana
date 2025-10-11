@@ -1,14 +1,12 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Transfer;
 use crate::utils::*;
 use crate::error::*;
 
 /// Process protocol fee collection and distribution via CPI to aerospacer-fees
 /// This function handles the complete fee flow:
 /// 1. Calculate fee amount
-/// 2. Transfer fee to fees contract
-/// 3. Call distribute_fee instruction via CPI
-/// 4. Return net amount after fee
+/// 2. Call distribute_fee instruction via CPI (which handles token transfers)
+/// 3. Return net amount after fee
 pub fn process_protocol_fee<'info>(
     operation_amount: u64,
     protocol_fee_percentage: u8,
@@ -31,16 +29,9 @@ pub fn process_protocol_fee<'info>(
     msg!("Processing protocol fee: {} aUSD ({}%)", fee_amount, protocol_fee_percentage);
     msg!("Operation amount: {} aUSD", operation_amount);
     
-    // Step 1: Transfer fee amount from payer to fees contract
-    transfer_fee_to_contract(
-        &payer_token_account,
-        &fees_state,
-        &payer,
-        &token_program,
-        fee_amount,
-    )?;
-    
-    // Step 2: Call distribute_fee instruction via CPI
+    // Call distribute_fee instruction via CPI
+    // The fee contract will handle transferring tokens from payer_token_account
+    // to the appropriate destinations (stability pool or fee addresses)
     distribute_fee_via_cpi(
         &fees_program,
         &payer,
@@ -106,34 +97,8 @@ pub fn validate_fees_accounts<'info>(
     Ok(())
 }
 
-/// Transfer fee amount from payer to fees contract
-fn transfer_fee_to_contract<'info>(
-    payer_token_account: &AccountInfo<'info>,
-    fees_state: &AccountInfo<'info>,
-    payer: &AccountInfo<'info>,
-    token_program: &AccountInfo<'info>,
-    fee_amount: u64,
-) -> Result<()> {
-    // Create transfer instruction
-    let transfer_ix = Transfer {
-        from: payer_token_account.to_account_info(),
-        to: fees_state.to_account_info(),
-        authority: payer.to_account_info(),
-    };
-    
-    let cpi_ctx = CpiContext::new(
-        token_program.to_account_info(),
-        transfer_ix,
-    );
-    
-    // Execute transfer
-    anchor_spl::token::transfer(cpi_ctx, fee_amount)?;
-    
-    msg!("Transferred {} aUSD fee to fees contract", fee_amount);
-    Ok(())
-}
-
 /// Call distribute_fee instruction on aerospacer-fees contract via CPI
+/// The fee contract will transfer tokens from payer to destinations directly
 fn distribute_fee_via_cpi<'info>(
     fees_program: &AccountInfo<'info>,
     payer: &AccountInfo<'info>,
@@ -145,24 +110,68 @@ fn distribute_fee_via_cpi<'info>(
     token_program: &AccountInfo<'info>,
     fee_amount: u64,
 ) -> Result<()> {
-    // For now, we'll use a simplified approach that logs the fee distribution
-    // In production, this would use proper CPI with the aerospacer-fees contract
+    use anchor_lang::solana_program::instruction::Instruction;
+    use anchor_lang::solana_program::program::invoke;
+    use anchor_lang::solana_program::hash::hash;
     
-    msg!("Distributing fee via aerospacer-fees contract");
+    msg!("Distributing fee via aerospacer-fees contract CPI");
     msg!("Fee amount: {} aUSD", fee_amount);
-    msg!("Payer: {}", payer.key());
+    msg!("Fees program: {}", fees_program.key());
     msg!("Fees state: {}", fees_state.key());
-    msg!("Stability pool: {}", stability_pool_token_account.key());
-    msg!("Fee address 1: {}", fee_address_1_token_account.key());
-    msg!("Fee address 2: {}", fee_address_2_token_account.key());
     
-    // TODO: Implement proper CPI call to aerospacer-fees distribute_fee instruction
-    // This would involve:
-    // 1. Creating the proper instruction data
-    // 2. Using anchor_lang::cpi::cpi_program to call the fees contract
-    // 3. Handling the response and any errors
+    // Build DistributeFeeParams
+    #[derive(AnchorSerialize)]
+    struct DistributeFeeParams {
+        fee_amount: u64,
+    }
     
-    msg!("Fee distribution completed (simplified implementation)");
+    let params = DistributeFeeParams { fee_amount };
+    
+    // Calculate instruction discriminator: first 8 bytes of SHA256("global:distribute_fee")
+    let preimage = b"global:distribute_fee";
+    let hash_result = hash(preimage);
+    let mut discriminator = [0u8; 8];
+    discriminator.copy_from_slice(&hash_result.to_bytes()[..8]);
+    
+    // Serialize full instruction data: discriminator + params
+    let mut instruction_data = Vec::new();
+    instruction_data.extend_from_slice(&discriminator);
+    params.serialize(&mut instruction_data)?;
+    
+    // Build account metas for distribute_fee instruction
+    let account_metas = vec![
+        anchor_lang::solana_program::instruction::AccountMeta::new(*payer.key, true),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fees_state.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*payer_token_account.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*stability_pool_token_account.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_1_token_account.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_2_token_account.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*token_program.key, false),
+    ];
+    
+    // Create instruction
+    let ix = Instruction {
+        program_id: *fees_program.key,
+        accounts: account_metas,
+        data: instruction_data,
+    };
+    
+    // Execute CPI
+    // Note: fees_program must be included for Solana runtime
+    let account_infos = vec![
+        fees_program.to_account_info(),
+        payer.to_account_info(),
+        fees_state.to_account_info(),
+        payer_token_account.to_account_info(),
+        stability_pool_token_account.to_account_info(),
+        fee_address_1_token_account.to_account_info(),
+        fee_address_2_token_account.to_account_info(),
+        token_program.to_account_info(),
+    ];
+    
+    invoke(&ix, &account_infos)?;
+    
+    msg!("Fee distribution CPI completed successfully");
     Ok(())
 }
 
@@ -173,21 +182,52 @@ pub fn initialize_fees_contract_if_needed<'info>(
     fees_state: &AccountInfo<'info>,
     system_program: &AccountInfo<'info>,
 ) -> Result<()> {
+    use anchor_lang::solana_program::instruction::Instruction;
+    use anchor_lang::solana_program::program::invoke;
+    use anchor_lang::solana_program::hash::hash;
+    
     // Check if fees state account is already initialized
     if fees_state.data_is_empty() {
-        msg!("Initializing aerospacer-fees contract...");
+        msg!("Initializing aerospacer-fees contract via CPI...");
         msg!("Fees program: {}", fees_program.key());
         msg!("Admin: {}", admin.key());
         msg!("Fees state: {}", fees_state.key());
-        msg!("System program: {}", system_program.key());
         
-        // TODO: Implement proper CPI call to aerospacer-fees initialize instruction
-        // This would involve:
-        // 1. Creating the proper instruction data for initialize
-        // 2. Using anchor_lang::cpi::cpi_program to call the fees contract
-        // 3. Handling the response and any errors
+        // Calculate instruction discriminator: first 8 bytes of SHA256("global:initialize")
+        let preimage = b"global:initialize";
+        let hash_result = hash(preimage);
+        let mut discriminator = [0u8; 8];
+        discriminator.copy_from_slice(&hash_result.to_bytes()[..8]);
         
-        msg!("Fees contract initialization completed (simplified implementation)");
+        // Initialize instruction has no params, just discriminator
+        let instruction_data = discriminator.to_vec();
+        
+        // Build account metas for initialize instruction
+        let account_metas = vec![
+            anchor_lang::solana_program::instruction::AccountMeta::new(*fees_state.key, false),
+            anchor_lang::solana_program::instruction::AccountMeta::new(*admin.key, true),
+            anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*system_program.key, false),
+        ];
+        
+        // Create instruction
+        let ix = Instruction {
+            program_id: *fees_program.key,
+            accounts: account_metas,
+            data: instruction_data,
+        };
+        
+        // Execute CPI
+        // Note: fees_program must be included for Solana runtime
+        let account_infos = vec![
+            fees_program.to_account_info(),
+            fees_state.to_account_info(),
+            admin.to_account_info(),
+            system_program.to_account_info(),
+        ];
+        
+        invoke(&ix, &account_infos)?;
+        
+        msg!("Fees contract initialization CPI completed successfully");
     } else {
         msg!("Fees contract already initialized");
     }
