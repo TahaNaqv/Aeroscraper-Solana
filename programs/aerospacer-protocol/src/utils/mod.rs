@@ -508,22 +508,123 @@ pub fn calculate_net_amount_after_fee(amount: u64, fee_percentage: u8) -> Result
         .ok_or(AerospacerProtocolError::OverflowError.into())
 }
 
-// Mock functions to replace the deleted trove_helpers functions
-pub fn get_trove_icr(
-    _user_debt_amount: &UserDebtAmount,
-    _user_collateral_amount_accounts: &[AccountInfo],
-    _collateral_prices: &HashMap<String, u64>,
-    _owner: Pubkey,
+/// Calculate real ICR for a trove with multi-collateral support
+/// 
+/// Returns ICR as a simple percentage (not scaled)
+/// Example: 150% ICR = 150, 200% ICR = 200
+/// 
+/// This replaces the previous mock implementation
+pub fn get_trove_icr<'a>(
+    user_debt_amount: &UserDebtAmount,
+    user_collateral_amount_accounts: &'a [AccountInfo<'a>],
+    collateral_prices: &HashMap<String, u64>,
+    owner: Pubkey,
 ) -> Result<u64> {
-    // Mock implementation - return 150% ICR
-    Ok(1500000)
+    use crate::oracle::PriceCalculator;
+    
+    let debt = user_debt_amount.amount;
+    
+    // If no debt, return maximum ratio
+    if debt == 0 {
+        return Ok(u64::MAX);
+    }
+    
+    // Collect all collateral amounts for this user
+    let mut collateral_amounts: Vec<(String, u64)> = Vec::new();
+    
+    for account_info in user_collateral_amount_accounts {
+        // Try to deserialize the account data directly
+        let account_data = account_info.try_borrow_data()?;
+        
+        // Skip if account is too small to be a UserCollateralAmount
+        if account_data.len() < 8 + UserCollateralAmount::LEN {
+            continue;
+        }
+        
+        // Try to deserialize as UserCollateralAmount
+        if let Ok(collateral_account) = UserCollateralAmount::try_from_slice(&account_data[8..]) {
+            // Verify it belongs to the owner
+            if collateral_account.owner == owner && collateral_account.amount > 0 {
+                collateral_amounts.push((
+                    collateral_account.denom.clone(),
+                    collateral_account.amount,
+                ));
+            }
+        }
+    }
+    
+    // If no collateral, return 0 ratio (fully liquidatable)
+    if collateral_amounts.is_empty() {
+        return Ok(0);
+    }
+    
+    // Convert HashMap prices to Vec format for PriceCalculator
+    // Prices are stored as raw values, we need to add decimal information
+    let mut price_data: Vec<(String, u64, u8)> = Vec::new();
+    
+    for (denom, _amount) in &collateral_amounts {
+        if let Some(price) = collateral_prices.get(denom) {
+            // Get decimal precision for each denom
+            let decimal = match denom.as_str() {
+                "SOL" => 9,
+                "USDC" => 6,
+                "INJ" => 18,
+                "ATOM" => 6,
+                _ => 6, // Default to 6 decimals
+            };
+            
+            price_data.push((denom.clone(), *price, decimal));
+        }
+    }
+    
+    // Calculate total collateral value and ICR
+    let icr = PriceCalculator::calculate_trove_icr(
+        &collateral_amounts,
+        debt,
+        &price_data,
+    )?;
+    
+    Ok(icr)
 }
 
+/// Check if a trove's ICR meets the required minimum ratio
+/// ICR and minimum_ratio are both simple percentages (e.g., 150 = 150%)
 pub fn check_trove_icr_with_ratio(
-    _state_account: &StateAccount,
-    _ratio: u64,
+    state_account: &StateAccount,
+    icr: u64,
 ) -> Result<()> {
-    // Mock implementation - always pass
+    let minimum_ratio = state_account.minimum_collateral_ratio as u64;
+    
+    require!(
+        icr >= minimum_ratio,
+        AerospacerProtocolError::CollateralBelowMinimum
+    );
+    
+    Ok(())
+}
+
+/// Check if a trove is liquidatable based on its ICR
+pub fn is_liquidatable_icr(icr: u64, liquidation_threshold: u64) -> bool {
+    icr < liquidation_threshold
+}
+
+/// Get the liquidation threshold (typically 110%)
+/// Returns as simple percentage: 110
+pub fn get_liquidation_threshold() -> Result<u64> {
+    // 110% ICR is the liquidation threshold
+    Ok(110u64)
+}
+
+/// Check if ICR meets minimum collateral ratio requirement
+/// Both ICR and minimum_collateral_ratio are simple percentages
+pub fn check_minimum_icr(icr: u64, minimum_collateral_ratio: u8) -> Result<()> {
+    let minimum_ratio = minimum_collateral_ratio as u64;
+    
+    require!(
+        icr >= minimum_ratio,
+        AerospacerProtocolError::CollateralBelowMinimum
+    );
+    
     Ok(())
 }
 

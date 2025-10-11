@@ -76,8 +76,8 @@ impl TroveManager {
             loan_amount,
         )?;
         
-        // Check minimum collateral ratio
-        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64 * DECIMAL_FRACTION_18 as u64;
+        // Check minimum collateral ratio (both are simple percentages)
+        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         require!(
             icr >= minimum_ratio,
             AerospacerProtocolError::CollateralBelowMinimum
@@ -143,8 +143,8 @@ impl TroveManager {
             trove_info.debt_amount,
         )?;
         
-        // Check minimum collateral ratio
-        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64 * DECIMAL_FRACTION_18 as u64;
+        // Check minimum collateral ratio (both are simple percentages)
+        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         require!(
             new_icr >= minimum_ratio,
             AerospacerProtocolError::CollateralBelowMinimum
@@ -217,8 +217,8 @@ impl TroveManager {
             trove_info.debt_amount,
         )?;
         
-        // Check minimum collateral ratio
-        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64 * DECIMAL_FRACTION_18 as u64;
+        // Check minimum collateral ratio (both are simple percentages)
+        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         require!(
             new_icr >= minimum_ratio,
             AerospacerProtocolError::CollateralBelowMinimum
@@ -685,9 +685,8 @@ fn validate_trove_for_liquidation(trove_data: &TroveData, oracle_ctx: &OracleCon
     )?;
     
     // Check if trove is undercollateralized (ICR < 110%)
-    let liquidation_threshold = 110u64
-        .checked_mul(DECIMAL_FRACTION_18 as u64)
-        .ok_or(AerospacerProtocolError::OverflowError)?; // 110%
+    // Both current_icr and threshold are simple percentages
+    let liquidation_threshold = 110u64; // 110%
     require!(
         current_icr < liquidation_threshold,
         AerospacerProtocolError::CollateralBelowMinimum // Reuse error for now
