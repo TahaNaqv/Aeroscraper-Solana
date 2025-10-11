@@ -441,21 +441,29 @@ describe("Aerospacer Oracle Contract - Comprehensive Testing Suite (FIXED)", () 
             console.log("💰 Testing all assets price query...");
 
             try {
-                // Get the current state to find the correct price_ids
+                // Get the current state to find all assets and their Pyth accounts
                 const state = await program.account.oracleStateAccount.fetch(oracleState.publicKey);
                 expect(state.collateralData.length).to.be.greaterThan(0);
 
-                // Use the first asset's priceId for testing (since getAllPrices only accepts one Pyth account)
-                const firstAsset = state.collateralData[0];
-                const pythAccount = new PublicKey(Buffer.from(firstAsset.priceId, 'hex'));
+                // Build remaining accounts array with Pyth price accounts for each asset
+                const remainingAccounts = state.collateralData.map(asset => ({
+                    pubkey: new PublicKey(Buffer.from(asset.priceId, 'hex')),
+                    isSigner: false,
+                    isWritable: false,
+                }));
+
+                console.log(`📊 Passing ${remainingAccounts.length} Pyth price accounts via remainingAccounts`);
+                for (let i = 0; i < remainingAccounts.length; i++) {
+                    console.log(`  - ${state.collateralData[i].denom}: ${remainingAccounts[i].pubkey.toString()}`);
+                }
 
                 // Use simulate instead of view for methods that don't support view
                 const simulation = await program.methods
                     .getAllPrices({})
                     .accounts({
                         state: oracleState.publicKey,
-                        pythPriceAccount: pythAccount,
                     })
+                    .remainingAccounts(remainingAccounts)
                     .simulate();
 
                 console.log("✅ All prices query simulation successful");
@@ -465,7 +473,7 @@ describe("Aerospacer Oracle Contract - Comprehensive Testing Suite (FIXED)", () 
                 // but we can verify the instruction executed without errors
                 expect(simulation).to.exist;
 
-                console.log("✅ All prices query simulation verified");
+                console.log("✅ All prices query with multiple Pyth accounts verified");
 
             } catch (error) {
                 console.error("❌ Get all prices failed:", error);
