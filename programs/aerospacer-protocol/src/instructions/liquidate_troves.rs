@@ -112,13 +112,6 @@ pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> 
     
     // Validate liquidator authorization
     // For now, allow any liquidator - in production, you might want to restrict this
-    // Option 1: Only admin can liquidate
-    // require!(
-    //     ctx.accounts.liquidator.key() == ctx.accounts.state.admin,
-    //     AerospacerProtocolError::Unauthorized
-    // );
-    
-    // Option 2: Allow any liquidator (current implementation)
     msg!("Liquidation by: {}", ctx.accounts.liquidator.key());
     
     // Validate remaining accounts for each user

@@ -60,6 +60,11 @@ pub mod aerospacer_protocol {
         instructions::liquidate_troves::handler(ctx, params)
     }
 
+    // Query liquidatable troves (read-only helper for finding troves with ICR < threshold)
+    pub fn query_liquidatable_troves(ctx: Context<QueryLiquidatableTroves>, params: QueryLiquidatableTrovesParams) -> Result<()> {
+        instructions::query_liquidatable_troves::handler(ctx, params)
+    }
+
     // Stake stablecoin to earn liquidation gains (equivalent to INJECTIVE's stake)
     pub fn stake(ctx: Context<Stake>, params: StakeParams) -> Result<()> {
         instructions::stake::handler(ctx, params)

@@ -585,3 +585,82 @@ fn get_icr_from_account(account: &AccountInfo, expected_owner: Pubkey) -> Result
     
     Ok(threshold.ratio)
 }
+
+/// Get all liquidatable troves (ICR < liquidation_threshold) by walking the sorted list
+/// Starts from head (riskiest) and walks until ICR >= threshold (sorted list optimization)
+/// 
+/// # Arguments
+/// * `sorted_troves_state` - The sorted troves state containing head/tail/size
+/// * `liquidation_threshold` - The ICR threshold below which troves are liquidatable (typically 110)
+/// * `remaining_accounts` - Node and LT account pairs for traversal [node1, lt1, node2, lt2, ...]
+/// 
+/// # Returns
+/// Vec<Pubkey> of liquidatable trove owners, ordered from riskiest to safest
+/// 
+/// # Remaining Accounts Pattern
+/// The caller must pass ALL troves' Node and LiquidityThreshold accounts in traversal order:
+/// - [0]: First Node account (head)
+/// - [1]: First LiquidityThreshold account
+/// - [2]: Second Node account
+/// - [3]: Second LiquidityThreshold account
+/// - ...and so on
+/// 
+/// The function will stop early once it finds ICR >= threshold (sorted list optimization)
+pub fn get_liquidatable_troves(
+    sorted_troves_state: &SortedTrovesState,
+    liquidation_threshold: u64,
+    remaining_accounts: &[AccountInfo],
+) -> Result<Vec<Pubkey>> {
+    let mut liquidatable = Vec::new();
+    
+    // Empty list - no liquidatable troves
+    if sorted_troves_state.size == 0 {
+        msg!("Sorted list empty - no troves to liquidate");
+        return Ok(liquidatable);
+    }
+    
+    // Start from head (riskiest troves)
+    let mut current_id = sorted_troves_state.head;
+    let mut account_idx = 0;
+    
+    msg!("Walking sorted list from head to find liquidatable troves (ICR < {})", liquidation_threshold);
+    
+    while let Some(current) = current_id {
+        // Validate we have enough remaining_accounts
+        if account_idx + 1 >= remaining_accounts.len() {
+            msg!("Not enough accounts for traversal at index {}", account_idx);
+            break;
+        }
+        
+        // Get Node and LiquidityThreshold accounts for current trove
+        let node_account = &remaining_accounts[account_idx];
+        let lt_account = &remaining_accounts[account_idx + 1];
+        
+        // Deserialize Node to get next_id and verify identity
+        let node_data = node_account.try_borrow_data()?;
+        let node = Node::try_deserialize(&mut &node_data[8..])?;
+        require!(node.id == current, AerospacerProtocolError::InvalidList);
+        
+        // Get ICR from LiquidityThreshold account
+        let current_icr = get_icr_from_account(lt_account, current)?;
+        
+        msg!("Checking trove {}: ICR = {}", current, current_icr);
+        
+        // Check if liquidatable (ICR < threshold)
+        if current_icr < liquidation_threshold {
+            liquidatable.push(current);
+            msg!("  -> Liquidatable (ICR {} < threshold {})", current_icr, liquidation_threshold);
+        } else {
+            // Sorted list optimization: once we find ICR >= threshold, all remaining are safe
+            msg!("  -> Safe (ICR {} >= threshold {}). Stopping traversal (sorted list)", current_icr, liquidation_threshold);
+            break;
+        }
+        
+        // Move to next node
+        account_idx += 2; // Skip to next (Node, LT) pair
+        current_id = node.next_id;
+    }
+    
+    msg!("Found {} liquidatable troves", liquidatable.len());
+    Ok(liquidatable)
+}
