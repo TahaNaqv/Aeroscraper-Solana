@@ -155,7 +155,111 @@ cargo build-sbf --version
 
 *This section will be updated as you work with the project*
 
+## 💰 Fee Integration Architecture
+
+### Overview
+The protocol integrates with `aerospacer-fees` contract for comprehensive fee collection and distribution across all revenue-generating operations.
+
+### Fee-Collecting Operations
+
+| Operation | Fee Type | Fee % | Implementation Status |
+|-----------|----------|-------|----------------------|
+| `open_trove` | Opening fee | Configurable (default 5%) | ✅ Complete |
+| `borrow_loan` | Borrowing fee | Configurable (default 0.5%) | ✅ Complete |
+| `redeem` | Redemption fee | Configurable (default 0.5%) | ✅ Complete |
+| `liquidate_troves` | N/A (bonus model) | N/A | ⏭️ Not applicable |
+
+### Fee Distribution Flow
+
+```
+User Operation (open/borrow/redeem)
+    ↓
+1. Calculate Fee Amount
+   - fee_amount = operation_amount * protocol_fee_percentage
+   - net_amount = operation_amount - fee_amount
+    ↓
+2. Record Net Amount in Protocol State
+   - User debt = net_amount
+   - Total debt += net_amount
+   - ICR calculated on net_amount
+    ↓
+3. Mint/Transfer Gross Amount to User
+   - User receives full requested amount
+    ↓
+4. CPI to aerospacer-fees::distribute_fee
+   - Deduct fee_amount from user token account
+   - Distribute based on stake_enabled flag:
+     * If true: 100% → Stability Pool
+     * If false: 50/50 → FEE_ADDR_1 & FEE_ADDR_2
+```
+
+### CPI Implementation Details
+
+**Instruction Discriminator Calculation**:
+```rust
+let preimage = b"global:distribute_fee";
+let hash_result = hash(preimage);
+let discriminator = &hash_result.to_bytes()[..8];
+```
+
+**Account Requirements** (per operation):
+- `fees_program` - Fee contract program ID (validated against `state.fee_distributor_addr`)
+- `fees_state` - Fee contract state account
+- `payer_token_account` - User's aUSD token account (source of fees)
+- `stability_pool_token_account` - Destination when stake enabled
+- `fee_address_1_token_account` - Destination 1 when stake disabled
+- `fee_address_2_token_account` - Destination 2 when stake disabled
+- `token_program` - SPL Token program
+
+**Key Functions**:
+- `process_protocol_fee()` - Main CPI handler in `fees_integration.rs`
+- `distribute_fee_via_cpi()` - Builds and executes CPI instruction
+- `calculate_protocol_fee()` - Fee amount calculation in `utils.rs`
+
+### Fee Contract Configuration
+
+The fee contract (`aerospacer-fees`) supports two distribution modes:
+
+**Mode 1: Stake-Based Distribution** (`is_stake_enabled = true`)
+- All fees → Stability Pool (stakers)
+- Proportional to stake amount
+- Incentivizes aUSD staking
+
+**Mode 2: Treasury Distribution** (`is_stake_enabled = false`)
+- 50% → FEE_ADDR_1 (Protocol Treasury/Development)
+- 50% → FEE_ADDR_2 (Validator Rewards/Staking)
+
+**Configuration Functions**:
+- `toggle_stake_contract()` - Switch distribution modes (admin only)
+- `set_stake_contract_address()` - Set stability pool address (admin only)
+- `get_config()` - Query current configuration
+
+### Security Considerations
+
+1. **No Double-Charging**: Fee deducted only once per operation
+2. **Net Amount Recording**: Protocol state always reflects net (post-fee) amounts
+3. **Atomic CPI**: Fee distribution happens in same transaction as operation
+4. **Access Control**: Only authorized fee contract can receive funds
+5. **Safe Math**: All calculations use checked arithmetic
+
+### Integration Checklist
+
+When adding a new fee-collecting operation:
+1. ✅ Import `fees_integration` and `utils` modules
+2. ✅ Add 5 fee-related accounts to instruction context
+3. ✅ Calculate fee BEFORE trove/state operations
+4. ✅ Pass net amount to state management functions
+5. ✅ Mint/transfer gross amount to user
+6. ✅ Call `process_protocol_fee()` with all required accounts
+7. ✅ Update logging to show fee and net amounts
+
 ## 🗓️ Recent Changes
+
+**2025-10-11**: Fee Integration Complete
+- Implemented production-ready CPI to aerospacer-fees contract
+- Added fee collection to open_trove, borrow_loan, redeem operations
+- Integrated automatic fee distribution (dual-mode: stake pool or treasury)
+- All operations correctly record net amounts while users receive gross
 
 **2025-10-08**: Initial Replit environment setup
 - Installed Rust, Solana CLI, and Anchor framework

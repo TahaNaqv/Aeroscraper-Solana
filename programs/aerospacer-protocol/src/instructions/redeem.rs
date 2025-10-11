@@ -153,13 +153,6 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         AerospacerProtocolError::NotEnoughLiquidityForRedeem
     );
     
-    // Calculate redemption fee (0.5% typically)
-    let fee_amount = calculate_protocol_fee(params.amount, ctx.accounts.state.protocol_fee)?;
-    let net_redemption_amount = params.amount.saturating_sub(fee_amount);
-    
-    msg!("Redemption fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
-    msg!("Net redemption amount: {} aUSD", net_redemption_amount);
-    
     // Validate user has enough stablecoins (including fee)
     require!(
         ctx.accounts.user_stablecoin_account.amount >= params.amount,
@@ -167,22 +160,23 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     );
     
     // Collect redemption fee via CPI to aerospacer-fees
-    if fee_amount > 0 {
-        let _net_amount = process_protocol_fee(
-            params.amount,
-            ctx.accounts.state.protocol_fee,
-            ctx.accounts.fees_program.to_account_info(),
-            ctx.accounts.user.to_account_info(),
-            ctx.accounts.fees_state.to_account_info(),
-            ctx.accounts.user_stablecoin_account.to_account_info(),
-            ctx.accounts.stability_pool_token_account.to_account_info(),
-            ctx.accounts.fee_address_1_token_account.to_account_info(),
-            ctx.accounts.fee_address_2_token_account.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
-        )?;
-        
-        msg!("Redemption fee collected and distributed: {} aUSD", fee_amount);
-    }
+    // This returns the net amount after fee deduction
+    let net_redemption_amount = process_protocol_fee(
+        params.amount,
+        ctx.accounts.state.protocol_fee,
+        ctx.accounts.fees_program.to_account_info(),
+        ctx.accounts.user.to_account_info(),
+        ctx.accounts.fees_state.to_account_info(),
+        ctx.accounts.user_stablecoin_account.to_account_info(),
+        ctx.accounts.stability_pool_token_account.to_account_info(),
+        ctx.accounts.fee_address_1_token_account.to_account_info(),
+        ctx.accounts.fee_address_2_token_account.to_account_info(),
+        ctx.accounts.token_program.to_account_info(),
+    )?;
+    
+    let fee_amount = params.amount.saturating_sub(net_redemption_amount);
+    msg!("Redemption fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
+    msg!("Net redemption amount: {} aUSD", net_redemption_amount);
     
     // Transfer NET redemption amount from user to protocol (after fee deduction)
     let transfer_ctx = CpiContext::new(
