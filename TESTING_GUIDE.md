@@ -201,6 +201,262 @@ anchor test --provider.cluster devnet --grep "initialize"
 
 ---
 
+## 🔗 **Oracle CPI Integration Testing**
+
+### **Overview**
+The protocol now uses **real Cross-Program Invocation (CPI)** to the `aerospacer-oracle` contract for price feeds. All protocol instructions that require price data make CPI calls to `get_price` with Pyth Network integration.
+
+### **CPI Integration Architecture**
+
+#### **Affected Instructions** (All 6 operations)
+1. `open_trove` - Validates ICR using oracle price
+2. `add_collateral` - Recalculates ICR with new collateral
+3. `remove_collateral` - Ensures ICR remains above MCR
+4. `borrow_loan` - Validates ICR after additional borrowing
+5. `repay_loan` - Updates ICR after debt reduction
+6. `liquidate_troves` - Gets current prices for liquidation
+
+#### **Required Accounts for CPI**
+Each instruction now requires **4 oracle-related accounts**:
+```rust
+// In instruction context
+pub oracle_program: Program<'info, AerospacerOracle>,
+pub oracle_state: Account<'info, OracleStateAccount>,
+pub pyth_price_account: AccountInfo<'info>,  // NEW: Pyth price feed
+pub clock: Sysvar<'info, Clock>,              // NEW: For staleness check
+```
+
+### **Test Setup Requirements**
+
+#### **1. Pyth Price Feed Addresses** (Devnet)
+```typescript
+import { SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
+
+// Real Pyth Network price feeds (Devnet)
+const PYTH_PRICE_FEEDS = {
+  SOL: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"),  // SOL/USD
+  ETH: new PublicKey("EdVCmQ9FSPcVe5YySXDPCRmc8aDQLKJ9xvYBMZPie1Vw"),  // ETH/USD
+  BTC: new PublicKey("HovQMDrbAgAYPCmHVSrezcSmKQtUUJtXHimcwhYWrz8z"),  // BTC/USD
+};
+```
+
+#### **2. Updated Test Pattern** (Example: `open_trove`)
+```typescript
+// OLD (Missing CPI accounts)
+await protocolProgram.methods
+  .openTrove({
+    collateralAmount: new anchor.BN(collateralAmount),
+    loanAmount: new anchor.BN(loanAmount),
+    collateralDenom: "SOL",
+  })
+  .accounts({
+    trove: user1Trove,
+    state: protocolState,
+    user: user1.publicKey,
+    userCollateralAccount: user1CollateralAccount,
+    userStablecoinAccount: user1StablecoinAccount,
+    stablecoinMint: stablecoinMint,
+    oracleProgram: oracleProgram.programId,
+    oracleState: oracleState,
+    feesProgram: feesProgram.programId,
+    feesState: feesState,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    rent: SYSVAR_RENT_PUBKEY,
+  })
+  .signers([user1])
+  .rpc();
+
+// NEW (With CPI accounts)
+await protocolProgram.methods
+  .openTrove({
+    collateralAmount: new anchor.BN(collateralAmount),
+    loanAmount: new anchor.BN(loanAmount),
+    collateralDenom: "SOL",
+  })
+  .accounts({
+    trove: user1Trove,
+    state: protocolState,
+    user: user1.publicKey,
+    userCollateralAccount: user1CollateralAccount,
+    userStablecoinAccount: user1StablecoinAccount,
+    stablecoinMint: stablecoinMint,
+    oracleProgram: oracleProgram.programId,
+    oracleState: oracleState,
+    pythPriceAccount: PYTH_PRICE_FEEDS.SOL,      // NEW
+    clock: SYSVAR_CLOCK_PUBKEY,                   // NEW
+    feesProgram: feesProgram.programId,
+    feesState: feesState,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    rent: SYSVAR_RENT_PUBKEY,
+  })
+  .signers([user1])
+  .rpc();
+```
+
+### **Test Files Requiring Updates**
+
+| Test File | Instructions to Update | Status |
+|-----------|------------------------|--------|
+| `tests/protocol-core.ts` | open_trove, add_collateral, borrow_loan, repay_loan, remove_collateral | ⏳ Needs Update |
+| `tests/basic-protocol-test.ts` | open_trove, add_collateral | ⏳ Needs Update |
+| `tests/deep-protocol-test.ts` | All 6 operations | ⏳ Needs Update |
+| `tests/aerospacer-solana.ts` | open_trove, liquidate_troves | ⏳ Needs Update |
+
+### **CPI Error Handling Tests**
+
+#### **Scenarios to Test**
+
+1. **Stale Price Data**
+   ```typescript
+   // Test with old Pyth price (should fail staleness check)
+   it("Should reject operation with stale price", async () => {
+     // Use a Pyth account with old timestamp
+     // Expected error: "Price data is stale"
+   });
+   ```
+
+2. **Invalid Pyth Account**
+   ```typescript
+   // Test with wrong Pyth price feed
+   it("Should reject operation with invalid price feed", async () => {
+     await protocolProgram.methods.openTrove(...)
+       .accounts({
+         ...accounts,
+         pythPriceAccount: PYTH_PRICE_FEEDS.ETH,  // Wrong feed for SOL
+       })
+       .signers([user1])
+       .rpc();
+     // Expected: CPI error or invalid price
+   });
+   ```
+
+3. **Oracle Program Mismatch**
+   ```typescript
+   // Test with wrong oracle program
+   it("Should reject CPI to wrong oracle program", async () => {
+     await protocolProgram.methods.openTrove(...)
+       .accounts({
+         ...accounts,
+         oracleProgram: wrongProgramId,  // Not the authorized oracle
+       })
+       .signers([user1])
+       .rpc();
+     // Expected error: "Oracle program mismatch"
+   });
+   ```
+
+4. **Price Confidence Validation**
+   ```typescript
+   // Test when Pyth confidence interval is too wide
+   it("Should reject operation with low confidence price", async () => {
+     // Expected: Price validation failure if confidence too low
+   });
+   ```
+
+### **CPI Integration Checklist**
+
+#### **For Each Test File**
+- [ ] Import `SYSVAR_CLOCK_PUBKEY` from `@solana/web3.js`
+- [ ] Define `PYTH_PRICE_FEEDS` constants for all collateral types
+- [ ] Update all protocol instruction calls to include:
+  - [ ] `pythPriceAccount` (matching collateral denom)
+  - [ ] `clock: SYSVAR_CLOCK_PUBKEY`
+- [ ] Add error handling tests for CPI failures
+- [ ] Verify ICR calculations use real oracle prices
+
+#### **Oracle State Setup**
+- [ ] Ensure oracle is initialized before protocol tests
+- [ ] Set collateral data with correct Pyth price IDs:
+  ```typescript
+  await oracleProgram.methods.setData({
+    denom: "SOL",
+    decimal: 9,
+    priceId: PYTH_PRICE_FEEDS.SOL.toBuffer().toString('hex'),
+    pythPriceAccount: PYTH_PRICE_FEEDS.SOL,
+  }).accounts({...}).rpc();
+  ```
+- [ ] Verify `getAllDenoms()` returns configured collaterals
+
+### **Debugging CPI Issues**
+
+#### **Common Errors**
+
+1. **Missing Account Error**
+   ```
+   Error: Missing account: pyth_price_account
+   ```
+   **Solution**: Add `pythPriceAccount: PYTH_PRICE_FEEDS.<DENOM>` to accounts
+
+2. **Clock Sysvar Error**
+   ```
+   Error: Missing account: clock
+   ```
+   **Solution**: Add `clock: SYSVAR_CLOCK_PUBKEY` to accounts
+
+3. **CPI Return Data Error**
+   ```
+   Error: Failed to deserialize return data
+   ```
+   **Solution**: Verify oracle program is deployed and `get_price` returns correct PriceResponse
+
+4. **Oracle Validation Error**
+   ```
+   Error: Oracle program mismatch
+   ```
+   **Solution**: Ensure `oracle_program` in accounts matches `state.oracle_addr`
+
+#### **Debugging Commands**
+```bash
+# Check oracle state
+solana account <ORACLE_STATE_PUBKEY> --output json
+
+# Verify Pyth price feed (Devnet)
+solana account J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix --output json
+
+# Run with verbose logs
+RUST_LOG=trace anchor test
+
+# Simulate instruction (no execution)
+anchor test --skip-deploy -- --grep "open_trove" --simulate
+```
+
+### **Integration Test Coverage**
+
+#### **Happy Path Tests** ✅
+- [ ] Open trove with valid oracle price
+- [ ] Add collateral updates ICR correctly
+- [ ] Borrow loan validates with current price
+- [ ] Liquidation uses accurate prices
+
+#### **Error Path Tests** ⚠️
+- [ ] Stale price rejection (>60s old)
+- [ ] Invalid Pyth account handling
+- [ ] Oracle program validation
+- [ ] Price confidence checks
+
+#### **Edge Cases** 🔍
+- [ ] Price volatility during operations
+- [ ] Multiple collateral types with different oracles
+- [ ] Oracle state changes mid-transaction
+- [ ] Pyth network downtime scenarios
+
+### **Performance Considerations**
+
+- **CPI Overhead**: Oracle CPI adds ~5000 CU per call
+- **Account Verification**: Pyth account deserialization adds ~2000 CU
+- **Total Impact**: ~7000 CU per price lookup (acceptable)
+
+### **Security Testing**
+
+1. **Price Manipulation**: Verify CPI uses on-chain Pyth data (not user-provided)
+2. **Authorization**: Ensure only authorized oracle program can be called
+3. **Staleness**: Confirm 60-second staleness check is enforced
+4. **Confidence**: Validate price confidence intervals are checked
+
+---
+
 ## 📞 **Support & Resources**
 
 ### **Useful Commands**
