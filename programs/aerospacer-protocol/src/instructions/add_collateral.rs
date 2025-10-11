@@ -94,7 +94,11 @@ pub struct AddCollateral<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-
+impl<'info> AddCollateral<'info> {
+    pub fn remaining_accounts(&self) -> &[AccountInfo<'info>] {
+        &[]
+    }
+}
 
 pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Result<()> {
     // Validate input parameters
@@ -157,6 +161,25 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
+    
+    // Reinsert trove in sorted list based on new ICR (collateral increases = higher ICR = safer)
+    // Note: Caller must pass remaining_accounts for reinsert operation
+    // Pattern: [user_lt, old_neighbors?, traversal_pairs...]
+    if !ctx.remaining_accounts.is_empty() {
+        use crate::sorted_troves_simple::reinsert_trove;
+        
+        reinsert_trove(
+            &mut ctx.accounts.sorted_troves_state,
+            &mut ctx.accounts.node,
+            ctx.accounts.user.key(),
+            result.new_icr,
+            ctx.remaining_accounts,
+        )?;
+        
+        msg!("Trove repositioned after collateral addition");
+    } else {
+        msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
+    }
     
     // Transfer collateral from user to protocol
     let transfer_ctx = CpiContext::new(

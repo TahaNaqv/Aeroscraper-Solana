@@ -158,6 +158,24 @@ pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
     
+    // Reinsert trove in sorted list based on new ICR (collateral decreases = lower ICR = riskier)
+    // Note: Caller must pass remaining_accounts for reinsert operation
+    if !ctx.remaining_accounts.is_empty() {
+        use crate::sorted_troves_simple::reinsert_trove;
+        
+        reinsert_trove(
+            &mut ctx.accounts.sorted_troves_state,
+            &mut ctx.accounts.node,
+            ctx.accounts.user.key(),
+            result.new_icr,
+            ctx.remaining_accounts,
+        )?;
+        
+        msg!("Trove repositioned after collateral removal");
+    } else {
+        msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
+    }
+    
     // Transfer collateral from protocol to user
     let transfer_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),

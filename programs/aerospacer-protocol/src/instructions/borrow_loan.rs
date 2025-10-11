@@ -198,6 +198,24 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
+    
+    // Reinsert trove in sorted list based on new ICR (debt increases = lower ICR = riskier)
+    // Note: Caller must pass remaining_accounts for reinsert operation
+    if !ctx.remaining_accounts.is_empty() {
+        use crate::sorted_troves_simple::reinsert_trove;
+        
+        reinsert_trove(
+            &mut ctx.accounts.sorted_troves_state,
+            &mut ctx.accounts.node,
+            ctx.accounts.user.key(),
+            result.new_icr,
+            ctx.remaining_accounts,
+        )?;
+        
+        msg!("Trove repositioned after borrowing");
+    } else {
+        msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
+    }
 
     // Mint total loan amount (including fee)
     let mint_ctx = CpiContext::new(
