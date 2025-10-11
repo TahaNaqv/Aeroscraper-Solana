@@ -145,6 +145,9 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         AerospacerProtocolError::InvalidAmount
     );
     
+    // Store protocol fee before creating mutable borrow
+    let protocol_fee = ctx.accounts.state.protocol_fee;
+    
     let state = &mut ctx.accounts.state;
     
     // Validate redemption amount
@@ -163,7 +166,7 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     // This returns the net amount after fee deduction
     let net_redemption_amount = process_protocol_fee(
         params.amount,
-        ctx.accounts.state.protocol_fee,
+        protocol_fee,
         ctx.accounts.fees_program.to_account_info(),
         ctx.accounts.user.to_account_info(),
         ctx.accounts.fees_state.to_account_info(),
@@ -175,7 +178,7 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     )?;
     
     let fee_amount = params.amount.saturating_sub(net_redemption_amount);
-    msg!("Redemption fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
+    msg!("Redemption fee: {} aUSD ({}%)", fee_amount, protocol_fee);
     msg!("Net redemption amount: {} aUSD", net_redemption_amount);
     
     // Transfer NET redemption amount from user to protocol (after fee deduction)
