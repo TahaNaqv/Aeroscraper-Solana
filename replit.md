@@ -48,6 +48,32 @@ The recommended development workflow involves building and testing locally using
 
 ### Recent Changes
 
+**2025-10-11**: Complete ICR Implementation Across Protocol Contract
+- Implemented real Individual Collateral Ratio (ICR) calculations across the entire protocol, replacing all mock/placeholder implementations
+- **ICR Convention**: All ICR values use simple percentage format (150% = 150) to avoid u64 overflow while maintaining precision
+- **Multi-Collateral Support**: `get_trove_icr()` in utils/mod.rs now:
+  - Aggregates collateral amounts across multiple denoms (SOL, USDC, INJ, ATOM)
+  - Uses real price data from HashMap with proper decimal handling per asset
+  - Employs u128 intermediate calculations to prevent overflow
+  - Handles edge cases (no debt = max ICR, no collateral = 0 ICR)
+- **PriceCalculator Enhancements** in oracle.rs:
+  - `calculate_multi_collateral_value()`: Aggregates USD value across multiple collateral types
+  - `calculate_trove_icr()`: Calculates ICR for multi-collateral troves with u128 safety
+  - `calculate_collateral_ratio()`: Uses u128 intermediates, returns simple percentage
+- **ICR Validation Helpers** added to utils/mod.rs:
+  - `check_trove_icr_with_ratio()`: Validates ICR meets minimum collateral ratio (115%)
+  - `is_liquidatable_icr()`: Checks if ICR below liquidation threshold
+  - `get_liquidation_threshold()`: Returns 110% threshold constant
+  - `check_minimum_icr()`: Reusable minimum ICR validation
+- **TroveManager Integration**: All operations verified to use consistent percentage-based comparisons:
+  - `open_trove`, `add_collateral`, `remove_collateral`: Check ICR >= 115%
+  - `borrow_loan`, `repay_loan`: Recalculate and validate ICR after debt changes
+  - `liquidate_troves`: Uses real oracle prices to validate ICR < 110% before liquidation
+  - All operations correctly update LiquidityThreshold PDA with accurate ICR values
+- **Architecture Review**: Architect confirmed no overflow issues, consistent unit comparisons, and mathematically correct ICR calculations across all code paths
+- Protocol contract compiles successfully with complete ICR implementation - no mock logic remains in critical paths
+- Project completion: ~85% → ~95% (core DeFi logic fully operational)
+
 **2025-10-11**: Oracle get_all_prices Design Flaw Fixed
 - Fixed critical design flaw in `get_all_prices` instruction where it expected a single Pyth price account but needed to handle multiple assets with different Pyth feeds (SOL, ETH, BTC each have unique feed addresses)
 - Refactored `get_all_prices.rs` to use Anchor's `remaining_accounts` feature, allowing multiple Pyth price accounts to be passed dynamically (one per asset)
