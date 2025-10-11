@@ -85,6 +85,12 @@ pub struct BorrowLoan<'info> {
     /// CHECK: Oracle state account
     #[account(mut)]
     pub oracle_state: AccountInfo<'info>,
+    
+    /// CHECK: Pyth price account for collateral price feed
+    pub pyth_price_account: AccountInfo<'info>,
+    
+    /// Clock sysvar for timestamp validation
+    pub clock: Sysvar<'info, Clock>,
 
     // Fee distribution accounts
     /// CHECK: Fees program

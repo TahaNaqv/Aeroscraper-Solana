@@ -76,6 +76,12 @@ pub struct AddCollateral<'info> {
     /// CHECK: Oracle state account
     #[account(mut)]
     pub oracle_state: AccountInfo<'info>,
+    
+    /// CHECK: Pyth price account for collateral price feed
+    pub pyth_price_account: AccountInfo<'info>,
+    
+    /// Clock sysvar for timestamp validation
+    pub clock: Sysvar<'info, Clock>,
 
     pub token_program: Program<'info, Token>,
 }
