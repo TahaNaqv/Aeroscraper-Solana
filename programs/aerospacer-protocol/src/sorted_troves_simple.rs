@@ -37,46 +37,111 @@ pub fn insert_trove(
         return Ok(());
     }
     
-    // Find the correct position based on ICR (lowest ICR at head, highest at tail)
-    // For simplicity in Phase 3, we'll still use FIFO but WITH proper pointer updates
-    // TODO: Implement ICR-based binary search for optimal positioning
+    // Find ICR-based insertion position via full list traversal
+    // remaining_accounts pattern: [node1, lt1, node2, lt2, ...] for traversal
+    let (prev_id, next_id) = find_insert_position(
+        sorted_troves_state,
+        icr,
+        remaining_accounts,
+    )?;
     
-    // Simple FIFO append with FULL pointer updates
-    let old_tail = sorted_troves_state.tail.unwrap();
+    // Update the new node's pointers
+    user_node.prev_id = prev_id;
+    user_node.next_id = next_id;
     
-    // Update the new node
-    user_node.prev_id = Some(old_tail);
-    user_node.next_id = None;
-    
-    // REQUIRE old_tail Node account in remaining_accounts[0]
-    require!(
-        remaining_accounts.len() >= 1,
-        AerospacerProtocolError::InvalidList
-    );
-    
-    let old_tail_account_info = &remaining_accounts[0];
-    
-    // Deserialize the old tail Node
-    let mut old_tail_data = old_tail_account_info.try_borrow_mut_data()?;
-    let mut old_tail_node = Node::try_deserialize(&mut &old_tail_data[8..])?;
-    
-    // Verify it's the correct node
-    require!(
-        old_tail_node.id == old_tail,
-        AerospacerProtocolError::InvalidList
-    );
-    
-    // Update its next pointer
-    old_tail_node.next_id = Some(user);
-    
-    // Serialize back to the account
-    let mut writer = &mut old_tail_data[8..];
-    old_tail_node.try_serialize(&mut writer)?;
-    
-    msg!("Updated old tail {} -> next_id = {}", old_tail, user);
+    // Update neighbor nodes' pointers
+    // We need to find the neighbor Node accounts in remaining_accounts
+    match (prev_id, next_id) {
+        (None, None) => {
+            // Should not happen for non-empty list
+            msg!("Error: Invalid position (None, None) for non-empty list");
+            return Err(AerospacerProtocolError::InvalidList.into());
+        }
+        (None, Some(next)) => {
+            // Insert at head - update old head's prev_id
+            // Head node should be at index 0 of remaining_accounts (first in traversal)
+            if remaining_accounts.is_empty() {
+                return Err(AerospacerProtocolError::InvalidList.into());
+            }
+            
+            let next_node_account = &remaining_accounts[0];
+            let mut next_data = next_node_account.try_borrow_mut_data()?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            require!(next_node.id == next, AerospacerProtocolError::InvalidList);
+            
+            next_node.prev_id = Some(user);
+            let mut writer = &mut next_data[8..];
+            next_node.try_serialize(&mut writer)?;
+            
+            sorted_troves_state.head = Some(user);
+            msg!("Inserted at head: {} -> {}", user, next);
+        }
+        (Some(prev), None) => {
+            // Insert at tail - find and update prev node's next_id
+            // Need to search remaining_accounts for the prev node
+            let mut found_prev = false;
+            for i in (0..remaining_accounts.len()).step_by(2) {
+                let node_account = &remaining_accounts[i];
+                let node_data = node_account.try_borrow_data()?;
+                let node = Node::try_deserialize(&mut &node_data[8..])?;
+                
+                if node.id == prev {
+                    drop(node_data); // Release immutable borrow
+                    
+                    let mut mut_data = node_account.try_borrow_mut_data()?;
+                    let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    prev_node.next_id = Some(user);
+                    let mut writer = &mut mut_data[8..];
+                    prev_node.try_serialize(&mut writer)?;
+                    
+                    found_prev = true;
+                    break;
+                }
+            }
+            
+            require!(found_prev, AerospacerProtocolError::InvalidList);
+            sorted_troves_state.tail = Some(user);
+            msg!("Inserted at tail: {} -> {}", prev, user);
+        }
+        (Some(prev), Some(next)) => {
+            // Insert in middle - update both prev and next nodes
+            let mut found_prev = false;
+            let mut found_next = false;
+            
+            for i in (0..remaining_accounts.len()).step_by(2) {
+                let node_account = &remaining_accounts[i];
+                let node_data = node_account.try_borrow_data()?;
+                let node = Node::try_deserialize(&mut &node_data[8..])?;
+                let node_id = node.id;
+                drop(node_data);
+                
+                if node_id == prev && !found_prev {
+                    let mut mut_data = node_account.try_borrow_mut_data()?;
+                    let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    prev_node.next_id = Some(user);
+                    let mut writer = &mut mut_data[8..];
+                    prev_node.try_serialize(&mut writer)?;
+                    found_prev = true;
+                } else if node_id == next && !found_next {
+                    let mut mut_data = node_account.try_borrow_mut_data()?;
+                    let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    next_node.prev_id = Some(user);
+                    let mut writer = &mut mut_data[8..];
+                    next_node.try_serialize(&mut writer)?;
+                    found_next = true;
+                }
+                
+                if found_prev && found_next {
+                    break;
+                }
+            }
+            
+            require!(found_prev && found_next, AerospacerProtocolError::InvalidList);
+            msg!("Inserted in middle: {} -> {} -> {}", prev, user, next);
+        }
+    }
     
     // Update list state
-    sorted_troves_state.tail = Some(user);
     sorted_troves_state.size += 1;
     
     msg!("Trove inserted: user={}, icr={}, size={}", user, icr, sorted_troves_state.size);
@@ -207,28 +272,88 @@ pub fn get_last_trove(sorted_troves_state: &Account<SortedTrovesState>) -> Optio
     sorted_troves_state.tail
 }
 
-/// Find the correct insertion position based on ICR (binary search approach)
+/// Find the correct insertion position based on ICR with FULL list traversal
 /// Returns (prev_id, next_id) for the new node's position
-/// Lower ICR = riskier = closer to head
+/// Lower ICR = riskier = closer to head, Higher ICR = safer = closer to tail
+/// 
+/// **MANDATORY ACCOUNT REQUIREMENT:**
+/// - This function REQUIRES all traversal accounts to maintain ICR ordering
+/// - If accounts are missing, transaction ABORTS (no fallback to tail)
+/// - This prevents callers from bypassing ICR ordering by omitting accounts
+/// 
+/// **Traversal Strategy:**
+/// 1. Walk from head using Node.next_id pointers
+/// 2. For each node, REQUIRE (Node, LiquidityThreshold) pair in remaining_accounts
+/// 3. Find first node where new_icr < node_icr → insert before that node
+/// 4. If we reach end without finding spot → insert at tail (new_icr is highest)
+/// 
+/// remaining_accounts pattern (in order): [node1, lt1, node2, lt2, node3, lt3, ...]
 pub fn find_insert_position(
     sorted_troves_state: &SortedTrovesState,
-    icr: u64,
+    new_icr: u64,
     remaining_accounts: &[AccountInfo],
 ) -> Result<(Option<Pubkey>, Option<Pubkey>)> {
-    // Start from head and traverse until we find the right spot
-    // This is O(n) - could be optimized with hints or caching
-    
     if sorted_troves_state.size == 0 {
         return Ok((None, None));
     }
     
-    // For Phase 3, we'll implement a simple linear search
-    // Production version should use binary search with ICR cache
+    let head = sorted_troves_state.head.unwrap();
     
-    msg!("Finding insert position for ICR={}", icr);
-    msg!("Note: Using simplified linear search - optimize in production");
+    // Start traversal from head
+    let mut current_id = Some(head);
+    let mut prev_id: Option<Pubkey> = None;
+    let mut account_idx = 0;
     
-    // TODO: Implement ICR-based traversal
-    // For now, return tail position (FIFO)
+    while let Some(current) = current_id {
+        // REQUIRE both Node and LiquidityThreshold accounts for current node
+        // This is MANDATORY to maintain ICR ordering - no fallback allowed
+        require!(
+            account_idx + 1 < remaining_accounts.len(),
+            AerospacerProtocolError::InvalidList
+        );
+        
+        let node_account = &remaining_accounts[account_idx];
+        let lt_account = &remaining_accounts[account_idx + 1];
+        
+        // Load Node to get next_id
+        let node_data = node_account.try_borrow_data()?;
+        let node = Node::try_deserialize(&mut &node_data[8..])?;
+        require!(node.id == current, AerospacerProtocolError::InvalidList);
+        let next_id = node.next_id;
+        drop(node_data); // Release borrow
+        
+        // Load LiquidityThreshold to get ICR
+        let current_icr = get_icr_from_account(lt_account, current)?;
+        
+        // Found the insertion point: new_icr < current_icr
+        if new_icr < current_icr {
+            msg!("Found position: new_icr {} < node {} icr {}", new_icr, current, current_icr);
+            return Ok((prev_id, Some(current)));
+        }
+        
+        // Move to next node
+        account_idx += 2; // Skip to next (Node, LT) pair
+        prev_id = Some(current);
+        current_id = next_id;
+    }
+    
+    // Reached end of list - new_icr >= all nodes, insert at tail (safest)
+    msg!("Reached end: new_icr {} >= all nodes, inserting at tail", new_icr);
     Ok((sorted_troves_state.tail, None))
+}
+
+/// Helper: Get ICR from LiquidityThreshold account
+/// Expects the account to be a LiquidityThreshold PDA for the given owner
+fn get_icr_from_account(account: &AccountInfo, expected_owner: Pubkey) -> Result<u64> {
+    // Deserialize LiquidityThreshold account
+    let threshold_data = account.try_borrow_data()?;
+    let threshold = LiquidityThreshold::try_deserialize(&mut &threshold_data[8..])?;
+    
+    // Verify it's for the correct owner
+    require!(
+        threshold.owner == expected_owner,
+        AerospacerProtocolError::InvalidList
+    );
+    
+    Ok(threshold.ratio)
 }
