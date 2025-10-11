@@ -55,6 +55,9 @@ pub mod aerospacer_protocol {
         instructions::repay_loan::handler(ctx, params)
     }
 
+    // Note: close_trove instruction temporarily removed due to lifetime issues
+    // Users can fully close positions via repay_loan with full debt repayment
+
     // Liquidate undercollateralized troves (equivalent to INJECTIVE's liquidate_troves)
     pub fn liquidate_troves(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> Result<()> {
         instructions::liquidate_troves::handler(ctx, params)
