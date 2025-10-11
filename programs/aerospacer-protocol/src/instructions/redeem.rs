@@ -12,6 +12,7 @@ use crate::fees_integration::*;
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct RedeemParams {
     pub amount: u64, // Equivalent to Uint256
+    pub collateral_denom: String, // Which collateral to redeem (SOL, ETH, BTC, etc.)
     pub prev_node_id: Option<Pubkey>,
     pub next_node_id: Option<Pubkey>,
 }
@@ -49,7 +50,7 @@ pub struct Redeem<'info> {
 
     #[account(
         mut,
-        seeds = [b"user_collateral_amount", user.key().as_ref(), b"SOL"],
+        seeds = [b"user_collateral_amount", user.key().as_ref(), params.collateral_denom.as_bytes()],
         bump,
         constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
@@ -72,7 +73,7 @@ pub struct Redeem<'info> {
     /// CHECK: Protocol collateral vault PDA
     #[account(
         mut,
-        seeds = [b"protocol_collateral_vault", b"SOL"], // Default to SOL for now
+        seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
     pub protocol_collateral_vault: AccountInfo<'info>,
@@ -86,7 +87,7 @@ pub struct Redeem<'info> {
     /// CHECK: Per-denom collateral total PDA
     #[account(
         mut,
-        seeds = [b"total_collateral_amount", b"SOL"],
+        seeds = [b"total_collateral_amount", params.collateral_denom.as_bytes()],
         bump
     )]
     pub total_collateral_amount: AccountInfo<'info>,
@@ -230,8 +231,16 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
             0.0
         };
         
-        // Process each collateral type in the trove
+        // Track whether this trove has the requested collateral
+        let mut collateral_sent_from_trove = 0u64;
+        
+        // Process ONLY the specified collateral type
         for (denom, amount) in &trove_data.collateral_amounts {
+            // Skip collateral types that don't match the requested denomination
+            if denom != &params.collateral_denom {
+                continue;
+            }
+            
             let collateral_to_send = ((*amount as f64) * collateral_ratio) as u64;
             
             if collateral_to_send > 0 {
@@ -283,8 +292,17 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
                 msg!("Updated global total_collateral_amount: decreased by {}", collateral_to_send);
                 
                 total_collateral_sent = total_collateral_sent.saturating_add(collateral_to_send);
+                collateral_sent_from_trove = collateral_sent_from_trove.saturating_add(collateral_to_send);
                 msg!("Transferred {} {} to user", collateral_to_send, denom);
             }
+        }
+        
+        // Skip this trove if it doesn't have the requested collateral type
+        if collateral_sent_from_trove == 0 {
+            msg!("Trove {} has no {} collateral, skipping", trove_user, params.collateral_denom);
+            // Get next trove without modifying current one
+            current_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state, &ctx.remaining_accounts)?;
+            continue;
         }
         
         // CRITICAL: Get next trove BEFORE modifying/removing current trove
@@ -311,15 +329,23 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         current_trove = next_trove;
     }
     
-    // Update global state with net redeemed amount
-    state.total_debt_amount = state.total_debt_amount.saturating_sub(net_redemption_amount - remaining_amount);
+    // CRITICAL: Require that the FULL redemption amount was processed
+    // Since we already burned the stablecoins upfront, we must ensure
+    // sufficient collateral was found, otherwise revert the entire transaction
+    require!(
+        remaining_amount == 0,
+        AerospacerProtocolError::InsufficientCollateral // Not enough troves with requested collateral type
+    );
+    
+    // Update global state with net redeemed amount (which equals net_redemption_amount since remaining is 0)
+    state.total_debt_amount = state.total_debt_amount.saturating_sub(net_redemption_amount);
     
     msg!("Redeemed successfully");
     msg!("User: {}", ctx.accounts.user.key());
     msg!("Gross amount: {} aUSD", params.amount);
     msg!("Fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
     msg!("Net redemption: {} aUSD", net_redemption_amount);
-    msg!("Collateral sent: {} SOL", total_collateral_sent);
+    msg!("Collateral sent: {} {}", total_collateral_sent, params.collateral_denom);
     msg!("Troves redeemed: {}", troves_redeemed);
     msg!("Remaining amount: {} aUSD", remaining_amount);
 
