@@ -48,43 +48,91 @@ pub struct Withdraw_liquidation_gains<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    
+    // Note: remaining_accounts should contain:
+    // - TotalLiquidationCollateralGain PDAs for each block height with unclaimed gains
+    // - UserLiquidationCollateralGain PDAs for tracking claimed status  
+    // - UserStakeAmount PDA for this user
 }
 
 
 
 pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquidation_gainsParams) -> Result<()> {
     let user_liquidation_collateral_gain = &mut ctx.accounts.user_liquidation_collateral_gain;
-    // Store state key before borrowing it mutably
-    let state_key = ctx.accounts.state.key();
-    let state = &mut ctx.accounts.state;
-
-    // Get liquidation gains for the user
-    let gains = get_liquidation_gains(
-        ctx.accounts.user.key(),
-        &state,
-        &[], // user_liquidation_collateral_gain_accounts
-        &[], // total_liquidation_collateral_gain_accounts
-        &[], // user_stake_amount_accounts
-    )?;
+    let state = &ctx.accounts.state;
     
-    // Find the gain for the specific collateral denom
-    let mut total_gain = 0u64;
-    for gain in gains {
-        if gain.denom == params.collateral_denom {
-            total_gain = safe_add(total_gain, gain.amount)?;
-        }
-    }
-
+    // Get user's stake amount from UserStakeAmount PDA (must be in remaining_accounts[0])
+    require!(
+        !ctx.remaining_accounts.is_empty(),
+        AerospacerProtocolError::InvalidList
+    );
+    
+    // SECURITY: Verify the UserStakeAmount PDA is legitimate
+    let user_key = ctx.accounts.user.key();
+    let user_stake_seeds = UserStakeAmount::seeds(&user_key);
+    let (expected_stake_pda, _bump) = Pubkey::find_program_address(&user_stake_seeds, &crate::ID);
+    
+    let stake_account_info = &ctx.remaining_accounts[0];
+    require!(
+        stake_account_info.key() == expected_stake_pda,
+        AerospacerProtocolError::Unauthorized
+    );
+    
+    // Read stake amount from the verified account data
+    let user_stake_amount = {
+        let data = stake_account_info.try_borrow_data()?;
+        // Skip discriminator (8 bytes) and read the amount field (u64)
+        let amount_bytes = &data[8..16];
+        u64::from_le_bytes(amount_bytes.try_into().unwrap())
+    };
+    let total_stake = state.total_stake_amount;
+    
+    // Check if user has any stake
+    require!(
+        user_stake_amount > 0,
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    require!(
+        total_stake > 0,
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    // Get SPL token balance from vault (not lamports - that's just rent!)
+    // The vault is a TokenAccount, so deserialize it to read the amount field
+    let vault_token_balance = {
+        let vault_data = ctx.accounts.protocol_collateral_vault.try_borrow_data()?;
+        // TokenAccount.amount is at offset 64 (after mint: 32, owner: 32)
+        let amount_bytes = &vault_data[64..72];
+        u64::from_le_bytes(amount_bytes.try_into().unwrap())
+    };
+    
+    // Calculate user's proportional share of vault token balance
+    // proportional_share = (user_stake / total_stake) * vault_token_balance
+    let proportional_share = (user_stake_amount as u128)
+        .checked_mul(vault_token_balance as u128)
+        .ok_or(AerospacerProtocolError::OverflowError)?
+        .checked_div(total_stake as u128)
+        .ok_or(AerospacerProtocolError::DivideByZeroError)?
+        as u64;
+    
     // Check if user has any gains to withdraw
     require!(
-        total_gain > 0,
+        proportional_share > 0,
         AerospacerProtocolError::CollateralRewardsNotFound
     );
-
-    // Update liquidation gains account
+    
+    msg!("Withdrawing liquidation gains:");
+    msg!("  User stake: {} / {} total", user_stake_amount, total_stake);
+    msg!("  Vault token balance: {}", vault_token_balance);
+    msg!("  Proportional share: {}", proportional_share);
+    
+    // Update liquidation gains account to mark as claimed
     user_liquidation_collateral_gain.user = ctx.accounts.user.key();
     user_liquidation_collateral_gain.block_height = Clock::get()?.slot;
     user_liquidation_collateral_gain.claimed = true;
+    
+    let total_gain = proportional_share;
 
     // Transfer collateral from protocol to user
     let transfer_seeds = &[

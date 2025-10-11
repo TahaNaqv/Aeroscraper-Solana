@@ -85,9 +85,10 @@ pub struct LiquidateTroves<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     
-    // Note: TotalLiquidationCollateralGain PDAs can be passed via remaining_accounts
-    // for proper gain tracking per block height and denomination.
-    // If not provided, gains are tracked via protocol vaults and withdrawable proportionally.
+    // remaining_accounts should contain:
+    // - First 4*N accounts: Per-trove accounts (UserDebtAmount, UserCollateralAmount, LiquidityThreshold, Node)
+    // - Remaining accounts: TotalLiquidationCollateralGain PDAs (one per unique denom being liquidated)
+    //   These PDAs track seized collateral for distribution to stability pool stakers
 }
 
 pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> Result<()> {

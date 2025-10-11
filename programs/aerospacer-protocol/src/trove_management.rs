@@ -415,9 +415,11 @@ impl TroveManager {
             
             // Distribute seized collateral to stability pool stakers
             distribute_liquidation_gains_to_stakers(
-                &mut liquidation_ctx.state,
+                &liquidation_ctx.state,
                 &trove_data.collateral_amounts,
                 trove_data.debt_amount,
+                remaining_accounts,
+                liquidation_list.len(),
             )?;
             
             // Update user accounts to zero (trove is closed)
@@ -725,21 +727,22 @@ fn update_user_accounts_after_liquidation(
 
 /// Distribute liquidation gains to stability pool stakers
 /// 
-/// This function tracks seized collateral for distribution to stability pool stakers.
+/// This function creates or updates TotalLiquidationCollateralGain PDAs to track
+/// seized collateral for distribution to stability pool stakers.
 /// The actual per-user distribution is "lazy" - it happens when users call withdraw_liquidation_gains.
 /// 
-/// IMPORTANT: This implementation uses StateAccount to track liquidation gains globally.
-/// For a complete implementation, TotalLiquidationCollateralGain PDAs should be created
-/// in the instruction handler and passed via remaining_accounts.
-/// 
 /// # Arguments
-/// * `state` - The protocol state containing total_stake_amount (mutable to track gains)
+/// * `state` - The protocol state containing total_stake_amount
 /// * `collateral_amounts` - Vector of (denom, amount) pairs seized from liquidation
 /// * `debt_amount` - The debt amount that was liquidated
+/// * `remaining_accounts` - Must include TotalLiquidationCollateralGain PDAs after the 4n trove accounts
+/// * `num_troves` - Number of troves being liquidated (to calculate where gain PDAs start)
 fn distribute_liquidation_gains_to_stakers(
-    state: &mut StateAccount,
+    state: &StateAccount,
     collateral_amounts: &Vec<(String, u64)>,
     debt_amount: u64,
+    remaining_accounts: &[AccountInfo],
+    num_troves: usize,
 ) -> Result<()> {
     let total_stake = state.total_stake_amount;
     
@@ -751,23 +754,70 @@ fn distribute_liquidation_gains_to_stakers(
     msg!("  Debt liquidated: {}", debt_amount);
     msg!("  Block height: {}", current_block_height);
     
-    // Track liquidation gains globally in state
-    // Note: In production, these should be stored in TotalLiquidationCollateralGain PDAs
-    // For now, we log the gains and they're available via protocol vaults
+    // TotalLiquidationCollateralGain PDAs start after the trove accounts (4 per trove)
+    let gain_pdas_start = num_troves * 4;
+    
+    // Track liquidation gains in TotalLiquidationCollateralGain PDAs
     for (denom, amount) in collateral_amounts {
-        if total_stake == 0 {
-            msg!("  {} {} seized - no stakers, gains remain in protocol vault", denom, amount);
-        } else {
-            msg!("  {} {} available for {} stakers to claim proportionally", 
-                 denom, amount, total_stake);
+        // Expected PDA for this denom at current block height
+        let gain_seeds = [
+            b"total_liq_gain",
+            &current_block_height.to_le_bytes()[..],
+            denom.as_bytes(),
+        ];
+        let (expected_pda, _bump) = Pubkey::find_program_address(&gain_seeds, &crate::ID);
+        
+        // Look for the PDA in remaining_accounts starting after trove accounts
+        let mut found = false;
+        for i in gain_pdas_start..remaining_accounts.len() {
+            let account_info = &remaining_accounts[i];
+            
+            if account_info.key() == expected_pda {
+                // Update existing PDA
+                let mut data = account_info.try_borrow_mut_data()?;
+                
+                if data.len() >= 8 + TotalLiquidationCollateralGain::LEN {
+                    // Deserialize existing data
+                    let mut gain = TotalLiquidationCollateralGain::try_deserialize(&mut &data[..])?;
+                    
+                    // Add to existing amount
+                    gain.amount = gain.amount
+                        .checked_add(*amount)
+                        .ok_or(AerospacerProtocolError::OverflowError)?;
+                    
+                    // Serialize back
+                    gain.try_serialize(&mut &mut data[..])?;
+                    
+                    msg!("  Updated gain PDA for {}: added {}, total now {}", 
+                         denom, amount, gain.amount);
+                } else {
+                    // Initialize new PDA
+                    let gain = TotalLiquidationCollateralGain {
+                        block_height: current_block_height,
+                        denom: denom.clone(),
+                        amount: *amount,
+                    };
+                    gain.try_serialize(&mut &mut data[..])?;
+                    
+                    msg!("  Initialized gain PDA for {}: {}", denom, amount);
+                }
+                
+                found = true;
+                break;
+            }
+        }
+        
+        if !found {
+            if total_stake == 0 {
+                msg!("  {} {} seized - no stakers, gains remain in protocol vault", denom, amount);
+            } else {
+                msg!("  WARNING: Gain PDA not provided for {} - gains tracked in vault only", denom);
+                msg!("  {} stakers can still withdraw proportionally from vault balance", total_stake);
+            }
         }
     }
     
-    // The seized collateral remains in protocol vaults and is distributed when users
-    // call withdraw_liquidation_gains, which calculates their proportional share
-    // based on: user_share = (user_stake / total_stake) * seized_amount
-    
-    msg!("Liquidation gains tracked - users can claim via withdraw_liquidation_gains");
+    msg!("Liquidation gains distribution complete");
     
     Ok(())
 }
