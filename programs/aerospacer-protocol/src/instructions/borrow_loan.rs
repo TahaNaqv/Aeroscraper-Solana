@@ -168,6 +168,8 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     let oracle_ctx = OracleContext {
         oracle_program: ctx.accounts.oracle_program.clone(),
         oracle_state: ctx.accounts.oracle_state.clone(),
+        pyth_price_account: ctx.accounts.pyth_price_account.clone(),
+        clock: ctx.accounts.clock.to_account_info(),
     };
     
     // Calculate fee and net loan amount
