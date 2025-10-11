@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{hash::hash, instruction::{Instruction, AccountMeta}};
 use crate::state::*;
 use crate::error::*;
 
 /// Oracle integration for price feeds
 /// This module provides clean integration with our aerospacer-oracle contract
 
-/// Price data structure (matches aerospacer-oracle)
+/// Price data structure (matches aerospacer-oracle PriceResponse)
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct PriceData {
     pub denom: String,
@@ -17,48 +18,41 @@ pub struct PriceData {
 }
 
 /// Oracle context for price queries via CPI
-#[derive(Accounts)]
 pub struct OracleContext<'info> {
-    /// CHECK: Our oracle program
-    #[account(mut)]
+    /// Our oracle program
     pub oracle_program: AccountInfo<'info>,
     
-    /// CHECK: Oracle state account
-    #[account(mut)]
+    /// Oracle state account
     pub oracle_state: AccountInfo<'info>,
+    
+    /// Pyth price account for the collateral asset
+    pub pyth_price_account: AccountInfo<'info>,
+    
+    /// Clock sysvar
+    pub clock: AccountInfo<'info>,
 }
 
 /// Oracle integration implementation
 impl<'info> OracleContext<'info> {
     /// Get price for a specific collateral denom via CPI to our oracle
     pub fn get_price(&self, denom: &str) -> Result<PriceData> {
-        // For now, return mock prices based on denom
-        // TODO: Implement real CPI call to aerospacer-oracle
-        // Example CPI call would be:
-        // let cpi_accounts = GetPrice {
-        //     state: self.oracle_state.to_account_info(),
-        //     pyth_price_account: pyth_account.to_account_info(),
-        //     clock: Clock::get()?.to_account_info(),
-        // };
-        // let cpi_program = self.oracle_program.to_account_info();
-        // let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        // aerospacer_oracle::cpi::get_price(cpi_ctx, GetPriceParams { denom: denom.to_string() })
+        // Build the CPI instruction to call oracle's get_price
+        let price_response = get_price_via_cpi(
+            denom.to_string(),
+            self.oracle_program.to_account_info(),
+            self.oracle_state.to_account_info(),
+            self.pyth_price_account.to_account_info(),
+            self.clock.to_account_info(),
+        )?;
         
-        let (price, decimal) = match denom {
-            "SOL" => (100_000_000i64, 9), // $100 with 9 decimals
-            "USDC" => (1_000_000i64, 6),  // $1 with 6 decimals
-            "INJ" => (144015750000i64, 18), // Mock INJ price with 18 decimals
-            "ATOM" => (6313260000i64, 6),  // Mock ATOM price with 6 decimals
-            _ => (50_000_000i64, 6),      // $50 with 6 decimals
-        };
-        
+        // Convert PriceResponse to PriceData
         Ok(PriceData {
-            denom: denom.to_string(),
-            price: price as i64, // Convert to i64 for oracle compatibility
-            decimal,
-            confidence: 1000, // Mock confidence
-            timestamp: Clock::get()?.unix_timestamp,
-            exponent: -8, // Mock exponent
+            denom: price_response.denom,
+            price: price_response.price,
+            decimal: price_response.decimal,
+            confidence: price_response.confidence,
+            timestamp: price_response.timestamp,
+            exponent: price_response.exponent,
         })
     }
     
@@ -147,6 +141,84 @@ impl PriceCalculator {
         let ratio = Self::calculate_collateral_ratio(collateral_value, debt_amount)?;
         Ok(ratio < minimum_ratio)
     }
+}
+
+/// PriceResponse struct (matches oracle contract's return type)
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct PriceResponse {
+    pub denom: String,
+    pub price: i64,
+    pub decimal: u8,
+    pub timestamp: i64,
+    pub confidence: u64,
+    pub exponent: i32,
+}
+
+/// Execute CPI call to oracle contract's get_price instruction
+pub fn get_price_via_cpi<'info>(
+    denom: String,
+    oracle_program: AccountInfo<'info>,
+    oracle_state: AccountInfo<'info>,
+    pyth_price_account: AccountInfo<'info>,
+    clock: AccountInfo<'info>,
+) -> Result<PriceResponse> {
+    // Calculate discriminator for get_price instruction
+    // Anchor uses: SHA256("global:get_price")[0..8]
+    let preimage = b"global:get_price";
+    let hash_result = hash(preimage);
+    let discriminator = &hash_result.to_bytes()[..8];
+    
+    // Serialize the GetPriceParams { denom }
+    let mut instruction_data = Vec::new();
+    instruction_data.extend_from_slice(discriminator);
+    
+    // Serialize params struct: { denom: String }
+    denom.serialize(&mut instruction_data)?;
+    
+    // Build account metas for CPI (include all accounts including program)
+    let account_metas = vec![
+        AccountMeta::new(oracle_state.key(), false),
+        AccountMeta::new_readonly(pyth_price_account.key(), false),
+        AccountMeta::new_readonly(clock.key(), false),
+    ];
+    
+    // Build the instruction
+    let ix = Instruction {
+        program_id: oracle_program.key(),
+        accounts: account_metas,
+        data: instruction_data,
+    };
+    
+    // Execute CPI (data accounts + program)
+    // Note: Account metas only include data accounts, but invoke needs the program too
+    anchor_lang::solana_program::program::invoke(
+        &ix,
+        &[
+            oracle_state.clone(),
+            pyth_price_account.clone(),
+            clock.clone(),
+            oracle_program.clone(),
+        ],
+    )?;
+    
+    msg!("Oracle CPI executed successfully for denom: {}", denom);
+    
+    // Parse return data from oracle program
+    let return_data = anchor_lang::solana_program::program::get_return_data()
+        .ok_or(AerospacerProtocolError::InvalidAmount)?;
+    
+    // Verify the return data is from our oracle program
+    require!(
+        return_data.0 == oracle_program.key(),
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    // Deserialize PriceResponse
+    let price_response: PriceResponse = PriceResponse::deserialize(&mut &return_data.1[..])?;
+    
+    msg!("Price received: {} for {}", price_response.price, price_response.denom);
+    
+    Ok(price_response)
 }
 
 /// Mock oracle for testing
