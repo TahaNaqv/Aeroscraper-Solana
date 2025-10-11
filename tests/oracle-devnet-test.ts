@@ -337,14 +337,23 @@ describe("Aerospacer Oracle Contract - Devnet Comprehensive Testing (Mock Data M
                 const state = await program.account.oracleStateAccount.fetch(oracleState.publicKey);
                 expect(state.collateralData.length).to.be.greaterThan(0);
 
+                // Build remaining accounts array with Pyth price accounts for each asset
+                const remainingAccounts = state.collateralData.map(asset => ({
+                    pubkey: new PublicKey(Buffer.from(asset.priceId, 'hex')),
+                    isSigner: false,
+                    isWritable: false,
+                }));
+
+                console.log(`📊 Passing ${remainingAccounts.length} Pyth price accounts via remainingAccounts`);
+
                 // Use simulate to test the instruction (now with mock data)
                 const simulation = await program.methods
                     .getAllPrices({})
                     .accounts({
                         state: oracleState.publicKey,
-                        pythPriceAccount: PYTH_PRICE_FEEDS.SOL, // Still required by account struct but not used
                         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
                     })
+                    .remainingAccounts(remainingAccounts)
                     .simulate();
 
                 console.log("✅ All prices query simulation successful on devnet");
@@ -353,7 +362,7 @@ describe("Aerospacer Oracle Contract - Devnet Comprehensive Testing (Mock Data M
                 // Verify the instruction executed without errors
                 expect(simulation).to.exist;
 
-                console.log("✅ Mock all prices query verified (Pyth integration commented out for testing)");
+                console.log("✅ Mock all prices query with multiple Pyth accounts verified");
 
             } catch (error) {
                 console.error("❌ Get all prices failed:", error);

@@ -16,15 +16,20 @@ pub struct GetAllPrices<'info> {
     
     /// CHECK: Clock sysvar for timestamp validation
     pub clock: Sysvar<'info, Clock>,
-    
-    /// CHECK: Pyth price account - caller must provide correct one
-    /// Note: This will only fetch prices for assets that match this account
-    pub pyth_price_account: AccountInfo<'info>,
 }
 
 pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Result<Vec<PriceResponse>> {
     let state = &ctx.accounts.state;
     let clock = &ctx.accounts.clock;
+    
+    // Get remaining accounts (should contain Pyth price accounts for each asset)
+    let remaining_accounts = &ctx.remaining_accounts;
+    
+    // Validate we have enough Pyth accounts for all assets
+    require!(
+        remaining_accounts.len() >= state.collateral_data.len(),
+        AerospacerOracleError::InvalidPriceData
+    );
     
     let mut prices = Vec::new();
     
@@ -66,10 +71,10 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     //             exponent: -6,
     //         }
     //     };
-        
+    //     
     //     prices.push(mock_price);
     // }
-    
+    // 
     // msg!("All prices query successful (TESTING MODE)");
     // msg!("Found {} price responses", prices.len());
     // msg!("Mock price data returned for testing purposes");
@@ -77,14 +82,17 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     // for price in &prices {
     //     msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
     // }
-    
+    // 
     // Ok(prices)
 
-    // PRODUCTION PYTH INTEGRATION CODE (COMMENTED OUT FOR TESTING)
+    // PRODUCTION PYTH INTEGRATION CODE
     // This replicates INJECTIVE's Prices query functionality exactly
-    // For each collateral asset, we need to fetch real price data using Pyth SDK
-    for collateral_data in &state.collateral_data {
-        // Parse the price_id to get the Pyth price feed address
+    // For each collateral asset, fetch real price data using corresponding Pyth account
+    for (index, collateral_data) in state.collateral_data.iter().enumerate() {
+        // Get the corresponding Pyth price account from remaining_accounts
+        let pyth_price_account = &remaining_accounts[index];
+        
+        // Parse the price_id to get the expected Pyth price feed address
         let price_id_bytes = hex::decode(&collateral_data.price_id)
             .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
         
@@ -97,12 +105,12 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
         
         // Validate that the provided pyth_price_account matches the expected address
         require!(
-            ctx.accounts.pyth_price_account.key() == price_feed_address,
+            pyth_price_account.key() == price_feed_address,
             AerospacerOracleError::InvalidPriceData
         );
         
-        // Use Pyth SDK to load and validate price feed data
-        let price_feed = load_price_feed_from_account_info(&ctx.accounts.pyth_price_account)
+        // Use Pyth SDK to load and validate price feed data (reusing get_price logic)
+        let price_feed = load_price_feed_from_account_info(pyth_price_account)
             .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
         
         // Get current time for staleness validation
@@ -132,9 +140,9 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     msg!("All prices query successful");
     msg!("Found {} price responses", prices.len());
     msg!("Real Pyth data extracted for all assets using official SDK");
-    msg!("Note: All assets must use the same Pyth price account");
+    msg!("Each asset uses its own Pyth price account via remaining_accounts");
     for price in &prices {
-        msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
+        msg!("- {}: {} ± {} x 10^{}", price.denom, price.price, price.confidence, price.exponent);
     }
     
     Ok(prices)

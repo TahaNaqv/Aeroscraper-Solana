@@ -48,6 +48,15 @@ The recommended development workflow involves building and testing locally using
 
 ### Recent Changes
 
+**2025-10-11**: Oracle get_all_prices Design Flaw Fixed
+- Fixed critical design flaw in `get_all_prices` instruction where it expected a single Pyth price account but needed to handle multiple assets with different Pyth feeds (SOL, ETH, BTC each have unique feed addresses)
+- Refactored `get_all_prices.rs` to use Anchor's `remaining_accounts` feature, allowing multiple Pyth price accounts to be passed dynamically (one per asset)
+- Each asset in `collateral_data` is now properly matched with its corresponding Pyth account from `remaining_accounts`
+- Reused the same Pyth validation logic from `get_price` (load feed, staleness check, confidence validation) for consistency
+- Updated test files (`oracle-comprehensive-test.ts`, `oracle-devnet-test.ts`) to pass multiple Pyth accounts via `remainingAccounts` array
+- Protocol integration unaffected: protocol's `get_all_prices` helper method calls `get_price` individually per asset rather than using oracle's `get_all_prices` instruction
+- Oracle program compiles successfully with only minor warnings (deprecated Pyth SDK function)
+
 **2025-10-11**: Fee Contract 100% Complete
 - Added `cpi = ["no-entrypoint"]` feature to aerospacer-fees Cargo.toml
 - Fee contract now has proper CPI configuration for protocol integration
