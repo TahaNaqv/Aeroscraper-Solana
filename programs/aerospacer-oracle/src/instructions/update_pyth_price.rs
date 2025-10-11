@@ -41,20 +41,18 @@ pub fn handler(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> 
     // THIS CODE IS FOR TESTING PURPOSES ONLY
     // UNCOMMENT DURING TESTING
     // For testing, we just update the timestamp without fetching real Pyth data
-    msg!("Pyth price update successful (TESTING MODE)");
-    msg!("Denom: {}", params.denom);
-    msg!("Mock price update completed for testing");
-    msg!("Note: Pyth integration is commented out for testing");
+    // msg!("Pyth price update successful (TESTING MODE)");
+    // msg!("Denom: {}", params.denom);
+    // msg!("Mock price update completed for testing");
+    // msg!("Note: Pyth integration is commented out for testing");
     
-    // Update the last update timestamp
-    state.last_update = clock.unix_timestamp;
+    // state.last_update = clock.unix_timestamp;
     
-    msg!("Updated at: {}", clock.unix_timestamp);
+    // msg!("Updated at: {}", clock.unix_timestamp);
     
-    Ok(())
+    // Ok(())
 
     // PRODUCTION PYTH INTEGRATION CODE (COMMENTED OUT FOR TESTING)
-    /*
     // Parse the price_id to get the Pyth price feed address
     let price_id_bytes = hex::decode(&collateral_data.price_id)
         .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
@@ -98,5 +96,4 @@ pub fn handler(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> 
     msg!("Updated at: {}", clock.unix_timestamp);
     
     Ok(())
-    */
 }

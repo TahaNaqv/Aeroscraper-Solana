@@ -31,57 +31,56 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     // THIS CODE IS FOR TESTING PURPOSES ONLY
     // UNCOMMENT DURING TESTING
     // For each collateral asset, return mock price data for testing
-    for collateral_data in &state.collateral_data {
-        let mock_price = match collateral_data.denom.as_str() {
-            "SOL" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 183415750000, // Mock SOL price: $183.41
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -9,
-            },
-            "ETH" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 7891575000, // Mock ETH price: $7,891.58
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -6,
-            },
-            "BTC" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 125000000000, // Mock BTC price: $125,000.00
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -8,
-            },
-            _ => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 1000000000, // Mock price: $1.00
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -6,
-            }
-        };
+    // for collateral_data in &state.collateral_data {
+    //     let mock_price = match collateral_data.denom.as_str() {
+    //         "SOL" => PriceResponse {
+    //             denom: collateral_data.denom.clone(),
+    //             price: 183415750000, // Mock SOL price: $183.41
+    //             decimal: collateral_data.decimal,
+    //             timestamp: clock.unix_timestamp,
+    //             confidence: 1000,
+    //             exponent: -9,
+    //         },
+    //         "ETH" => PriceResponse {
+    //             denom: collateral_data.denom.clone(),
+    //             price: 7891575000, // Mock ETH price: $7,891.58
+    //             decimal: collateral_data.decimal,
+    //             timestamp: clock.unix_timestamp,
+    //             confidence: 1000,
+    //             exponent: -6,
+    //         },
+    //         "BTC" => PriceResponse {
+    //             denom: collateral_data.denom.clone(),
+    //             price: 125000000000, // Mock BTC price: $125,000.00
+    //             decimal: collateral_data.decimal,
+    //             timestamp: clock.unix_timestamp,
+    //             confidence: 1000,
+    //             exponent: -8,
+    //         },
+    //         _ => PriceResponse {
+    //             denom: collateral_data.denom.clone(),
+    //             price: 1000000000, // Mock price: $1.00
+    //             decimal: collateral_data.decimal,
+    //             timestamp: clock.unix_timestamp,
+    //             confidence: 1000,
+    //             exponent: -6,
+    //         }
+    //     };
         
-        prices.push(mock_price);
-    }
+    //     prices.push(mock_price);
+    // }
     
-    msg!("All prices query successful (TESTING MODE)");
-    msg!("Found {} price responses", prices.len());
-    msg!("Mock price data returned for testing purposes");
-    msg!("Note: Pyth integration is commented out for testing");
-    for price in &prices {
-        msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
-    }
+    // msg!("All prices query successful (TESTING MODE)");
+    // msg!("Found {} price responses", prices.len());
+    // msg!("Mock price data returned for testing purposes");
+    // msg!("Note: Pyth integration is commented out for testing");
+    // for price in &prices {
+    //     msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
+    // }
     
-    Ok(prices)
+    // Ok(prices)
 
     // PRODUCTION PYTH INTEGRATION CODE (COMMENTED OUT FOR TESTING)
-    /*
     // This replicates INJECTIVE's Prices query functionality exactly
     // For each collateral asset, we need to fetch real price data using Pyth SDK
     for collateral_data in &state.collateral_data {
@@ -139,5 +138,4 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     }
     
     Ok(prices)
-    */
 }
