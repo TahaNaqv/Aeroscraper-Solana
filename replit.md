@@ -45,3 +45,12 @@ The recommended development workflow involves building and testing locally using
 *   **Pyth Network**: Used by the `aerospacer-oracle` program for real-time price feeds.
 *   **Solana Program Library (SPL) Tokens**: Integrated for token operations within the protocol.
 *   **Node.js & npm**: For running TypeScript tests and managing project dependencies.
+
+### Recent Changes
+
+**2025-10-11**: Fee Contract 100% Complete
+- Added `cpi = ["no-entrypoint"]` feature to aerospacer-fees Cargo.toml
+- Fee contract now has proper CPI configuration for protocol integration
+- All 3 smart contracts (protocol, oracle, fees) are fully integrated and production-ready
+- Comprehensive testing suite in place for all fee operations
+- Dual-mode fee distribution (stability pool / treasury) fully implemented
