@@ -308,16 +308,25 @@ await protocolProgram.methods
 
 #### **Scenarios to Test**
 
-1. **Stale Price Data**
+1. **Stale Price Data** (>5 minutes old)
    ```typescript
    // Test with old Pyth price (should fail staleness check)
-   it("Should reject operation with stale price", async () => {
-     // Use a Pyth account with old timestamp
-     // Expected error: "Price data is stale"
+   it("Should reject operation with stale price (>5 min)", async () => {
+     // Use a Pyth account with timestamp > 300 seconds old
+     // Expected error: "Invalid amount" (from staleness check)
    });
    ```
 
-2. **Invalid Pyth Account**
+2. **Zero or Negative Price**
+   ```typescript
+   // Test with invalid price value
+   it("Should reject operation with price <= 0", async () => {
+     // Mock Pyth account with price = 0 or negative
+     // Expected error: "Invalid amount" (from price > 0 check)
+   });
+   ```
+
+3. **Invalid Pyth Account**
    ```typescript
    // Test with wrong Pyth price feed
    it("Should reject operation with invalid price feed", async () => {
@@ -328,11 +337,11 @@ await protocolProgram.methods
        })
        .signers([user1])
        .rpc();
-     // Expected: CPI error or invalid price
+     // Expected: CPI error or price mismatch
    });
    ```
 
-3. **Oracle Program Mismatch**
+4. **Oracle Program Mismatch**
    ```typescript
    // Test with wrong oracle program
    it("Should reject CPI to wrong oracle program", async () => {
@@ -343,15 +352,7 @@ await protocolProgram.methods
        })
        .signers([user1])
        .rpc();
-     // Expected error: "Oracle program mismatch"
-   });
-   ```
-
-4. **Price Confidence Validation**
-   ```typescript
-   // Test when Pyth confidence interval is too wide
-   it("Should reject operation with low confidence price", async () => {
-     // Expected: Price validation failure if confidence too low
+     // Expected error: Program mismatch or CPI failure
    });
    ```
 
@@ -395,17 +396,23 @@ await protocolProgram.methods
    ```
    **Solution**: Add `clock: SYSVAR_CLOCK_PUBKEY` to accounts
 
-3. **CPI Return Data Error**
+3. **Stale Price Error**
+   ```
+   Error: Invalid amount (code: 6004)
+   ```
+   **Solution**: Price timestamp is >5 minutes old. Ensure Pyth price feed is recent
+
+4. **Invalid Price Error**
+   ```
+   Error: Invalid amount (code: 6004)
+   ```
+   **Solution**: Price is ≤ 0. Verify Pyth price feed has valid price data
+
+5. **CPI Return Data Error**
    ```
    Error: Failed to deserialize return data
    ```
    **Solution**: Verify oracle program is deployed and `get_price` returns correct PriceResponse
-
-4. **Oracle Validation Error**
-   ```
-   Error: Oracle program mismatch
-   ```
-   **Solution**: Ensure `oracle_program` in accounts matches `state.oracle_addr`
 
 #### **Debugging Commands**
 ```bash
@@ -431,10 +438,10 @@ anchor test --skip-deploy -- --grep "open_trove" --simulate
 - [ ] Liquidation uses accurate prices
 
 #### **Error Path Tests** ⚠️
-- [ ] Stale price rejection (>60s old)
+- [ ] Stale price rejection (>5 minutes old)
+- [ ] Zero or negative price rejection
 - [ ] Invalid Pyth account handling
 - [ ] Oracle program validation
-- [ ] Price confidence checks
 
 #### **Edge Cases** 🔍
 - [ ] Price volatility during operations
@@ -452,8 +459,8 @@ anchor test --skip-deploy -- --grep "open_trove" --simulate
 
 1. **Price Manipulation**: Verify CPI uses on-chain Pyth data (not user-provided)
 2. **Authorization**: Ensure only authorized oracle program can be called
-3. **Staleness**: Confirm 60-second staleness check is enforced
-4. **Confidence**: Validate price confidence intervals are checked
+3. **Staleness**: Confirm 5-minute (300 second) staleness check is enforced
+4. **Price Validity**: Ensure price > 0 validation is enforced
 
 ---
 
