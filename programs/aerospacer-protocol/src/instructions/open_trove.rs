@@ -261,11 +261,13 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     
     // Insert trove into sorted list using the Node account from context
+    // Pass remaining_accounts to update neighbor nodes (old_tail.next_id)
     sorted_troves_simple::insert_trove(
-        &mut ctx.accounts.sorted_troves_state,
-        &mut ctx.accounts.node,
+        &mut *ctx.accounts.sorted_troves_state,
+        &mut *ctx.accounts.node,
         ctx.accounts.user.key(),
         result.new_icr,
+        ctx.remaining_accounts,
     )?;
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)

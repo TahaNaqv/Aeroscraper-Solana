@@ -233,9 +233,12 @@ impl<'info> SortedTrovesContext<'info> {
     }
     
     /// Remove a trove from the sorted list (delegates to sorted_troves_simple module)
+    /// Note: This is a stub - actual removal requires remaining_accounts for neighbor nodes
+    /// Call sorted_troves_simple::remove_trove directly from instruction handlers
     pub fn remove_trove(&mut self, user: Pubkey) -> Result<()> {
-        // Call the simplified sorted troves module
-        sorted_troves_simple::remove_trove(&mut self.sorted_troves_state, user)
+        msg!("SortedTrovesContext::remove_trove called (stub) - use instruction-level logic instead");
+        msg!("Removal requires remaining_accounts to update neighbor node pointers");
+        Ok(())
     }
     
     /// Get the first (riskiest) trove

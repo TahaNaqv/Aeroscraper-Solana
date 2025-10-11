@@ -5,6 +5,7 @@ use crate::error::*;
 use crate::trove_management::*;
 use crate::account_management::*;
 use crate::oracle::*;
+use crate::sorted_troves_simple;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct RepayLoanParams {
@@ -176,8 +177,12 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
 
     // If debt is fully repaid, close the node account and remove from sorted list
     if result.new_debt_amount == 0 {
-        // Remove from sorted troves (mutates sorted_ctx)
-        sorted_ctx.remove_trove(ctx.accounts.user.key())?;
+        // Remove from sorted troves using remaining_accounts for neighbor nodes
+        sorted_troves_simple::remove_trove(
+            &mut *ctx.accounts.sorted_troves_state,
+            ctx.accounts.user.key(),
+            ctx.remaining_accounts,
+        )?;
         
         // Close the node account manually by zeroing data and transferring lamports
         let node_account_info = ctx.accounts.node.to_account_info();
