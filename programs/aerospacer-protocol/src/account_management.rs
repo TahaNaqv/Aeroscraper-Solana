@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Mint, Transfer, Burn};
 use crate::state::*;
 use crate::error::*;
+use crate::sorted_troves_simple;
 
 /// Account management utilities for the protocol
 /// This module provides clean, type-safe account loading and management
@@ -214,7 +215,8 @@ impl<'info> CollateralContext<'info> {
 
 /// Sorted troves management
 impl<'info> SortedTrovesContext<'info> {
-    /// Insert a trove into the sorted list
+    /// Insert a trove into the sorted list (delegates to sorted_troves_simple module)
+    /// Note: This requires the Node account to be passed in the instruction context
     pub fn insert_trove(
         &mut self,
         user: Pubkey,
@@ -222,85 +224,28 @@ impl<'info> SortedTrovesContext<'info> {
         prev_id: Option<Pubkey>,
         next_id: Option<Pubkey>,
     ) -> Result<()> {
-        // Create node PDA
-        let node_seeds = Node::seeds(&user);
-        let (node_pda, bump) = Pubkey::find_program_address(&node_seeds, &crate::ID);
+        // NOTE: This method is a stub because we don't have access to the user's Node account here
+        // The actual insertion happens in the instruction handler which has the Node account
+        // This method exists to maintain the interface but should not be called directly
         
-        // Initialize node account
-        let node = Node {
-            id: user,
-            prev_id,
-            next_id,
-        };
-        
-        // Update sorted troves state
-        if self.sorted_troves_state.head.is_none() {
-            self.sorted_troves_state.head = Some(user);
-            self.sorted_troves_state.tail = Some(user);
-        } else {
-            // Insert in sorted order based on ICR
-            self.insert_in_sorted_order(user, icr)?;
-        }
-        
-        self.sorted_troves_state.size += 1;
-        
-        msg!("Trove inserted: user={}, icr={}", user, icr);
+        msg!("SortedTrovesContext::insert_trove called (stub) - use instruction-level logic instead");
         Ok(())
     }
     
-    /// Remove a trove from the sorted list
+    /// Remove a trove from the sorted list (delegates to sorted_troves_simple module)
     pub fn remove_trove(&mut self, user: Pubkey) -> Result<()> {
-        if self.sorted_troves_state.size == 0 {
-            return Err(AerospacerProtocolError::TroveDoesNotExist.into());
-        }
-        
-        if self.sorted_troves_state.size == 1 {
-            self.sorted_troves_state.head = None;
-            self.sorted_troves_state.tail = None;
-        } else {
-            // Remove from sorted order
-            self.remove_from_sorted_order(user)?;
-        }
-        
-        self.sorted_troves_state.size -= 1;
-        
-        msg!("Trove removed: user={}", user);
-        Ok(())
+        // Call the simplified sorted troves module
+        sorted_troves_simple::remove_trove(&mut self.sorted_troves_state, user)
     }
     
     /// Get the first (riskiest) trove
     pub fn get_first_trove(&self) -> Option<Pubkey> {
-        self.sorted_troves_state.head
+        sorted_troves_simple::get_first_trove(&self.sorted_troves_state)
     }
     
     /// Get the last (safest) trove
     pub fn get_last_trove(&self) -> Option<Pubkey> {
-        self.sorted_troves_state.tail
-    }
-    
-    /// Insert trove in sorted order based on ICR
-    fn insert_in_sorted_order(&mut self, user: Pubkey, icr: u64) -> Result<()> {
-        // For now, implement a simple insertion at the end
-        // In a full implementation, this would maintain proper ICR ordering
-        if let Some(tail) = self.sorted_troves_state.tail {
-            // Update tail's next_id
-            // This would require updating the Node PDA
-            self.sorted_troves_state.tail = Some(user);
-        }
-        Ok(())
-    }
-    
-    /// Remove trove from sorted order
-    fn remove_from_sorted_order(&mut self, user: Pubkey) -> Result<()> {
-        // For now, implement a simple removal
-        // In a full implementation, this would maintain proper ICR ordering
-        if self.sorted_troves_state.head == Some(user) {
-            self.sorted_troves_state.head = None;
-        }
-        if self.sorted_troves_state.tail == Some(user) {
-            self.sorted_troves_state.tail = None;
-        }
-        Ok(())
+        sorted_troves_simple::get_last_trove(&self.sorted_troves_state)
     }
 }
 

@@ -9,6 +9,7 @@ use crate::trove_management::TroveManager;
 use crate::state::{DECIMAL_FRACTION_18, MINIMUM_LOAN_AMOUNT, MINIMUM_COLLATERAL_AMOUNT};
 use crate::fees_integration::*;
 use crate::utils::*;
+use crate::sorted_troves_simple;
 
 // Oracle integration is now handled via our aerospacer-oracle contract
 
@@ -258,7 +259,14 @@ pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()>
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
-    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
+    
+    // Insert trove into sorted list using the Node account from context
+    sorted_troves_simple::insert_trove(
+        &mut ctx.accounts.sorted_troves_state,
+        &mut ctx.accounts.node,
+        ctx.accounts.user.key(),
+        result.new_icr,
+    )?;
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)
     let mint_ctx = CpiContext::new(
