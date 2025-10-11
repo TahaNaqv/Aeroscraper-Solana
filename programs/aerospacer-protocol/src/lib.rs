@@ -10,6 +10,7 @@ pub mod query;
 pub mod account_management;
 pub mod oracle;
 pub mod trove_management;
+pub mod fees_integration;
 
 // Core instruction handlers
 pub mod instructions;

@@ -490,6 +490,24 @@ pub fn get_trove_amounts<'a>(
     })
 }
 
+// Fee calculation utilities for protocol-fees integration
+pub fn calculate_protocol_fee(amount: u64, fee_percentage: u8) -> Result<u64> {
+    let fee = amount
+        .checked_mul(fee_percentage as u64)
+        .ok_or(AerospacerProtocolError::OverflowError)?
+        .checked_div(100)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
+    
+    Ok(fee)
+}
+
+pub fn calculate_net_amount_after_fee(amount: u64, fee_percentage: u8) -> Result<u64> {
+    let fee = calculate_protocol_fee(amount, fee_percentage)?;
+    amount
+        .checked_sub(fee)
+        .ok_or(AerospacerProtocolError::OverflowError.into())
+}
+
 // Mock functions to replace the deleted trove_helpers functions
 pub fn get_trove_icr(
     _user_debt_amount: &UserDebtAmount,

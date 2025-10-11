@@ -35,6 +35,7 @@ dependencies = [
 name = "aerospacer-protocol"
 version = "0.1.0"
 dependencies = [
+ "aerospacer-fees",
  "aerospacer-oracle",
  "anchor-lang",
  "anchor-spl",

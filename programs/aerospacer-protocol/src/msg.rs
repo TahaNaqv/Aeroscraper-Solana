@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct InstantiateMsg {
     pub stable_coin_code_id: u64,
     pub oracle_helper_addr: Pubkey, // String in Injective, Pubkey in Solana
-    pub fee_distributor_addr: Pubkey, // String in Injective, Pubkey in Solana
+    pub fee_distributor_addr: Pubkey, // String in Injective, Pubkey in Solana (aerospacer-fees program ID)
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]

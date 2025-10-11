@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 pub struct StateAccount {
     pub admin: Pubkey,
     pub oracle_helper_addr: Pubkey,
-    pub fee_distributor_addr: Pubkey,
+    pub fee_distributor_addr: Pubkey, // aerospacer-fees program ID
     pub minimum_collateral_ratio: u8,
     pub protocol_fee: u8,
     pub stable_coin_addr: Pubkey,
@@ -15,7 +15,7 @@ pub struct StateAccount {
 }
 
 impl StateAccount {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8;
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8; // Removed duplicate fees_program_id
 }
 
 // User debt amount (equivalent to INJECTIVE's USER_DEBT_AMOUNT: Map<Addr, Uint256>)
