@@ -267,8 +267,8 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         troves_redeemed += 1;
         remaining_amount = remaining_amount.saturating_sub(redeem_from_trove);
         
-        // Move to next trove (REAL implementation)
-        current_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state)?;
+        // Move to next trove via sorted list traversal
+        current_trove = get_next_trove_in_sorted_list(&trove_user, &ctx.accounts.sorted_troves_state, &ctx.remaining_accounts)?;
     }
     
     // Update global state with net redeemed amount
@@ -399,14 +399,61 @@ fn update_trove_after_partial_redemption(
 fn get_next_trove_in_sorted_list(
     current_trove: &Pubkey,
     sorted_troves_state: &Account<SortedTrovesState>,
+    remaining_accounts: &[AccountInfo],
 ) -> Result<Option<Pubkey>> {
-    // In a full implementation, this would:
-    // 1. Find the current trove's node
-    // 2. Return the next trove in the sorted list
+    // Find the current trove's Node account in remaining_accounts to get next_id
+    // Remaining accounts for redemption include Node accounts for sorted list traversal
     
-    // For now, return None to stop iteration
-    // In a real implementation, this would traverse the linked list
-    Ok(None)
+    // SECURITY: Derive expected Node PDA for current_trove
+    // Node PDAs use seeds: [b"node", user.key().as_ref()]
+    let (expected_node_address, _bump) = Pubkey::find_program_address(
+        &[b"node", current_trove.as_ref()],
+        &crate::ID
+    );
+    
+    // Search for the expected Node PDA in remaining_accounts
+    for account in remaining_accounts.iter() {
+        // SECURITY: Validate PDA address matches expected derivation
+        if *account.key != expected_node_address {
+            continue; // Skip accounts that don't match expected PDA
+        }
+        
+        // SECURITY: Verify account is owned by this program
+        if account.owner != &crate::ID {
+            msg!("Error: Node PDA {} has invalid owner", account.key());
+            return Err(AerospacerProtocolError::Unauthorized.into());
+        }
+        
+        // Try to deserialize as Node
+        if let Ok(data) = account.try_borrow_data() {
+            // Verify minimum size for Node account (discriminator + data)
+            if data.len() < 8 {
+                msg!("Error: Node PDA {} has invalid size", account.key());
+                return Err(AerospacerProtocolError::InvalidList.into());
+            }
+            
+            // Deserialize with full buffer (includes discriminator)
+            // try_deserialize will fail if discriminator doesn't match Node type
+            if let Ok(node) = Node::try_deserialize(&mut data.as_ref()) {
+                // Verify node.id matches current_trove (additional integrity check)
+                if node.id != *current_trove {
+                    msg!("Error: Node PDA has mismatched id: expected {}, found {}", current_trove, node.id);
+                    return Err(AerospacerProtocolError::InvalidList.into());
+                }
+                
+                // Found valid Node PDA, return next_id
+                msg!("Traversing from {} to next: {:?}", current_trove, node.next_id);
+                return Ok(node.next_id);
+            } else {
+                msg!("Error: Failed to deserialize Node PDA {}", account.key());
+                return Err(AerospacerProtocolError::InvalidList.into());
+            }
+        }
+    }
+    
+    // Node PDA not found in remaining_accounts - this is an error
+    msg!("Error: Required Node PDA {} not found in remaining_accounts", expected_node_address);
+    Err(AerospacerProtocolError::InvalidList.into())
 }
 
 // Trove data structure for redemption
