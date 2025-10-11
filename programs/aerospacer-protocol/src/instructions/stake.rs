@@ -20,8 +20,7 @@ pub struct Stake<'info> {
         payer = user,
         space = 8 + UserStakeAmount::LEN,
         seeds = [b"user_stake_amount", user.key().as_ref()],
-        bump,
-        constraint = user_stake_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
+        bump
     )]
     pub user_stake_amount: Account<'info, UserStakeAmount>,
 

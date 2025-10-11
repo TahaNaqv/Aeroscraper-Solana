@@ -32,8 +32,7 @@ pub struct Open_trove<'info> {
         payer = user,
         space = 8 + UserDebtAmount::LEN,
         seeds = [b"user_debt_amount", user.key().as_ref()],
-        bump,
-        constraint = user_debt_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
+        bump
     )]
     pub user_debt_amount: Account<'info, UserDebtAmount>,
     
@@ -42,8 +41,7 @@ pub struct Open_trove<'info> {
         payer = user,
         space = 8 + LiquidityThreshold::LEN,
         seeds = [b"liquidity_threshold", user.key().as_ref()],
-        bump,
-        constraint = liquidity_threshold.owner == user.key() @ AerospacerProtocolError::Unauthorized
+        bump
     )]
     pub liquidity_threshold: Account<'info, LiquidityThreshold>,
     
@@ -53,8 +51,7 @@ pub struct Open_trove<'info> {
         payer = user,
         space = 8 + UserCollateralAmount::LEN,
         seeds = [b"user_collateral_amount", user.key().as_ref(), params.collateral_denom.as_bytes()],
-        bump,
-        constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
+        bump
     )]
     pub user_collateral_amount: Account<'info, UserCollateralAmount>,
     
