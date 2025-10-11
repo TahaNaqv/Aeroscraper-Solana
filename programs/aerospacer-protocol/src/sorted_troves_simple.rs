@@ -237,7 +237,23 @@ pub fn remove_trove(
 }
 
 /// Reinsert a trove when its ICR changes (e.g., after borrowing more or adding collateral)
-/// This is equivalent to remove + insert with new position
+/// **5% Threshold**: Only repositions if ICR changed by >=5% to avoid unnecessary gas costs
+/// This performs: check threshold → remove from current position → find new position → insert
+/// 
+/// **remaining_accounts pattern (CORRECTED for alignment):**
+/// - [0]: user_liquidity_threshold (for old ICR check)
+/// - [1+]: old_neighbor_nodes (0-2 Node accounts for removal, NO LT accounts)
+/// - [N+]: (node, lt) pairs for traversal from NEW head (includes duplicates of neighbors)
+/// 
+/// **Concrete examples:**
+/// - Was head(ICR 120), next is B(130): [user_lt, B_node, B_node, B_lt, C_node, C_lt, ...]
+///   → Remove: update B at [1], Traversal: starts at [2] with B_node (duplicate but aligned!)
+/// - Was middle A→user→B: [user_lt, A_node, B_node, new_head_node, new_head_lt, ...]
+///   → Remove: update A[1] and B[2], Traversal: starts at [3] (aligned!)
+/// - Was tail with prev A: [user_lt, A_node, new_head_node, new_head_lt, ...]
+///   → Remove: update A at [1], Traversal: starts at [2] (aligned!)
+/// 
+/// **KEY: Duplicates are intentional to ensure traversal starts at correct Node/LT pair alignment!**
 pub fn reinsert_trove(
     sorted_troves_state: &mut SortedTrovesState,
     user_node: &mut Node,
@@ -245,20 +261,232 @@ pub fn reinsert_trove(
     new_icr: u64,
     remaining_accounts: &[AccountInfo],
 ) -> Result<()> {
-    // For Phase 3, we'll implement a simplified reinsert:
-    // 1. Check if position changed significantly
-    // 2. If yes, remove and reinsert
-    // 3. If no, keep in place (optimization)
-    
-    // For now, just validate the ICR
     require!(new_icr > 0, AerospacerProtocolError::InvalidAmount);
+    require!(sorted_troves_state.size > 0, AerospacerProtocolError::TroveDoesNotExist);
     
-    msg!("Reinsert trove: user={}, new_icr={}", user, new_icr);
-    msg!("Note: Actual repositioning will be implemented in full ICR-based sorting");
+    // Single trove - no need to reinsert
+    if sorted_troves_state.size == 1 {
+        msg!("Single trove in list, no repositioning needed");
+        return Ok(());
+    }
     
-    // TODO: Implement full remove + find_position + insert with ICR comparison
-    // For now, we don't reposition (assumes FIFO order is acceptable)
+    // Get old ICR from user's LiquidityThreshold to check if reinsert is needed
+    require!(remaining_accounts.len() >= 1, AerospacerProtocolError::InvalidList);
+    let old_icr = get_icr_from_account(&remaining_accounts[0], user)?;
     
+    // Calculate ICR change percentage
+    let icr_diff = if new_icr > old_icr {
+        new_icr - old_icr
+    } else {
+        old_icr - new_icr
+    };
+    
+    let threshold = old_icr / 20; // 5% of old_icr
+    
+    // Skip reinsert if change < 5% (optimization)
+    if icr_diff < threshold {
+        msg!("ICR change {} < 5% threshold {}, skipping reinsert", icr_diff, threshold);
+        return Ok(());
+    }
+    
+    msg!("Reinsert trove: user={}, old_icr={}, new_icr={}, change={}", 
+         user, old_icr, new_icr, icr_diff);
+    
+    // Store current position
+    let old_prev_id = user_node.prev_id;
+    let old_next_id = user_node.next_id;
+    
+    // STEP 1: Remove from current position
+    // Update neighbors' pointers to bypass this node
+    // Determine traversal start index based on which neighbors exist
+    let traversal_start_idx: usize;
+    
+    match (old_prev_id, old_next_id) {
+        (Some(prev), Some(next)) => {
+            // Both neighbors exist: indices 1 and 2
+            require!(remaining_accounts.len() > 2, AerospacerProtocolError::InvalidList);
+            
+            // Update prev node
+            let prev_account = &remaining_accounts[1];
+            let mut prev_data = prev_account.try_borrow_mut_data()?;
+            let mut prev_node = Node::try_deserialize(&mut &prev_data[8..])?;
+            require!(prev_node.id == prev, AerospacerProtocolError::InvalidList);
+            prev_node.next_id = old_next_id;
+            let mut writer = &mut prev_data[8..];
+            prev_node.try_serialize(&mut writer)?;
+            drop(prev_data);
+            
+            // Update next node
+            let next_account = &remaining_accounts[2];
+            let mut next_data = next_account.try_borrow_mut_data()?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            require!(next_node.id == next, AerospacerProtocolError::InvalidList);
+            next_node.prev_id = old_prev_id;
+            let mut writer = &mut next_data[8..];
+            next_node.try_serialize(&mut writer)?;
+            
+            traversal_start_idx = 3; // Traversal starts after both neighbors
+            msg!("Removed from middle: prev {} <-> next {}", prev, next);
+        }
+        (Some(prev), None) => {
+            // Was tail: only prev exists at index 1
+            require!(remaining_accounts.len() > 1, AerospacerProtocolError::InvalidList);
+            
+            let prev_account = &remaining_accounts[1];
+            let mut prev_data = prev_account.try_borrow_mut_data()?;
+            let mut prev_node = Node::try_deserialize(&mut &prev_data[8..])?;
+            require!(prev_node.id == prev, AerospacerProtocolError::InvalidList);
+            prev_node.next_id = None;
+            let mut writer = &mut prev_data[8..];
+            prev_node.try_serialize(&mut writer)?;
+            
+            sorted_troves_state.tail = Some(prev);
+            traversal_start_idx = 2; // Traversal starts after prev
+            msg!("Removed from tail: prev {} became new tail", prev);
+        }
+        (None, Some(next)) => {
+            // Was head: only next exists at index 1
+            require!(remaining_accounts.len() > 1, AerospacerProtocolError::InvalidList);
+            
+            let next_account = &remaining_accounts[1];
+            let mut next_data = next_account.try_borrow_mut_data()?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            require!(next_node.id == next, AerospacerProtocolError::InvalidList);
+            next_node.prev_id = None;
+            let mut writer = &mut next_data[8..];
+            next_node.try_serialize(&mut writer)?;
+            
+            sorted_troves_state.head = Some(next);
+            traversal_start_idx = 2; // Traversal starts after next
+            msg!("Removed from head: next {} became new head", next);
+        }
+        (None, None) => {
+            // Should not happen
+            return Err(AerospacerProtocolError::InvalidList.into());
+        }
+    }
+    
+    // Temporarily decrement size for find_insert_position
+    sorted_troves_state.size -= 1;
+    
+    // STEP 2: Find new position based on new ICR
+    // Traversal accounts are properly aligned to Node/LT pairs from traversal_start_idx
+    let traversal_accounts = &remaining_accounts[traversal_start_idx..];
+    let (new_prev_id, new_next_id) = find_insert_position(
+        sorted_troves_state,
+        new_icr,
+        traversal_accounts,
+    )?;
+    
+    // STEP 3: Insert at new position
+    // Update user node's pointers
+    user_node.prev_id = new_prev_id;
+    user_node.next_id = new_next_id;
+    
+    // Update new neighbors - search in ALL remaining_accounts starting from index 1
+    // This ensures old neighbors are still available if trove stays in same area
+    let search_accounts = &remaining_accounts[1..]; // Skip user_lt, search all Node accounts
+    
+    match (new_prev_id, new_next_id) {
+        (None, Some(next)) => {
+            // New head position - search for next node
+            let mut found = false;
+            for node_account in search_accounts.iter() {
+                if let Ok(node_data) = node_account.try_borrow_data() {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                        if node.id == next {
+                            drop(node_data);
+                            
+                            let mut mut_data = node_account.try_borrow_mut_data()?;
+                            let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            next_node.prev_id = Some(user);
+                            let mut writer = &mut mut_data[8..];
+                            next_node.try_serialize(&mut writer)?;
+                            
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            require!(found, AerospacerProtocolError::InvalidList);
+            
+            sorted_troves_state.head = Some(user);
+            msg!("Reinserted at head: {} -> {}", user, next);
+        }
+        (Some(prev), None) => {
+            // New tail position - search for prev node
+            let mut found = false;
+            for node_account in search_accounts.iter() {
+                if let Ok(node_data) = node_account.try_borrow_data() {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                        if node.id == prev {
+                            drop(node_data);
+                            
+                            let mut mut_data = node_account.try_borrow_mut_data()?;
+                            let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            prev_node.next_id = Some(user);
+                            let mut writer = &mut mut_data[8..];
+                            prev_node.try_serialize(&mut writer)?;
+                            
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            require!(found, AerospacerProtocolError::InvalidList);
+            
+            sorted_troves_state.tail = Some(user);
+            msg!("Reinserted at tail: {} -> {}", prev, user);
+        }
+        (Some(prev), Some(next)) => {
+            // Middle position - search for both neighbors
+            let mut found_prev = false;
+            let mut found_next = false;
+            
+            for node_account in search_accounts.iter() {
+                if let Ok(node_data) = node_account.try_borrow_data() {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                        let node_id = node.id;
+                        drop(node_data);
+                        
+                        if node_id == prev && !found_prev {
+                            let mut mut_data = node_account.try_borrow_mut_data()?;
+                            let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            prev_node.next_id = Some(user);
+                            let mut writer = &mut mut_data[8..];
+                            prev_node.try_serialize(&mut writer)?;
+                            found_prev = true;
+                        } else if node_id == next && !found_next {
+                            let mut mut_data = node_account.try_borrow_mut_data()?;
+                            let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            next_node.prev_id = Some(user);
+                            let mut writer = &mut mut_data[8..];
+                            next_node.try_serialize(&mut writer)?;
+                            found_next = true;
+                        }
+                        
+                        if found_prev && found_next {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            require!(found_prev && found_next, AerospacerProtocolError::InvalidList);
+            msg!("Reinserted in middle: {} -> {} -> {}", prev, user, next);
+        }
+        (None, None) => {
+            // Should not happen
+            return Err(AerospacerProtocolError::InvalidList.into());
+        }
+    }
+    
+    // Restore size
+    sorted_troves_state.size += 1;
+    
+    msg!("Trove repositioned: user={}, new_icr={}", user, new_icr);
     Ok(())
 }
 
