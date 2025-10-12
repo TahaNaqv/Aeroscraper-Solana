@@ -476,8 +476,8 @@ fn close_trove_after_redemption(
                         let node_accounts = &chunk[4..7]; // UserNode, PrevNode, NextNode
                         
                         // Call sorted_troves_simple::remove_trove
-                        use crate::sorted_troves_simple;
-                        sorted_troves_simple::remove_trove(
+                        use crate::sorted_troves;
+                        sorted_troves::remove_trove(
                             sorted_troves_state,
                             *trove_user,
                             node_accounts,
@@ -595,8 +595,8 @@ fn update_trove_after_partial_redemption(
                         let mut node_data = node_account.try_borrow_mut_data()?;
                         let mut user_node = Node::try_deserialize(&mut &node_data[..])?;
                         
-                        use crate::sorted_troves_simple;
-                        sorted_troves_simple::reinsert_trove(
+                        use crate::sorted_troves;
+                        sorted_troves::reinsert_trove(
                             sorted_troves_state,
                             &mut user_node,
                             *trove_user,

@@ -175,7 +175,7 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
     // Note: Caller must pass remaining_accounts for reinsert operation
     // Pattern: [user_lt, old_neighbors?, traversal_pairs...]
     if !ctx.remaining_accounts.is_empty() {
-        use crate::sorted_troves_simple::reinsert_trove;
+        use crate::sorted_troves::reinsert_trove;
         
         reinsert_trove(
             &mut ctx.accounts.sorted_troves_state,

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::error::*;
-use crate::sorted_troves_simple::get_liquidatable_troves;
+use crate::sorted_troves::get_liquidatable_troves;
 
 /// Query parameters for finding liquidatable troves
 #[derive(AnchorSerialize, AnchorDeserialize)]

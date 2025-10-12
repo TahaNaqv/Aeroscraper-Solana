@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Mint, Transfer, Burn};
 use crate::state::*;
 use crate::error::*;
-use crate::sorted_troves_simple;
+use crate::sorted_troves;
 
 /// Account management utilities for the protocol
 /// This module provides clean, type-safe account loading and management
@@ -217,12 +217,12 @@ impl<'info> CollateralContext<'info> {
 impl<'info> SortedTrovesContext<'info> {
     /// Get the first (riskiest) trove
     pub fn get_first_trove(&self) -> Option<Pubkey> {
-        sorted_troves_simple::get_first_trove(&self.sorted_troves_state)
+        sorted_troves::get_first_trove(&self.sorted_troves_state)
     }
     
     /// Get the last (safest) trove
     pub fn get_last_trove(&self) -> Option<Pubkey> {
-        sorted_troves_simple::get_last_trove(&self.sorted_troves_state)
+        sorted_troves::get_last_trove(&self.sorted_troves_state)
     }
 }
 

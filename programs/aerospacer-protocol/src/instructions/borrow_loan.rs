@@ -214,7 +214,7 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     // Reinsert trove in sorted list based on new ICR (debt increases = lower ICR = riskier)
     // Note: Caller must pass remaining_accounts for reinsert operation
     if !ctx.remaining_accounts.is_empty() {
-        use crate::sorted_troves_simple::reinsert_trove;
+        use crate::sorted_troves::reinsert_trove;
         
         reinsert_trove(
             &mut ctx.accounts.sorted_troves_state,

@@ -52,7 +52,7 @@ pub fn handler(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> 
     
     // Ok(())
 
-    // PRODUCTION PYTH INTEGRATION CODE (COMMENTED OUT FOR TESTING)
+    // PRODUCTION PYTH INTEGRATION CODE (COMMENT FOR TESTING)
     // Parse the price_id to get the Pyth price feed address
     let price_id_bytes = hex::decode(&collateral_data.price_id)
         .map_err(|_| AerospacerOracleError::InvalidPriceId)?;

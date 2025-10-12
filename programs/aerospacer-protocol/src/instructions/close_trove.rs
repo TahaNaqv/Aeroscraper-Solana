@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer, Burn};
 use crate::state::*;
 use crate::error::*;
-use crate::sorted_troves_simple;
+use crate::sorted_troves;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct CloseTroveParams {
@@ -183,7 +183,7 @@ pub fn handler(ctx: Context<CloseTrove>, params: CloseTroveParams) -> Result<()>
     ctx.accounts.user_collateral_amount.amount = 0;
     
     // STEP 5: Remove from sorted troves list
-    sorted_troves_simple::remove_trove(
+    sorted_troves::remove_trove(
         &mut ctx.accounts.sorted_troves_state,
         ctx.accounts.user.key(),
         ctx.remaining_accounts,
