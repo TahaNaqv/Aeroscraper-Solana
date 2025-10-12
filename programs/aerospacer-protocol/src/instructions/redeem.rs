@@ -313,7 +313,8 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
                 // Update global total_collateral_amount PDA
                 let mut total_coll_data = ctx.accounts.total_collateral_amount.try_borrow_mut_data()?;
                 let mut total_collateral: TotalCollateralAmount = TotalCollateralAmount::try_deserialize(&mut &total_coll_data[..])?;
-                total_collateral.amount = total_collateral.amount.saturating_sub(collateral_to_send);
+                total_collateral.amount = total_collateral.amount.checked_sub(collateral_to_send)
+                    .ok_or(AerospacerProtocolError::OverflowError)?;
                 total_collateral.try_serialize(&mut &mut total_coll_data[..])?;
                 msg!("Updated global total_collateral_amount: decreased by {}", collateral_to_send);
                 
@@ -363,8 +364,9 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         AerospacerProtocolError::InsufficientCollateral // Not enough troves with requested collateral type
     );
     
-    // Update global state with net redeemed amount (which equals net_redemption_amount since remaining is 0)
-    state.total_debt_amount = state.total_debt_amount.saturating_sub(net_redemption_amount);
+    // PRODUCTION SAFETY: Update global state with net redeemed amount (which equals net_redemption_amount since remaining is 0)
+    state.total_debt_amount = state.total_debt_amount.checked_sub(net_redemption_amount)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
     
     msg!("Redeemed successfully");
     msg!("User: {}", ctx.accounts.user.key());
