@@ -141,8 +141,9 @@ pub fn insert_trove(
         }
     }
     
-    // Update list state
-    sorted_troves_state.size += 1;
+    // PRODUCTION SAFETY: Update list state with overflow protection
+    sorted_troves_state.size = sorted_troves_state.size.checked_add(1)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
     
     msg!("Trove inserted: user={}, icr={}, size={}", user, icr, sorted_troves_state.size);
     Ok(())
@@ -230,7 +231,9 @@ pub fn remove_trove(
         sorted_troves_state.tail = prev_id;
     }
     
-    sorted_troves_state.size -= 1;
+    // PRODUCTION SAFETY: Update list state with underflow protection
+    sorted_troves_state.size = sorted_troves_state.size.checked_sub(1)
+        .ok_or(AerospacerProtocolError::OverflowError)?;
     
     msg!("Trove removed: user={}, size={}", user, sorted_troves_state.size);
     Ok(())
