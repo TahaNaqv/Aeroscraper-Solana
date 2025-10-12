@@ -38,7 +38,7 @@ pub fn handler(ctx: Context<Initialize>, params: InitializeParams) -> Result<()>
     state.total_stake_amount = 0;
     
     // SNAPSHOT: Initialize P factor and epoch for Liquity Product-Sum algorithm
-    state.p_factor = SCALE_FACTOR; // 10^18
+    state.p_factor = StateAccount::SCALE_FACTOR; // 10^18
     state.epoch = 0;
     
     msg!("Aerospacer Protocol initialized successfully");

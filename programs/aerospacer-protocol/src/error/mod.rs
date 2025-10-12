@@ -71,4 +71,10 @@ pub enum AerospacerProtocolError {
     
     #[msg("Checked multiply fraction error")]
     CheckedMultiplyFractionError,
+    
+    #[msg("Math overflow error")]
+    MathOverflow,
+    
+    #[msg("Invalid snapshot")]
+    InvalidSnapshot,
 }

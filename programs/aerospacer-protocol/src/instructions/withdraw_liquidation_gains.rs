@@ -85,8 +85,9 @@ pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquid
     // Initialize S snapshot metadata if first time (but still calculate and transfer gains!)
     let is_first_withdrawal = user_collateral_snapshot.s_snapshot == 0;
     if is_first_withdrawal {
-        user_collateral_snapshot.user = ctx.accounts.user.key();
+        user_collateral_snapshot.owner = ctx.accounts.user.key();
         user_collateral_snapshot.denom = params.collateral_denom.clone();
+        user_collateral_snapshot.pending_collateral_gain = 0;
         msg!("First withdrawal for {} - calculating full accumulated gains", params.collateral_denom);
     }
     
@@ -133,7 +134,6 @@ pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquid
 
     // Update user's S snapshot to current value (marks gains as claimed)
     user_collateral_snapshot.s_snapshot = stability_pool_snapshot.s_factor;
-    user_collateral_snapshot.last_update_block = Clock::get()?.slot;
 
     // Update per-denom collateral total PDA
     update_total_collateral_from_account_info(
