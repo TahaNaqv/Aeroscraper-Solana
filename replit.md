@@ -4,6 +4,16 @@
 The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, enabling Collateralized Debt Positions (CDPs), stablecoin (aUSD) minting, and an automated liquidation system. It integrates Pyth Network for price feeds and features a robust fee distribution mechanism. The project aims to provide a secure and efficient on-chain lending solution within the Solana ecosystem, offering a new primitive for decentralized finance.
 
 ### Recent Changes
+**October 12, 2025 - Fee Contract Security Hardening (Production-Ready)**
+- **CRITICAL SECURITY FIX**: Added payer token account owner validation to prevent unauthorized fund draining
+- Added comprehensive account validation: all token account owners verified against expected addresses
+- Added stake_contract_address validation to prevent token burning (must not be Pubkey::default())
+- Implemented token mint validation across all accounts to prevent token mixing attacks
+- Consolidated error handling: removed duplicate ErrorCode enums, centralized to AerospacerFeesError
+- Code cleanup: removed unused msg.rs file and streamlined imports
+- **Security Status**: All critical vulnerabilities resolved, fee contract is production-ready
+- **Verified CPI Integration**: Protocol→Fees cross-program calls working correctly for fee distribution
+
 **October 12, 2025 - Stability Pool Snapshot Distribution (Liquity Product-Sum Algorithm)**
 - Implemented snapshot-based stability pool distribution using Liquity's Product-Sum algorithm to prevent economic exploits
 - Added P factor (product/depletion) tracking to StateAccount for fair reward distribution during pool depletion
@@ -35,9 +45,9 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Dynamic Collateral Management**: Mechanisms for adding and removing collateral.
 *   **Automated Liquidation System**: Ensures protocol solvency by liquidating undercollateralized positions.
 *   **Stability Pool with Snapshot-Based Distribution**: Implements Liquity's Product-Sum algorithm for fair and exploit-resistant reward distribution. Users stake aUSD to earn liquidation gains proportionally based on snapshots (P factor tracks pool depletion, S factors track collateral gains per denomination). Prevents economic gaming attacks and ensures fair proportional rewards.
-*   **Fee Distribution Mechanism**: A flexible system to collect and distribute protocol fees.
+*   **Fee Distribution Mechanism (PRODUCTION-READY)**: Dual-mode fee system with comprehensive security validation. Distributes fees either to stability pool or 50/50 to fee addresses. Includes payer authorization, token mint validation, and account owner verification to prevent unauthorized fund access.
 *   **Oracle Integration**: Utilizes Pyth Network for real-time price feeds for all collateral assets.
-*   **Cross-Program Communication (CPI)**: Extensive use of CPI for secure and atomic interactions between sub-programs.
+*   **Cross-Program Communication (CPI)**: Extensive use of CPI for secure and atomic interactions between sub-programs. Protocol→Fees integration fully implemented and validated.
 *   **SPL Token Integration**: Full support for Solana Program Library (SPL) tokens for collateral and stablecoin operations.
 *   **Sorted Troves**: Implemented as a doubly-linked list for efficient management of CDPs, supporting ICR-based positioning (riskiest to safest) and auto-discovery of liquidatable troves.
 *   **Individual Collateral Ratio (ICR)**: Comprehensive, real-time ICR calculations are implemented across the protocol, supporting multi-collateral types and ensuring solvency checks.
