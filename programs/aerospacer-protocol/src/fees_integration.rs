@@ -235,27 +235,80 @@ pub fn initialize_fees_contract_if_needed<'info>(
     Ok(())
 }
 
-/// Get fees contract configuration
+/// Get fees contract configuration via CPI
 pub fn get_fees_config<'info>(
     fees_program: &AccountInfo<'info>,
     fees_state: &AccountInfo<'info>,
 ) -> Result<FeesConfigResponse> {
-    msg!("Getting fees contract configuration...");
+    msg!("Getting fees contract configuration via CPI...");
     msg!("Fees program: {}", fees_program.key());
     msg!("Fees state: {}", fees_state.key());
     
-    // TODO: Implement proper CPI call to aerospacer-fees get_config instruction
-    // This would involve:
-    // 1. Creating the proper instruction data for get_config
-    // 2. Using anchor_lang::cpi::cpi_program to call the fees contract
-    // 3. Parsing the response data into FeesConfigResponse
+    // Build CPI instruction for get_config
+    use anchor_lang::solana_program::instruction::Instruction;
+    use anchor_lang::solana_program::program::invoke;
+    use anchor_lang::solana_program::hash::hash;
     
-    // For now, return a simplified response
+    // Calculate instruction discriminator: first 8 bytes of SHA256("global:get_config")
+    let preimage = b"global:get_config";
+    let hash_result = hash(preimage);
+    let discriminator = &hash_result.to_bytes()[..8];
+    
+    // get_config has no params, just the discriminator
+    let instruction_data = discriminator.to_vec();
+    
+    // Build account metas
+    let account_metas = vec![
+        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*fees_state.key, false),
+    ];
+    
+    // Create instruction
+    let ix = Instruction {
+        program_id: *fees_program.key,
+        accounts: account_metas,
+        data: instruction_data,
+    };
+    
+    // Execute CPI
+    let account_infos = vec![
+        fees_state.clone(),
+        fees_program.clone(),
+    ];
+    
+    invoke(&ix, &account_infos)?;
+    
+    // Parse return data from fees program
+    let return_data = anchor_lang::solana_program::program::get_return_data()
+        .ok_or(AerospacerProtocolError::InvalidAmount)?;
+    
+    // Verify the return data is from the fees program
+    require!(
+        return_data.0 == *fees_program.key,
+        AerospacerProtocolError::Unauthorized
+    );
+    
+    // Deserialize ConfigResponse from fees contract
+    #[derive(AnchorSerialize, AnchorDeserialize)]
+    struct FeeConfigResponse {
+        admin: Pubkey,
+        is_stake_enabled: bool,
+        stake_contract_address: Pubkey,
+        total_fees_collected: u64,
+    }
+    
+    let config: FeeConfigResponse = FeeConfigResponse::deserialize(&mut &return_data.1[..])?;
+    
+    msg!("Fees config retrieved successfully:");
+    msg!("  Admin: {}", config.admin);
+    msg!("  Stake enabled: {}", config.is_stake_enabled);
+    msg!("  Total fees collected: {}", config.total_fees_collected);
+    
+    // Convert to our local response type
     Ok(FeesConfigResponse {
-        admin: fees_state.key(),
-        is_stake_enabled: true,
-        stake_contract_address: fees_state.key(),
-        total_fees_collected: 0,
+        admin: config.admin,
+        is_stake_enabled: config.is_stake_enabled,
+        stake_contract_address: config.stake_contract_address,
+        total_fees_collected: config.total_fees_collected,
     })
 }
 
