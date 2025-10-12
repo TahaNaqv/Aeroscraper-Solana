@@ -4,6 +4,21 @@
 The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, enabling Collateralized Debt Positions (CDPs), stablecoin (aUSD) minting, and an automated liquidation system. It integrates Pyth Network for price feeds and features a robust fee distribution mechanism. The project aims to provide a secure and efficient on-chain lending solution within the Solana ecosystem, offering a new primitive for decentralized finance.
 
 ### Recent Changes
+**October 12, 2025 - CRITICAL SECURITY FIXES (PARTIAL - IN PROGRESS)**
+- **🚨 CRITICAL VULNERABILITY DISCOVERED & PARTIALLY FIXED**: Fake protocol vault attack
+  - **FIXED in open_trove.rs**: Added PDA seeds constraints to protocol_collateral_vault and protocol_stablecoin_vault
+  - **FIXED in open_trove.rs**: Added oracle/fees program ID validation against StateAccount
+  - **ENHANCED StateAccount**: Added oracle_state_addr and fee_state_addr fields for CPI authorization
+  - **⚠️ URGENT**: Same fixes must be applied to 10 other instructions: borrow_loan, repay_loan, close_trove, add_collateral, remove_collateral, redeem, liquidate_troves, stake, unstake, withdraw_liquidation_gains
+  - **Status**: Protocol NOT production-ready until all instructions are fixed
+
+**October 12, 2025 - Production Hardening & State Consistency**
+- Replaced saturating_sub with checked_sub in redeem.rs for total_debt_amount and total_collateral_amount
+- Added checked_add/checked_sub overflow protection to sorted_troves_simple.rs for size management
+- Completed get_fees_config CPI implementation with proper discriminator and return data validation
+- Added redemption hardening: collateral denom validation, sorted list integrity checks, MAX_TROVES_PER_REDEMPTION (100) limit
+- Comprehensive state consistency checks: all critical arithmetic uses checked operations
+
 **October 12, 2025 - Fee Contract Security Hardening (Production-Ready)**
 - **CRITICAL SECURITY FIX**: Added payer token account owner validation to prevent unauthorized fund draining
 - Added comprehensive account validation: all token account owners verified against expected addresses
@@ -11,7 +26,7 @@ The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, en
 - Implemented token mint validation across all accounts to prevent token mixing attacks
 - Consolidated error handling: removed duplicate ErrorCode enums, centralized to AerospacerFeesError
 - Code cleanup: removed unused msg.rs file and streamlined imports
-- **Security Status**: All critical vulnerabilities resolved, fee contract is production-ready
+- **Security Status**: Fee contract is production-ready
 - **Verified CPI Integration**: Protocol→Fees cross-program calls working correctly for fee distribution
 
 **October 12, 2025 - Stability Pool Snapshot Distribution (Liquity Product-Sum Algorithm)**
