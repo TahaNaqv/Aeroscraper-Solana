@@ -6,7 +6,9 @@ use crate::error::*;
 pub struct InitializeParams {
     pub stable_coin_code_id: u64,
     pub oracle_helper_addr: Pubkey,
-    pub fee_distributor_addr: Pubkey, // aerospacer-fees program ID
+    pub oracle_state_addr: Pubkey,
+    pub fee_distributor_addr: Pubkey,
+    pub fee_state_addr: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -31,7 +33,9 @@ pub fn handler(ctx: Context<Initialize>, params: InitializeParams) -> Result<()>
     state.admin = ctx.accounts.admin.key();
     state.stable_coin_addr = ctx.accounts.stable_coin_mint.key();
     state.oracle_helper_addr = params.oracle_helper_addr;
-    state.fee_distributor_addr = params.fee_distributor_addr; // This is the aerospacer-fees program ID
+    state.oracle_state_addr = params.oracle_state_addr;
+    state.fee_distributor_addr = params.fee_distributor_addr;
+    state.fee_state_addr = params.fee_state_addr;
     state.minimum_collateral_ratio = DEFAULT_MINIMUM_COLLATERAL_RATIO; // 115%
     state.protocol_fee = DEFAULT_PROTOCOL_FEE; // 5%
     state.total_debt_amount = 0;
@@ -45,7 +49,9 @@ pub fn handler(ctx: Context<Initialize>, params: InitializeParams) -> Result<()>
     msg!("Admin: {}", state.admin);
     msg!("Stable Coin: {}", state.stable_coin_addr);
     msg!("Oracle Helper: {}", state.oracle_helper_addr);
+    msg!("Oracle State: {}", state.oracle_state_addr);
     msg!("Fee Distributor: {}", state.fee_distributor_addr);
+    msg!("Fee State: {}", state.fee_state_addr);
     msg!("Minimum Collateral Ratio: {}%", state.minimum_collateral_ratio);
     msg!("Protocol Fee: {}%", state.protocol_fee);
     msg!("P factor initialized: {}", state.p_factor);

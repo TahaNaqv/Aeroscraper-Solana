@@ -5,8 +5,10 @@ use anchor_lang::prelude::*;
 #[account]
 pub struct StateAccount {
     pub admin: Pubkey,
-    pub oracle_helper_addr: Pubkey,
-    pub fee_distributor_addr: Pubkey, // aerospacer-fees program ID
+    pub oracle_helper_addr: Pubkey,          // Oracle program ID
+    pub oracle_state_addr: Pubkey,           // Oracle state account address  
+    pub fee_distributor_addr: Pubkey,        // aerospacer-fees program ID
+    pub fee_state_addr: Pubkey,              // aerospacer-fees state account address
     pub minimum_collateral_ratio: u8,
     pub protocol_fee: u8,
     pub stable_coin_addr: Pubkey,
@@ -19,7 +21,7 @@ pub struct StateAccount {
 }
 
 impl StateAccount {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8 + 16 + 8; // Added p_factor (16) + epoch (8)
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8 + 16 + 8; // Added oracle_state_addr + fee_state_addr
     
     // Scale factor for precision in P/S calculations (10^18, same as Liquity)
     pub const SCALE_FACTOR: u128 = 1_000_000_000_000_000_000;
