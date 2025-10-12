@@ -135,14 +135,19 @@ pub struct Redeem<'info> {
 }
 
 pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
-    // Validate input parameters
+    // PRODUCTION VALIDATION: Input parameter checks
     require!(
         params.amount > 0,
         AerospacerProtocolError::InvalidAmount
     );
     
     require!(
-        params.amount >= MINIMUM_LOAN_AMOUNT, // Use same minimum as loans
+        params.amount >= MINIMUM_LOAN_AMOUNT,
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    require!(
+        !params.collateral_denom.is_empty(),
         AerospacerProtocolError::InvalidAmount
     );
     
@@ -151,11 +156,20 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     
     let state = &mut ctx.accounts.state;
     
-    // Validate redemption amount
+    // Validate redemption amount against total system debt
     require!(
         params.amount <= state.total_debt_amount,
         AerospacerProtocolError::NotEnoughLiquidityForRedeem
     );
+    
+    // PRODUCTION VALIDATION: Sorted list integrity check
+    // If there's debt in the system, there must be troves in the sorted list
+    if state.total_debt_amount > 0 {
+        require!(
+            ctx.accounts.sorted_troves_state.head.is_some(),
+            AerospacerProtocolError::InvalidList
+        );
+    }
     
     // Validate user has enough stablecoins (including fee)
     require!(
@@ -209,6 +223,10 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     let mut total_collateral_sent = 0u64;
     let mut troves_redeemed = 0u32;
     
+    // PRODUCTION SAFETY: Maximum iteration limit to prevent infinite loops
+    const MAX_TROVES_PER_REDEMPTION: u32 = 100;
+    let mut iteration_count = 0u32;
+    
     // Start from the riskiest trove (head of sorted list)
     let mut current_trove = ctx.accounts.sorted_troves_state.head;
     
@@ -216,6 +234,14 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         if remaining_amount == 0 {
             break;
         }
+        
+        // PRODUCTION SAFETY: Check iteration limit
+        iteration_count = iteration_count.checked_add(1)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        require!(
+            iteration_count <= MAX_TROVES_PER_REDEMPTION,
+            AerospacerProtocolError::InvalidList
+        );
         
         // REAL IMPLEMENTATION: Get trove information from remaining accounts
         // Parse trove data from remaining_accounts (4 accounts per trove)
