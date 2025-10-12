@@ -82,22 +82,19 @@ pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquid
     // SNAPSHOT ALGORITHM: Calculate collateral gain using Product-Sum formula
     // gain = initial_deposit × (S_current - S_snapshot) / P_snapshot
     
-    // Initialize S snapshot if this is first time for this denom
-    if user_collateral_snapshot.s_snapshot == 0 {
+    // Initialize S snapshot metadata if first time (but still calculate and transfer gains!)
+    let is_first_withdrawal = user_collateral_snapshot.s_snapshot == 0;
+    if is_first_withdrawal {
         user_collateral_snapshot.user = ctx.accounts.user.key();
         user_collateral_snapshot.denom = params.collateral_denom.clone();
-        user_collateral_snapshot.s_snapshot = stability_pool_snapshot.s_factor;
-        user_collateral_snapshot.last_update_block = Clock::get()?.slot;
-        
-        msg!("Initialized S snapshot for {} at {}", params.collateral_denom, stability_pool_snapshot.s_factor);
-        msg!("No gains to withdraw yet (first interaction)");
-        return Ok(());
+        msg!("First withdrawal for {} - calculating full accumulated gains", params.collateral_denom);
     }
     
     // Calculate collateral gain using helper function
+    // If s_snapshot = 0 (first withdrawal), this calculates the full accumulated gain
     let collateral_gain = calculate_collateral_gain(
         user_stake_amount.amount,
-        user_collateral_snapshot.s_snapshot,
+        user_collateral_snapshot.s_snapshot, // 0 on first withdrawal = full gain
         stability_pool_snapshot.s_factor,
         user_stake_amount.p_snapshot,
     )?;

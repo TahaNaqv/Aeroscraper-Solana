@@ -86,11 +86,33 @@ pub fn handler(ctx: Context<Stake>, params: StakeParams) -> Result<()> {
     );
     anchor_spl::token::transfer(transfer_ctx, params.amount)?;
 
-    // Update user stake amount with snapshots (Liquity Product-Sum algorithm)
-    user_stake_amount.owner = ctx.accounts.user.key();
-    user_stake_amount.amount = safe_add(user_stake_amount.amount, params.amount)?;
+    // CRITICAL FIX: Compound existing deposit before updating snapshots
+    // This ensures amount and p_snapshot stay in sync after liquidations
+    let current_deposit = if user_stake_amount.amount > 0 && user_stake_amount.p_snapshot > 0 {
+        // User has existing stake - calculate compounded value first
+        let compounded = calculate_compounded_stake(
+            user_stake_amount.amount,
+            user_stake_amount.p_snapshot,
+            state.p_factor,
+        )?;
+        
+        msg!("Compounding existing deposit:");
+        msg!("  Original deposit: {}", user_stake_amount.amount);
+        msg!("  P_snapshot (old): {}", user_stake_amount.p_snapshot);
+        msg!("  P_current: {}", state.p_factor);
+        msg!("  Compounded: {}", compounded);
+        
+        compounded
+    } else {
+        // First stake - no compounding needed
+        user_stake_amount.amount
+    };
     
-    // SNAPSHOT: Capture current P factor for compounded stake calculations
+    // Update user stake amount with compounded value + new stake
+    user_stake_amount.owner = ctx.accounts.user.key();
+    user_stake_amount.amount = safe_add(current_deposit, params.amount)?;
+    
+    // SNAPSHOT: Update to current P factor (amount is now in current scale)
     user_stake_amount.p_snapshot = state.p_factor;
     user_stake_amount.epoch_snapshot = state.epoch;
     user_stake_amount.last_update_block = Clock::get()?.slot;
