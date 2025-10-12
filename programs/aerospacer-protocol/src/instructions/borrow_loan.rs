@@ -74,7 +74,11 @@ pub struct BorrowLoan<'info> {
     #[account(mut)]
     pub user_collateral_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
+        bump
+    )]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
 
     /// CHECK: Per-denom collateral total PDA
@@ -86,12 +90,18 @@ pub struct BorrowLoan<'info> {
     pub total_collateral_amount: AccountInfo<'info>,
 
     // Oracle context - integration with our aerospacer-oracle
-    /// CHECK: Our oracle program
-    #[account(mut)]
+    /// CHECK: Our oracle program - validated against state
+    #[account(
+        mut,
+        constraint = oracle_program.key() == state.oracle_helper_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_program: AccountInfo<'info>,
     
-    /// CHECK: Oracle state account
-    #[account(mut)]
+    /// CHECK: Oracle state account - validated against state
+    #[account(
+        mut,
+        constraint = oracle_state.key() == state.oracle_state_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_state: AccountInfo<'info>,
     
     /// CHECK: Pyth price account for collateral price feed
@@ -101,14 +111,17 @@ pub struct BorrowLoan<'info> {
     pub clock: Sysvar<'info, Clock>,
 
     // Fee distribution accounts
-    /// CHECK: Fees program
+    /// CHECK: Fees program - validated against state
     #[account(
         constraint = fees_program.key() == state.fee_distributor_addr @ AerospacerProtocolError::Unauthorized
     )]
     pub fees_program: AccountInfo<'info>,
     
-    /// CHECK: Fees state account
-    #[account(mut)]
+    /// CHECK: Fees state account - validated against state
+    #[account(
+        mut,
+        constraint = fees_state.key() == state.fee_state_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub fees_state: AccountInfo<'info>,
     
     /// CHECK: Stability pool token account

@@ -68,12 +68,18 @@ pub struct LiquidateTroves<'info> {
     pub sorted_troves_state: Account<'info, SortedTrovesState>,
 
     // Oracle context - integration with our aerospacer-oracle
-    /// CHECK: Our oracle program
-    #[account(mut)]
+    /// CHECK: Our oracle program - validated against state
+    #[account(
+        mut,
+        constraint = oracle_program.key() == state.oracle_helper_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_program: AccountInfo<'info>,
     
-    /// CHECK: Oracle state account
-    #[account(mut)]
+    /// CHECK: Oracle state account - validated against state
+    #[account(
+        mut,
+        constraint = oracle_state.key() == state.oracle_state_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_state: AccountInfo<'info>,
     
     /// CHECK: Pyth price account for collateral price feed

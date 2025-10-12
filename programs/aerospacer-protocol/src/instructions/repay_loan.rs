@@ -54,7 +54,11 @@ pub struct RepayLoan<'info> {
     #[account(mut)]
     pub user_collateral_account: Account<'info, TokenAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
+        bump
+    )]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
 
     /// CHECK: This is the stable coin mint account
@@ -84,12 +88,18 @@ pub struct RepayLoan<'info> {
     pub node: Account<'info, Node>,
 
     // Oracle context - integration with our aerospacer-oracle
-    /// CHECK: Our oracle program
-    #[account(mut)]
+    /// CHECK: Our oracle program - validated against state
+    #[account(
+        mut,
+        constraint = oracle_program.key() == state.oracle_helper_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_program: AccountInfo<'info>,
     
-    /// CHECK: Oracle state account
-    #[account(mut)]
+    /// CHECK: Oracle state account - validated against state
+    #[account(
+        mut,
+        constraint = oracle_state.key() == state.oracle_state_addr @ AerospacerProtocolError::Unauthorized
+    )]
     pub oracle_state: AccountInfo<'info>,
     
     /// CHECK: Pyth price account for collateral price feed
