@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 pub mod error;
 pub mod instructions;
 pub mod state;
-pub mod msg;
 
 use instructions::*;
 use crate::state::ConfigResponse;

@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
-use std::str::FromStr;
 use crate::state::FeeStateAccount;
+use crate::error::AerospacerFeesError;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct SetStakeContractAddressParams {
-    pub address: String, // Equivalent to INJECTIVE's address: String
+    pub address: String,
 }
 
 #[derive(Accounts)]
@@ -15,7 +15,7 @@ pub struct SetStakeContractAddress<'info> {
     
     #[account(
         mut,
-        constraint = state.admin == admin.key() @ ErrorCode::Unauthorized
+        constraint = state.admin == admin.key() @ AerospacerFeesError::Unauthorized
     )]
     pub state: Account<'info, FeeStateAccount>,
 }
@@ -23,11 +23,9 @@ pub struct SetStakeContractAddress<'info> {
 pub fn handler(ctx: Context<SetStakeContractAddress>, params: SetStakeContractAddressParams) -> Result<()> {
     let state = &mut ctx.accounts.state;
     
-    // Validate and set the stake contract address (equivalent to INJECTIVE's addr_validate)
-    // In Solana, we'll convert the string to a Pubkey
     let stake_contract_address = match Pubkey::try_from(params.address.as_str()) {
         Ok(pubkey) => pubkey,
-        Err(_) => return Err(ErrorCode::InvalidAddress.into()),
+        Err(_) => return Err(AerospacerFeesError::InvalidAddress.into()),
     };
     
     state.stake_contract_address = stake_contract_address;
@@ -36,12 +34,4 @@ pub fn handler(ctx: Context<SetStakeContractAddress>, params: SetStakeContractAd
     msg!("New address: {}", stake_contract_address);
     
     Ok(())
-}
-
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Unauthorized")]
-    Unauthorized,
-    #[msg("Invalid address")]
-    InvalidAddress,
 }

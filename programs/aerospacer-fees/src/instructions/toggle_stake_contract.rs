@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::FeeStateAccount;
+use crate::error::AerospacerFeesError;
 
 #[derive(Accounts)]
 pub struct ToggleStakeContract<'info> {
@@ -8,7 +9,7 @@ pub struct ToggleStakeContract<'info> {
     
     #[account(
         mut,
-        constraint = state.admin == admin.key() @ ErrorCode::Unauthorized
+        constraint = state.admin == admin.key() @ AerospacerFeesError::Unauthorized
     )]
     pub state: Account<'info, FeeStateAccount>,
 }
@@ -16,7 +17,6 @@ pub struct ToggleStakeContract<'info> {
 pub fn handler(ctx: Context<ToggleStakeContract>) -> Result<()> {
     let state = &mut ctx.accounts.state;
     
-    // Toggle the stake enabled flag
     state.is_stake_enabled = !state.is_stake_enabled;
     
     msg!("Stake contract toggled successfully");
@@ -29,10 +29,4 @@ pub fn handler(ctx: Context<ToggleStakeContract>) -> Result<()> {
     }
     
     Ok(())
-}
-
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Unauthorized")]
-    Unauthorized,
 }
