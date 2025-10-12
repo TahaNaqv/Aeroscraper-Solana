@@ -635,3 +635,78 @@ pub fn get_first_trove(storage: &Account<SortedTrovesState>) -> Result<Option<Pu
 pub fn get_last_trove(storage: &Account<SortedTrovesState>) -> Result<Option<Pubkey>> {
     Ok(storage.tail)
 }
+
+/// Calculate compounded stake using Liquity's Product-Sum snapshot algorithm
+/// Formula: compounded_stake = initial_deposit × (P_current / P_snapshot)
+/// This accounts for pool depletion from liquidations
+pub fn calculate_compounded_stake(
+    initial_deposit: u64,
+    p_snapshot: u128,
+    p_current: u128,
+) -> Result<u64> {
+    // Handle edge cases
+    if initial_deposit == 0 {
+        return Ok(0);
+    }
+    
+    if p_snapshot == 0 {
+        return Err(AerospacerProtocolError::InvalidSnapshot.into());
+    }
+    
+    // Calculate: deposit × (P_current / P_snapshot)
+    // Use 128-bit math to avoid overflow
+    let deposit_128 = initial_deposit as u128;
+    let numerator = deposit_128
+        .checked_mul(p_current)
+        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    
+    let compounded = numerator
+        .checked_div(p_snapshot)
+        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    
+    // Convert back to u64
+    let result = u64::try_from(compounded)
+        .map_err(|_| AerospacerProtocolError::MathOverflow)?;
+    
+    Ok(result)
+}
+
+/// Calculate collateral gain using Liquity's Product-Sum snapshot algorithm
+/// Formula: gain = initial_deposit × (S_current - S_snapshot) / P_snapshot
+/// This calculates the proportional share of liquidation collateral gains
+pub fn calculate_collateral_gain(
+    initial_deposit: u64,
+    s_snapshot: u128,
+    s_current: u128,
+    p_snapshot: u128,
+) -> Result<u64> {
+    // Handle edge cases
+    if initial_deposit == 0 || p_snapshot == 0 {
+        return Ok(0);
+    }
+    
+    // If S hasn't increased, no gain
+    if s_current <= s_snapshot {
+        return Ok(0);
+    }
+    
+    // Calculate: deposit × (S_current - S_snapshot) / P_snapshot
+    let deposit_128 = initial_deposit as u128;
+    let s_diff = s_current
+        .checked_sub(s_snapshot)
+        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    
+    let numerator = deposit_128
+        .checked_mul(s_diff)
+        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    
+    let gain = numerator
+        .checked_div(p_snapshot)
+        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    
+    // Convert back to u64
+    let result = u64::try_from(gain)
+        .map_err(|_| AerospacerProtocolError::MathOverflow)?;
+    
+    Ok(result)
+}

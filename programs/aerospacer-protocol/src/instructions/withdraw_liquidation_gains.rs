@@ -16,13 +16,28 @@ pub struct Withdraw_liquidation_gains<'info> {
     pub user: Signer<'info>,
 
     #[account(
+        mut,
+        seeds = [b"user_stake_amount", user.key().as_ref()],
+        bump,
+        constraint = user_stake_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
+    )]
+    pub user_stake_amount: Account<'info, UserStakeAmount>,
+
+    #[account(
         init_if_needed,
         payer = user,
-        space = 8 + UserLiquidationCollateralGain::LEN,
-        seeds = [b"user_liquidation_collateral_gain", user.key().as_ref()],
+        space = 8 + UserCollateralSnapshot::LEN,
+        seeds = [b"user_collateral_snapshot", user.key().as_ref(), params.collateral_denom.as_bytes()],
         bump
     )]
-    pub user_liquidation_collateral_gain: Account<'info, UserLiquidationCollateralGain>,
+    pub user_collateral_snapshot: Account<'info, UserCollateralSnapshot>,
+
+    #[account(
+        mut,
+        seeds = [b"stability_pool_snapshot", params.collateral_denom.as_bytes()],
+        bump
+    )]
+    pub stability_pool_snapshot: Account<'info, StabilityPoolSnapshot>,
 
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
@@ -30,7 +45,7 @@ pub struct Withdraw_liquidation_gains<'info> {
     #[account(mut)]
     pub user_collateral_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Protocol collateral vault PDA
+    /// CHECK: Protocol collateral vault PDA (stability pool)
     #[account(
         mut,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
@@ -48,93 +63,59 @@ pub struct Withdraw_liquidation_gains<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    
-    // Note: remaining_accounts should contain:
-    // - TotalLiquidationCollateralGain PDAs for each block height with unclaimed gains
-    // - UserLiquidationCollateralGain PDAs for tracking claimed status  
-    // - UserStakeAmount PDA for this user
 }
 
 
 
 pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquidation_gainsParams) -> Result<()> {
-    let user_liquidation_collateral_gain = &mut ctx.accounts.user_liquidation_collateral_gain;
-    let state = &ctx.accounts.state;
+    let user_stake_amount = &mut ctx.accounts.user_stake_amount;
+    let user_collateral_snapshot = &mut ctx.accounts.user_collateral_snapshot;
+    let stability_pool_snapshot = &ctx.accounts.stability_pool_snapshot;
+    let state = &mut ctx.accounts.state;
     
-    // Get user's stake amount from UserStakeAmount PDA (must be in remaining_accounts[0])
+    // Validate user has stake
     require!(
-        !ctx.remaining_accounts.is_empty(),
-        AerospacerProtocolError::InvalidList
-    );
-    
-    // SECURITY: Verify the UserStakeAmount PDA is legitimate
-    let user_key = ctx.accounts.user.key();
-    let user_stake_seeds = UserStakeAmount::seeds(&user_key);
-    let (expected_stake_pda, _bump) = Pubkey::find_program_address(&user_stake_seeds, &crate::ID);
-    
-    let stake_account_info = &ctx.remaining_accounts[0];
-    require!(
-        stake_account_info.key() == expected_stake_pda,
-        AerospacerProtocolError::Unauthorized
-    );
-    
-    // Read stake amount from the verified account data
-    let user_stake_amount = {
-        let data = stake_account_info.try_borrow_data()?;
-        // Skip discriminator (8 bytes) and read the amount field (u64)
-        let amount_bytes = &data[8..16];
-        u64::from_le_bytes(amount_bytes.try_into().unwrap())
-    };
-    let total_stake = state.total_stake_amount;
-    
-    // Check if user has any stake
-    require!(
-        user_stake_amount > 0,
+        user_stake_amount.amount > 0,
         AerospacerProtocolError::InvalidAmount
     );
     
-    require!(
-        total_stake > 0,
-        AerospacerProtocolError::InvalidAmount
-    );
+    // SNAPSHOT ALGORITHM: Calculate collateral gain using Product-Sum formula
+    // gain = initial_deposit × (S_current - S_snapshot) / P_snapshot
     
-    // Get SPL token balance from vault (not lamports - that's just rent!)
-    // The vault is a TokenAccount, so deserialize it to read the amount field
-    let vault_token_balance = {
-        let vault_data = ctx.accounts.protocol_collateral_vault.try_borrow_data()?;
-        // TokenAccount.amount is at offset 64 (after mint: 32, owner: 32)
-        let amount_bytes = &vault_data[64..72];
-        u64::from_le_bytes(amount_bytes.try_into().unwrap())
-    };
+    // Initialize S snapshot if this is first time for this denom
+    if user_collateral_snapshot.s_snapshot == 0 {
+        user_collateral_snapshot.user = ctx.accounts.user.key();
+        user_collateral_snapshot.denom = params.collateral_denom.clone();
+        user_collateral_snapshot.s_snapshot = stability_pool_snapshot.s_factor;
+        user_collateral_snapshot.last_update_block = Clock::get()?.slot;
+        
+        msg!("Initialized S snapshot for {} at {}", params.collateral_denom, stability_pool_snapshot.s_factor);
+        msg!("No gains to withdraw yet (first interaction)");
+        return Ok(());
+    }
     
-    // Calculate user's proportional share of vault token balance
-    // proportional_share = (user_stake / total_stake) * vault_token_balance
-    let proportional_share = (user_stake_amount as u128)
-        .checked_mul(vault_token_balance as u128)
-        .ok_or(AerospacerProtocolError::OverflowError)?
-        .checked_div(total_stake as u128)
-        .ok_or(AerospacerProtocolError::DivideByZeroError)?
-        as u64;
+    // Calculate collateral gain using helper function
+    let collateral_gain = calculate_collateral_gain(
+        user_stake_amount.amount,
+        user_collateral_snapshot.s_snapshot,
+        stability_pool_snapshot.s_factor,
+        user_stake_amount.p_snapshot,
+    )?;
     
-    // Check if user has any gains to withdraw
-    require!(
-        proportional_share > 0,
-        AerospacerProtocolError::CollateralRewardsNotFound
-    );
+    // Check if user has any gains
+    if collateral_gain == 0 {
+        msg!("No collateral gains available for {}", params.collateral_denom);
+        return Ok(());
+    }
     
-    msg!("Withdrawing liquidation gains:");
-    msg!("  User stake: {} / {} total", user_stake_amount, total_stake);
-    msg!("  Vault token balance: {}", vault_token_balance);
-    msg!("  Proportional share: {}", proportional_share);
+    msg!("SNAPSHOT-BASED WITHDRAWAL:");
+    msg!("  User deposit: {}", user_stake_amount.amount);
+    msg!("  P_snapshot: {}", user_stake_amount.p_snapshot);
+    msg!("  S_snapshot ({}): {}", params.collateral_denom, user_collateral_snapshot.s_snapshot);
+    msg!("  S_current ({}): {}", params.collateral_denom, stability_pool_snapshot.s_factor);
+    msg!("  Calculated gain: {}", collateral_gain);
     
-    // Update liquidation gains account to mark as claimed
-    user_liquidation_collateral_gain.user = ctx.accounts.user.key();
-    user_liquidation_collateral_gain.block_height = Clock::get()?.slot;
-    user_liquidation_collateral_gain.claimed = true;
-    
-    let total_gain = proportional_share;
-
-    // Transfer collateral from protocol to user
+    // Transfer collateral gain from stability pool vault to user
     let transfer_seeds = &[
         b"protocol_collateral_vault".as_ref(),
         params.collateral_denom.as_bytes(),
@@ -151,17 +132,22 @@ pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquid
         },
         transfer_signer,
     );
-    anchor_spl::token::transfer(transfer_ctx, total_gain)?;
+    anchor_spl::token::transfer(transfer_ctx, collateral_gain)?;
+
+    // Update user's S snapshot to current value (marks gains as claimed)
+    user_collateral_snapshot.s_snapshot = stability_pool_snapshot.s_factor;
+    user_collateral_snapshot.last_update_block = Clock::get()?.slot;
 
     // Update per-denom collateral total PDA
     update_total_collateral_from_account_info(
         &ctx.accounts.total_collateral_amount,
-        -(total_gain as i64),
+        -(collateral_gain as i64),
     )?;
 
-    msg!("Liquidation gains withdrawn successfully");
-    msg!("Amount: {} {}", total_gain, params.collateral_denom);
+    msg!("Liquidation gains withdrawn successfully (snapshot-based)");
+    msg!("Amount: {} {}", collateral_gain, params.collateral_denom);
     msg!("User: {}", ctx.accounts.user.key());
+    msg!("S snapshot updated to: {}", stability_pool_snapshot.s_factor);
 
     Ok(())
 }

@@ -12,10 +12,17 @@ pub struct StateAccount {
     pub stable_coin_addr: Pubkey,
     pub total_debt_amount: u64, // Equivalent to Uint256
     pub total_stake_amount: u64, // Equivalent to Uint256
+    
+    // Stability Pool Snapshot Variables (Liquity Product-Sum Algorithm)
+    pub p_factor: u128,  // Product/depletion factor - tracks cumulative pool depletion from debt burns (starts at SCALE_FACTOR)
+    pub epoch: u64,      // Current epoch - increments when pool is completely depleted to 0
 }
 
 impl StateAccount {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8; // Removed duplicate fees_program_id
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 1 + 1 + 32 + 8 + 8 + 16 + 8; // Added p_factor (16) + epoch (8)
+    
+    // Scale factor for precision in P/S calculations (10^18, same as Liquity)
+    pub const SCALE_FACTOR: u128 = 1_000_000_000_000_000_000;
 }
 
 // User debt amount (equivalent to INJECTIVE's USER_DEBT_AMOUNT: Map<Addr, Uint256>)
@@ -47,16 +54,18 @@ impl UserCollateralAmount {
     }
 }
 
-// User stake amount (equivalent to INJECTIVE's USER_STAKE_AMOUNT: SnapshotMap<Addr, Uint256>)
+// User stake amount with snapshots (equivalent to INJECTIVE's USER_STAKE_AMOUNT: SnapshotMap<Addr, Uint256>)
 #[account]
 pub struct UserStakeAmount {
     pub owner: Pubkey,
-    pub amount: u64, // Equivalent to Uint256
-    pub block_height: u64, // For snapshotting
+    pub amount: u64,                    // Current staked amount
+    pub p_snapshot: u128,               // User's P factor snapshot at last deposit (for compounded stake calculation)
+    pub epoch_snapshot: u64,            // Epoch when user last deposited (for epoch transition tracking)
+    pub last_update_block: u64,         // Last block when stake was updated
 }
 
 impl UserStakeAmount {
-    pub const LEN: usize = 8 + 32 + 8 + 8;
+    pub const LEN: usize = 8 + 32 + 8 + 16 + 8 + 8; // Added p_snapshot(16) + epoch_snapshot(8) + last_update_block(8)
     pub fn seeds(owner: &Pubkey) -> [&[u8]; 2] {
         [b"user_stake_amount", owner.as_ref()]
     }
@@ -149,6 +158,42 @@ impl SortedTrovesState {
     pub const LEN: usize = 8 + (1 + 32) + (1 + 32) + 8;
     pub fn seeds() -> [&'static [u8]; 1] {
         [b"sorted_troves_state"]
+    }
+}
+
+// Stability Pool Snapshot - tracks cumulative collateral rewards per denomination
+// This is the global "S" factor from Liquity's Product-Sum algorithm
+#[account]
+pub struct StabilityPoolSnapshot {
+    pub denom: String,                  // Collateral denomination (e.g., "SOL", "USDC")
+    pub s_factor: u128,                 // Sum: cumulative collateral-per-unit-staked (scaled by SCALE_FACTOR)
+    pub total_collateral_gained: u64,  // Total collateral seized and distributed this epoch
+    pub epoch: u64,                     // Current epoch (resets when pool depletes to 0)
+}
+
+impl StabilityPoolSnapshot {
+    pub const LEN: usize = 8 + 32 + 16 + 8 + 8; // denom(32) + s_factor(16) + total(8) + epoch(8)
+    
+    pub fn seeds(denom: &str) -> [&[u8]; 2] {
+        [b"stability_pool_snapshot", denom.as_bytes()]
+    }
+}
+
+// User Collateral Snapshot - tracks user's S snapshot for each collateral type
+// Captures the S value when user stakes, enabling gain calculation on withdrawal
+#[account]
+pub struct UserCollateralSnapshot {
+    pub owner: Pubkey,
+    pub denom: String,
+    pub s_snapshot: u128,               // User's S factor snapshot at last deposit
+    pub pending_collateral_gain: u64,  // Unclaimed gains from previous epochs
+}
+
+impl UserCollateralSnapshot {
+    pub const LEN: usize = 8 + 32 + 32 + 16 + 8; // owner(32) + denom(32) + s_snapshot(16) + pending(8)
+    
+    pub fn seeds<'a>(owner: &'a Pubkey, denom: &'a str) -> [&'a [u8]; 3] {
+        [b"user_collateral_snapshot", owner.as_ref(), denom.as_bytes()]
     }
 }
 

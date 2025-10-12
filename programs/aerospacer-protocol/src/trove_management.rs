@@ -415,7 +415,7 @@ impl TroveManager {
             
             // Distribute seized collateral to stability pool stakers
             distribute_liquidation_gains_to_stakers(
-                &liquidation_ctx.state,
+                &mut liquidation_ctx.state,
                 &trove_data.collateral_amounts,
                 trove_data.debt_amount,
                 remaining_accounts,
@@ -725,20 +725,23 @@ fn update_user_accounts_after_liquidation(
     Ok(())
 }
 
-/// Distribute liquidation gains to stability pool stakers
+/// Distribute liquidation gains to stability pool stakers using Liquity's Product-Sum snapshot algorithm
 /// 
-/// This function creates or updates TotalLiquidationCollateralGain PDAs to track
-/// seized collateral for distribution to stability pool stakers.
-/// The actual per-user distribution is "lazy" - it happens when users call withdraw_liquidation_gains.
+/// This function updates global P and S factors to track:
+/// - P factor: Pool depletion from debt burns (used to calculate compounded stakes)
+/// - S factors: Cumulative collateral rewards per denomination (used to calculate gains)
+/// 
+/// The snapshot mechanism prevents post-liquidation gaming by capturing state at deposit time.
+/// Actual per-user distribution is "lazy" - happens when users call withdraw_liquidation_gains.
 /// 
 /// # Arguments
-/// * `state` - The protocol state containing total_stake_amount
+/// * `state` - Mutable protocol state to update P factor and epoch
 /// * `collateral_amounts` - Vector of (denom, amount) pairs seized from liquidation
-/// * `debt_amount` - The debt amount that was liquidated
-/// * `remaining_accounts` - Must include TotalLiquidationCollateralGain PDAs after the 4n trove accounts
-/// * `num_troves` - Number of troves being liquidated (to calculate where gain PDAs start)
+/// * `debt_amount` - The debt amount that was liquidated (burned from pool)
+/// * `remaining_accounts` - Must include StabilityPoolSnapshot PDAs after the 4n trove accounts
+/// * `num_troves` - Number of troves being liquidated (to calculate where snapshot PDAs start)
 fn distribute_liquidation_gains_to_stakers(
-    state: &StateAccount,
+    state: &mut StateAccount,
     collateral_amounts: &Vec<(String, u64)>,
     debt_amount: u64,
     remaining_accounts: &[AccountInfo],
@@ -746,60 +749,111 @@ fn distribute_liquidation_gains_to_stakers(
 ) -> Result<()> {
     let total_stake = state.total_stake_amount;
     
-    // Get current block height for tracking this liquidation event
-    let current_block_height = Clock::get()?.slot;
-    
-    msg!("Distributing liquidation gains to stability pool:");
+    msg!("Distributing liquidation gains to stability pool (snapshot algorithm):");
     msg!("  Total stake in pool: {}", total_stake);
     msg!("  Debt liquidated: {}", debt_amount);
-    msg!("  Block height: {}", current_block_height);
+    msg!("  Current P factor: {}", state.p_factor);
+    msg!("  Current epoch: {}", state.epoch);
     
-    // TotalLiquidationCollateralGain PDAs start after the trove accounts (4 per trove)
-    let gain_pdas_start = num_troves * 4;
+    // If no stakers, collateral stays in vault (no distribution needed)
+    if total_stake == 0 {
+        msg!("  No stakers - seized collateral remains in protocol vault");
+        return Ok(());
+    }
     
-    // Track liquidation gains in TotalLiquidationCollateralGain PDAs
+    // STEP 1: Update P factor (tracks pool depletion from debt burn)
+    // Formula: P_new = P_old × (total_stake - debt_liquidated) / total_stake
+    let remaining_stake = total_stake.saturating_sub(debt_amount);
+    
+    if remaining_stake == 0 {
+        // Pool completely depleted - start new epoch
+        state.epoch = state.epoch
+            .checked_add(1)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+        state.p_factor = StateAccount::SCALE_FACTOR;
+        state.total_stake_amount = 0;
+        msg!("  Pool depleted to 0 - starting epoch {}", state.epoch);
+        msg!("  P factor reset to SCALE_FACTOR");
+    } else {
+        // Calculate depletion ratio: (remaining_stake / total_stake)
+        let depletion_ratio = (remaining_stake as u128)
+            .checked_mul(StateAccount::SCALE_FACTOR)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(total_stake as u128)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+        
+        // Update P: P_new = P_old × depletion_ratio
+        state.p_factor = state.p_factor
+            .checked_mul(depletion_ratio)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(StateAccount::SCALE_FACTOR)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+        
+        state.total_stake_amount = remaining_stake;
+        
+        msg!("  Updated P factor: {} (depletion ratio: {})", state.p_factor, depletion_ratio);
+        msg!("  Remaining stake: {}", remaining_stake);
+    }
+    
+    // STEP 2: Update S factors for each collateral type (tracks cumulative rewards)
+    // Formula: S_new = S_old + (collateral_seized / total_stake_before_liquidation)
+    // StabilityPoolSnapshot PDAs start after the trove accounts (4 per trove)
+    let snapshot_pdas_start = num_troves * 4;
+    
     for (denom, amount) in collateral_amounts {
-        // Expected PDA for this denom at current block height
-        let gain_seeds = [
-            b"total_liq_gain",
-            &current_block_height.to_le_bytes()[..],
+        // Calculate S increment: (collateral / total_stake) × SCALE_FACTOR
+        let s_increment = (*amount as u128)
+            .checked_mul(StateAccount::SCALE_FACTOR)
+            .ok_or(AerospacerProtocolError::OverflowError)?
+            .checked_div(total_stake as u128)
+            .ok_or(AerospacerProtocolError::DivideByZeroError)?;
+        
+        // Expected StabilityPoolSnapshot PDA for this denom
+        let snapshot_seeds = [
+            b"stability_pool_snapshot",
             denom.as_bytes(),
         ];
-        let (expected_pda, _bump) = Pubkey::find_program_address(&gain_seeds, &crate::ID);
+        let (expected_pda, _bump) = Pubkey::find_program_address(&snapshot_seeds, &crate::ID);
         
-        // Look for the PDA in remaining_accounts starting after trove accounts
+        // Look for the PDA in remaining_accounts
         let mut found = false;
-        for i in gain_pdas_start..remaining_accounts.len() {
+        for i in snapshot_pdas_start..remaining_accounts.len() {
             let account_info = &remaining_accounts[i];
             
             if account_info.key() == expected_pda {
-                // Update existing PDA
                 let mut data = account_info.try_borrow_mut_data()?;
                 
-                if data.len() >= 8 + TotalLiquidationCollateralGain::LEN {
-                    // Deserialize existing data
-                    let mut gain = TotalLiquidationCollateralGain::try_deserialize(&mut &data[..])?;
+                if data.len() >= 8 + StabilityPoolSnapshot::LEN {
+                    // Deserialize and update existing snapshot
+                    let mut snapshot = StabilityPoolSnapshot::try_deserialize(&mut &data[..])?;
                     
-                    // Add to existing amount
-                    gain.amount = gain.amount
+                    // S_new = S_old + s_increment
+                    snapshot.s_factor = snapshot.s_factor
+                        .checked_add(s_increment)
+                        .ok_or(AerospacerProtocolError::OverflowError)?;
+                    
+                    snapshot.total_collateral_gained = snapshot.total_collateral_gained
                         .checked_add(*amount)
                         .ok_or(AerospacerProtocolError::OverflowError)?;
                     
+                    snapshot.epoch = state.epoch;
+                    
                     // Serialize back
-                    gain.try_serialize(&mut &mut data[..])?;
+                    snapshot.try_serialize(&mut &mut data[..])?;
                     
-                    msg!("  Updated gain PDA for {}: added {}, total now {}", 
-                         denom, amount, gain.amount);
+                    msg!("  Updated S factor for {}: +{} (new S: {})", 
+                         denom, s_increment, snapshot.s_factor);
                 } else {
-                    // Initialize new PDA
-                    let gain = TotalLiquidationCollateralGain {
-                        block_height: current_block_height,
+                    // Initialize new snapshot
+                    let snapshot = StabilityPoolSnapshot {
                         denom: denom.clone(),
-                        amount: *amount,
+                        s_factor: s_increment,
+                        total_collateral_gained: *amount,
+                        epoch: state.epoch,
                     };
-                    gain.try_serialize(&mut &mut data[..])?;
+                    snapshot.try_serialize(&mut &mut data[..])?;
                     
-                    msg!("  Initialized gain PDA for {}: {}", denom, amount);
+                    msg!("  Initialized S factor for {}: {}", denom, s_increment);
                 }
                 
                 found = true;
@@ -808,16 +862,12 @@ fn distribute_liquidation_gains_to_stakers(
         }
         
         if !found {
-            if total_stake == 0 {
-                msg!("  {} {} seized - no stakers, gains remain in protocol vault", denom, amount);
-            } else {
-                msg!("  WARNING: Gain PDA not provided for {} - gains tracked in vault only", denom);
-                msg!("  {} stakers can still withdraw proportionally from vault balance", total_stake);
-            }
+            msg!("  WARNING: StabilityPoolSnapshot PDA not provided for {}", denom);
+            msg!("  Collateral gains will not be tracked for this denomination");
         }
     }
     
-    msg!("Liquidation gains distribution complete");
+    msg!("Liquidation gains distribution complete (snapshot algorithm)");
     
     Ok(())
 }

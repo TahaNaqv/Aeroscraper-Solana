@@ -66,9 +66,16 @@ pub fn handler(ctx: Context<Unstake>, params: UnstakeParams) -> Result<()> {
     let user_stake_amount = &mut ctx.accounts.user_stake_amount;
     let state = &mut ctx.accounts.state;
 
-    // Check if user has enough stake
+    // SNAPSHOT: Calculate compounded stake accounting for pool depletion
+    let compounded_stake = calculate_compounded_stake(
+        user_stake_amount.amount,
+        user_stake_amount.p_snapshot,
+        state.p_factor,
+    )?;
+
+    // Check if user has enough compounded stake (NOT original deposit)
     require!(
-        user_stake_amount.amount >= params.amount,
+        compounded_stake >= params.amount,
         AerospacerProtocolError::InvalidAmount
     );
 
@@ -90,17 +97,36 @@ pub fn handler(ctx: Context<Unstake>, params: UnstakeParams) -> Result<()> {
     );
     anchor_spl::token::transfer(transfer_ctx, params.amount)?;
 
-    // Update user stake amount
-    user_stake_amount.amount = safe_sub(user_stake_amount.amount, params.amount)?;
-    user_stake_amount.block_height = Clock::get()?.slot;
+    // Update user stake amount - subtract from original deposit proportionally
+    let remaining_compounded = safe_sub(compounded_stake, params.amount)?;
+    
+    // Calculate new deposit amount: remaining_compounded / (P_current / P_snapshot)
+    // = remaining_compounded * P_snapshot / P_current
+    let new_deposit = if remaining_compounded == 0 {
+        0u64
+    } else {
+        let remaining_128 = remaining_compounded as u128;
+        let numerator = remaining_128
+            .checked_mul(user_stake_amount.p_snapshot)
+            .ok_or(AerospacerProtocolError::MathOverflow)?;
+        let result = numerator
+            .checked_div(state.p_factor)
+            .ok_or(AerospacerProtocolError::MathOverflow)?;
+        u64::try_from(result)
+            .map_err(|_| AerospacerProtocolError::MathOverflow)?
+    };
+
+    user_stake_amount.amount = new_deposit;
+    user_stake_amount.last_update_block = Clock::get()?.slot;
 
     // Update state
     state.total_stake_amount = safe_sub(state.total_stake_amount, params.amount)?;
 
-    msg!("Unstaked successfully");
+    msg!("Unstaked successfully (compounded stake calculated)");
     msg!("User: {}", ctx.accounts.user.key());
-    msg!("Amount: {} aUSD", params.amount);
-    msg!("Remaining stake: {} aUSD", user_stake_amount.amount);
+    msg!("Amount withdrawn: {} aUSD", params.amount);
+    msg!("Compounded stake before: {} aUSD", compounded_stake);
+    msg!("Remaining deposit: {} aUSD", user_stake_amount.amount);
     msg!("Total protocol stake: {} aUSD", state.total_stake_amount);
 
     Ok(())

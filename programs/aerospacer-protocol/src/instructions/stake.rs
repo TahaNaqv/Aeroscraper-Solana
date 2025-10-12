@@ -86,19 +86,25 @@ pub fn handler(ctx: Context<Stake>, params: StakeParams) -> Result<()> {
     );
     anchor_spl::token::transfer(transfer_ctx, params.amount)?;
 
-    // Update user stake amount
+    // Update user stake amount with snapshots (Liquity Product-Sum algorithm)
     user_stake_amount.owner = ctx.accounts.user.key();
     user_stake_amount.amount = safe_add(user_stake_amount.amount, params.amount)?;
-    user_stake_amount.block_height = Clock::get()?.slot;
+    
+    // SNAPSHOT: Capture current P factor for compounded stake calculations
+    user_stake_amount.p_snapshot = state.p_factor;
+    user_stake_amount.epoch_snapshot = state.epoch;
+    user_stake_amount.last_update_block = Clock::get()?.slot;
 
     // Update state
     state.total_stake_amount = safe_add(state.total_stake_amount, params.amount)?;
 
-    msg!("Staked successfully");
+    msg!("Staked successfully (snapshot captured)");
     msg!("User: {}", ctx.accounts.user.key());
     msg!("Amount: {} aUSD", params.amount);
     msg!("Total staked: {} aUSD", user_stake_amount.amount);
     msg!("Total protocol stake: {} aUSD", state.total_stake_amount);
+    msg!("P snapshot: {}", user_stake_amount.p_snapshot);
+    msg!("Epoch snapshot: {}", user_stake_amount.epoch_snapshot);
 
     Ok(())
 }
