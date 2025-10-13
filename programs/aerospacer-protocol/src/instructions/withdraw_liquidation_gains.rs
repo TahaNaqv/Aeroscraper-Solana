@@ -5,13 +5,13 @@ use crate::utils::*;
 use crate::error::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct Withdraw_liquidation_gainsParams {
+pub struct WithdrawLiquidationGainsParams {
     pub collateral_denom: String,
 }
 
 #[derive(Accounts)]
-#[instruction(params: Withdraw_liquidation_gainsParams)]
-pub struct Withdraw_liquidation_gains<'info> {
+#[instruction(params: WithdrawLiquidationGainsParams)]
+pub struct WithdrawLiquidationGains<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
@@ -67,7 +67,7 @@ pub struct Withdraw_liquidation_gains<'info> {
 
 
 
-pub fn handler(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquidation_gainsParams) -> Result<()> {
+pub fn handler(ctx: Context<WithdrawLiquidationGains>, params: WithdrawLiquidationGainsParams) -> Result<()> {
     let user_stake_amount = &mut ctx.accounts.user_stake_amount;
     let user_collateral_snapshot = &mut ctx.accounts.user_collateral_snapshot;
     let stability_pool_snapshot = &ctx.accounts.stability_pool_snapshot;

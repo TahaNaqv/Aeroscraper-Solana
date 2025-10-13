@@ -22,7 +22,7 @@ pub struct CloseTrove<'info> {
         constraint = user_debt_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized,
         constraint = user_debt_amount.amount > 0 @ AerospacerProtocolError::TroveDoesNotExist
     )]
-    pub user_debt_amount: Account<'info, UserDebtAmount>,
+    pub user_debt_amount: Box<Account<'info, UserDebtAmount>>,
 
     #[account(
         mut,
@@ -30,7 +30,7 @@ pub struct CloseTrove<'info> {
         bump,
         constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_amount: Account<'info, UserCollateralAmount>,
+    pub user_collateral_amount: Box<Account<'info, UserCollateralAmount>>,
 
     #[account(
         mut,
@@ -39,24 +39,24 @@ pub struct CloseTrove<'info> {
         bump,
         constraint = liquidity_threshold.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub liquidity_threshold: Account<'info, LiquidityThreshold>,
+    pub liquidity_threshold: Box<Account<'info, LiquidityThreshold>>,
 
     #[account(mut)]
-    pub state: Account<'info, StateAccount>,
+    pub state: Box<Account<'info, StateAccount>>,
 
     // User's stablecoin account (to pay off debt)
     #[account(
         mut,
         constraint = user_stablecoin_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_stablecoin_account: Account<'info, TokenAccount>,
+    pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
     // User's collateral account (to receive collateral back)
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
 
     // Protocol's collateral vault
     #[account(
@@ -65,7 +65,7 @@ pub struct CloseTrove<'info> {
         bump,
         constraint = protocol_collateral_vault.mint == user_collateral_account.mint @ AerospacerProtocolError::InvalidMint
     )]
-    pub protocol_collateral_vault: Account<'info, TokenAccount>,
+    pub protocol_collateral_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: This is the stable coin mint account
     #[account(
@@ -86,7 +86,7 @@ pub struct CloseTrove<'info> {
         seeds = [b"sorted_troves_state"],
         bump
     )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
 
     // Node account for sorted troves linked list
     #[account(
@@ -95,7 +95,7 @@ pub struct CloseTrove<'info> {
         seeds = [b"node", user.key().as_ref()],
         bump
     )]
-    pub node: Account<'info, Node>,
+    pub node: Box<Account<'info, Node>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

@@ -1,12 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint, MintTo, Transfer};
+use anchor_spl::token::{Token, TokenAccount, MintTo};
 use crate::state::*;
 use crate::error::*;
 use crate::account_management::*;
 use crate::oracle::*;
-use crate::trove_management::*;
 use crate::trove_management::TroveManager;
-use crate::state::{DECIMAL_FRACTION_18, MINIMUM_LOAN_AMOUNT, MINIMUM_COLLATERAL_AMOUNT};
+use crate::state::{MINIMUM_LOAN_AMOUNT, MINIMUM_COLLATERAL_AMOUNT};
 use crate::fees_integration::*;
 use crate::utils::*;
 use crate::sorted_troves;
@@ -14,19 +13,19 @@ use crate::sorted_troves;
 // Oracle integration is now handled via our aerospacer-oracle contract
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct Open_troveParams {
+pub struct OpenTroveParams {
     pub loan_amount: u64,
     pub collateral_denom: String,
     pub collateral_amount: u64,
 }
 
 #[derive(Accounts)]
-#[instruction(params: Open_troveParams)]
-pub struct Open_trove<'info> {
+#[instruction(params: OpenTroveParams)]
+pub struct OpenTrove<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     
-    // Trove context accounts
+    // Trove context accounts - Box<> to reduce stack usage
     #[account(
         init,
         payer = user,
@@ -34,7 +33,7 @@ pub struct Open_trove<'info> {
         seeds = [b"user_debt_amount", user.key().as_ref()],
         bump
     )]
-    pub user_debt_amount: Account<'info, UserDebtAmount>,
+    pub user_debt_amount: Box<Account<'info, UserDebtAmount>>,
     
     #[account(
         init,
@@ -43,7 +42,7 @@ pub struct Open_trove<'info> {
         seeds = [b"liquidity_threshold", user.key().as_ref()],
         bump
     )]
-    pub liquidity_threshold: Account<'info, LiquidityThreshold>,
+    pub liquidity_threshold: Box<Account<'info, LiquidityThreshold>>,
     
     // Collateral context accounts
     #[account(
@@ -53,20 +52,20 @@ pub struct Open_trove<'info> {
         seeds = [b"user_collateral_amount", user.key().as_ref(), params.collateral_denom.as_bytes()],
         bump
     )]
-    pub user_collateral_amount: Account<'info, UserCollateralAmount>,
+    pub user_collateral_amount: Box<Account<'info, UserCollateralAmount>>,
     
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
         mut,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
-    pub protocol_collateral_account: Account<'info, TokenAccount>,
+    pub protocol_collateral_account: Box<Account<'info, TokenAccount>>,
     
     /// CHECK: Per-denom collateral total PDA
     #[account(
@@ -76,13 +75,13 @@ pub struct Open_trove<'info> {
     )]
     pub total_collateral_amount: AccountInfo<'info>,
     
-    // Sorted troves context accounts
+    // Sorted troves context accounts - Box<> to reduce stack usage
     #[account(
         mut,
         seeds = [b"sorted_troves_state"],
         bump
     )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
     
     // Node account for sorted troves linked list
     #[account(
@@ -92,25 +91,25 @@ pub struct Open_trove<'info> {
         seeds = [b"node", user.key().as_ref()],
         bump
     )]
-    pub node: Account<'info, Node>,
+    pub node: Box<Account<'info, Node>>,
     
-    // State account
+    // State account - Box<> to reduce stack usage
     #[account(mut)]
-    pub state: Account<'info, StateAccount>,
+    pub state: Box<Account<'info, StateAccount>>,
     
-    // Token accounts
+    // Token accounts - Box<> to reduce stack usage
     #[account(
         mut,
         constraint = user_stablecoin_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_stablecoin_account: Account<'info, TokenAccount>,
+    pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
         mut,
         seeds = [b"protocol_stablecoin_vault"],
         bump
     )]
-    pub protocol_stablecoin_account: Account<'info, TokenAccount>,
+    pub protocol_stablecoin_account: Box<Account<'info, TokenAccount>>,
     
     /// CHECK: This is the stable coin mint account
     #[account(
@@ -169,7 +168,7 @@ pub struct Open_trove<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()> {
+pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     // Validate input parameters
     require!(
         params.loan_amount > 0,

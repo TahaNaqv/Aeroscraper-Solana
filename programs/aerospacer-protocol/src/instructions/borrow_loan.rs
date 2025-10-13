@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint, MintTo};
+use anchor_spl::token::{Token, TokenAccount, MintTo};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
@@ -28,7 +28,7 @@ pub struct BorrowLoan<'info> {
         bump,
         constraint = user_debt_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_debt_amount: Account<'info, UserDebtAmount>,
+    pub user_debt_amount: Box<Account<'info, UserDebtAmount>>,
 
     #[account(
         mut,
@@ -36,13 +36,13 @@ pub struct BorrowLoan<'info> {
         bump,
         constraint = liquidity_threshold.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub liquidity_threshold: Account<'info, LiquidityThreshold>,
+    pub liquidity_threshold: Box<Account<'info, LiquidityThreshold>>,
 
     #[account(mut)]
-    pub state: Account<'info, StateAccount>,
+    pub state: Box<Account<'info, StateAccount>>,
 
     #[account(mut)]
-    pub user_stablecoin_account: Account<'info, TokenAccount>,
+    pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: This is the stable coin mint account
     pub stable_coin_mint: UncheckedAccount<'info>,
@@ -52,7 +52,7 @@ pub struct BorrowLoan<'info> {
         seeds = [b"sorted_troves_state"],
         bump
     )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
 
     // Node account for sorted troves linked list (for reinsertion with new ICR)
     #[account(
@@ -60,7 +60,7 @@ pub struct BorrowLoan<'info> {
         seeds = [b"node", user.key().as_ref()],
         bump
     )]
-    pub node: Account<'info, Node>,
+    pub node: Box<Account<'info, Node>>,
 
     // Collateral context accounts
     #[account(
@@ -69,17 +69,17 @@ pub struct BorrowLoan<'info> {
         bump,
         constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_amount: Account<'info, UserCollateralAmount>,
+    pub user_collateral_amount: Box<Account<'info, UserCollateralAmount>>,
 
     #[account(mut)]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
-    pub protocol_collateral_account: Account<'info, TokenAccount>,
+    pub protocol_collateral_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Per-denom collateral total PDA
     #[account(

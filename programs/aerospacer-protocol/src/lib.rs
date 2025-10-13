@@ -31,7 +31,7 @@ pub mod aerospacer_protocol {
     }
 
     // Open a trove by depositing collateral (equivalent to INJECTIVE's open_trove)
-    pub fn open_trove(ctx: Context<Open_trove>, params: Open_troveParams) -> Result<()> {
+    pub fn open_trove(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
         instructions::open_trove::handler(ctx, params)
     }
 
@@ -81,7 +81,7 @@ pub mod aerospacer_protocol {
     }
 
     // Withdraw collateral from liquidation gains (equivalent to INJECTIVE's withdraw_liquidation_gains)
-    pub fn withdraw_liquidation_gains(ctx: Context<Withdraw_liquidation_gains>, params: Withdraw_liquidation_gainsParams) -> Result<()> {
+    pub fn withdraw_liquidation_gains(ctx: Context<WithdrawLiquidationGains>, params: WithdrawLiquidationGainsParams) -> Result<()> {
         instructions::withdraw_liquidation_gains::handler(ctx, params)
     }
 

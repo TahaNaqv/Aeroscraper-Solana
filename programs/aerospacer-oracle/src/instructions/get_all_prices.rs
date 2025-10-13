@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::error::AerospacerOracleError;
-use pyth_sdk_solana::load_price_feed_from_account_info;
+use pyth_sdk_solana::state::SolanaPriceAccount;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct GetAllPricesParams {
@@ -110,7 +110,7 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
         );
         
         // Use Pyth SDK to load and validate price feed data (reusing get_price logic)
-        let price_feed = load_price_feed_from_account_info(pyth_price_account)
+        let price_feed = SolanaPriceAccount::account_info_to_feed(pyth_price_account)
             .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
         
         // Get current time for staleness validation

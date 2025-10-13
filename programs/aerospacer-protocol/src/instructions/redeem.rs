@@ -24,7 +24,7 @@ pub struct Redeem<'info> {
     pub user: Signer<'info>,
 
     #[account(mut)]
-    pub state: Account<'info, StateAccount>,
+    pub state: Box<Account<'info, StateAccount>>,
 
     #[account(
         mut,
@@ -32,7 +32,7 @@ pub struct Redeem<'info> {
         bump,
         constraint = user_debt_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_debt_amount: Account<'info, UserDebtAmount>,
+    pub user_debt_amount: Box<Account<'info, UserDebtAmount>>,
 
     #[account(
         mut,
@@ -40,13 +40,13 @@ pub struct Redeem<'info> {
         bump,
         constraint = liquidity_threshold.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub liquidity_threshold: Account<'info, LiquidityThreshold>,
+    pub liquidity_threshold: Box<Account<'info, LiquidityThreshold>>,
 
     #[account(
         mut,
         constraint = user_stablecoin_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_stablecoin_account: Account<'info, TokenAccount>,
+    pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -54,13 +54,13 @@ pub struct Redeem<'info> {
         bump,
         constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_amount: Account<'info, UserCollateralAmount>,
+    pub user_collateral_amount: Box<Account<'info, UserCollateralAmount>>,
 
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: Protocol stablecoin vault PDA
     #[account(
@@ -97,7 +97,7 @@ pub struct Redeem<'info> {
         seeds = [b"sorted_troves_state"],
         bump
     )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
 
     // Oracle context - integration with our aerospacer-oracle
     /// CHECK: Our oracle program - validated against state
