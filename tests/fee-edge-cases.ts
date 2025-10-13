@@ -100,7 +100,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       tokenMint,
       payerTokenAccount,
       admin,
-      1000000000
+      100000000000
     );
     
     feeStateAccount = Keypair.generate();
@@ -476,7 +476,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           .rpc();
         assert.fail("Should have thrown");
       } catch (error: any) {
-        expect(error.message).to.include("ConstraintRaw");
+        expect(error.message).to.include("Unauthorized");
         console.log("✅ Unauthorized error verified");
       }
     });

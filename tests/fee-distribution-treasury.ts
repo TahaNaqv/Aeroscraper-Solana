@@ -100,7 +100,7 @@ describe("Fee Contract - Treasury Distribution Mode (50/50 Split)", () => {
       tokenMint,
       payerTokenAccount,
       admin,
-      1000000000
+      100000000000
     );
     
     feeStateAccount = Keypair.generate();

@@ -107,7 +107,7 @@ describe("Fee Contract - Stability Pool Distribution Mode", () => {
       tokenMint,
       payerTokenAccount,
       admin,
-      1000000000
+      100000000000
     );
     
     feeStateAccount = Keypair.generate();

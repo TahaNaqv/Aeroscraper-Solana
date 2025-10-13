@@ -254,7 +254,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
       } catch (error: any) {
         console.log("✅ Non-admin toggle correctly prevented");
         console.log("  Error:", error.message);
-        expect(error.message).to.include("ConstraintRaw");
+        expect(error.message).to.include("Unauthorized");
       }
     });
   });
@@ -281,7 +281,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
       } catch (error: any) {
         console.log("✅ Non-admin set address correctly prevented");
         console.log("  Error:", error.message);
-        expect(error.message).to.include("ConstraintRaw");
+        expect(error.message).to.include("Unauthorized");
       }
     });
   });

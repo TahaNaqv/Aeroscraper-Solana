@@ -114,7 +114,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
       tokenMint,
       payerTokenAccount,
       admin,
-      1000000000
+      100000000000
     );
 
     await mintTo(
@@ -123,7 +123,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
       tokenMint,
       attackerTokenAccount,
       admin,
-      500000000
+      50000000000
     );
     
     feeStateAccount = Keypair.generate();
@@ -397,22 +397,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
     it("Should validate payer owns payer_token_account", async () => {
       console.log("🔒 Testing payer ownership validation...");
 
-      const victimAccount = await createAccount(
-        connection,
-        payer,
-        tokenMint,
-        payer.publicKey
-      );
-
-      await mintTo(
-        connection,
-        payer,
-        tokenMint,
-        victimAccount,
-        admin,
-        100000
-      );
-
+      // Use existing payer token account but try to access it as attacker
       try {
         await feesProgram.methods
           .distributeFee({
@@ -421,7 +406,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           .accounts({
             payer: attacker.publicKey,
             state: feeStateAccount.publicKey,
-            payerTokenAccount: victimAccount,
+            payerTokenAccount: payerTokenAccount, // Use payer's account
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
             feeAddress2TokenAccount: feeAddr2TokenAccount,
@@ -432,7 +417,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
 
         assert.fail("Should have thrown an error");
       } catch (error: any) {
-        console.log("✅ Attacker cannot drain victim's account");
+        console.log("✅ Attacker cannot use payer's account");
         expect(error.message).to.include("UnauthorizedTokenAccount");
       }
     });
