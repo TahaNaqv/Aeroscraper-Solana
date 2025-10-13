@@ -1,13 +1,10 @@
-use std::collections::HashMap;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, Mint, Burn};
+use anchor_spl::token::{Token, Mint};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
 use crate::account_management::*;
 use crate::oracle::*;
-use crate::fees_integration::*;
-use crate::utils::*;
 
 // Constants
 const MAX_LIQUIDATION_BATCH_SIZE: usize = 50;
@@ -141,7 +138,7 @@ pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> 
         system_program: ctx.accounts.system_program.clone(),
     };
 
-    let mut sorted_ctx = SortedTrovesContext {
+    let sorted_ctx = SortedTrovesContext {
         sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
         state: ctx.accounts.state.clone(),
     };

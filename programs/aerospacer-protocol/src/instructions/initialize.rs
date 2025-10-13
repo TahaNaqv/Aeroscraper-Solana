@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
-use crate::error::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct InitializeParams {

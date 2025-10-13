@@ -244,7 +244,7 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
         token_program: ctx.accounts.token_program.clone(),
     };
     
-    let mut sorted_ctx = SortedTrovesContext {
+    let sorted_ctx = SortedTrovesContext {
         sorted_troves_state: (*ctx.accounts.sorted_troves_state).clone(),
         state: (*ctx.accounts.state).clone(),
     };

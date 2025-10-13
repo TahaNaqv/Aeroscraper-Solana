@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{hash::hash, instruction::{Instruction, AccountMeta}};
-use crate::state::*;
 use crate::error::*;
 
 /// Oracle integration for price feeds

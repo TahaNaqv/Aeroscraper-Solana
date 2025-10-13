@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint, Transfer, Burn};
+use anchor_spl::token::{Token, TokenAccount, Burn};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
@@ -158,7 +158,7 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
         token_program: ctx.accounts.token_program.clone(),
     };
     
-    let mut sorted_ctx = SortedTrovesContext {
+    let sorted_ctx = SortedTrovesContext {
         sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
         state: ctx.accounts.state.clone(),
     };

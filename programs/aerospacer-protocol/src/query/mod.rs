@@ -5,7 +5,7 @@ use crate::state::*;
 use crate::msg::*;
 use crate::error::*;
 // find_insert_location is now in trove_management.rs
-use crate::utils::{get_liquidation_gains, query_all_collateral_prices, PriceResponse};
+use crate::utils::{get_liquidation_gains, query_all_collateral_prices};
 
 // Exact replication of INJECTIVE query/mod.rs
 pub fn query_total_collateral_amounts<'a>(

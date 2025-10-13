@@ -462,7 +462,7 @@ pub fn get_trove_amounts<'a>(
     remaining_accounts: &'a [AccountInfo<'a>],
     user_addr: Pubkey,
 ) -> Result<TroveAmounts> {
-    let mut collateral_amounts: Vec<(String, u64)> = Vec::new();
+    let collateral_amounts: Vec<(String, u64)> = Vec::new();
     let mut debt_amount = 0u64;
     
     // Find user debt amount account
