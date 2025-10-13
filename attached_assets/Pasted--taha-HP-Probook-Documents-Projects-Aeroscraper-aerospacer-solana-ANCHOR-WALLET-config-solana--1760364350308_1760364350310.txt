@@ -1,0 +1,383 @@
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ ANCHOR_WALLET=~/.config/solana/id.json ANCHOR_PROVIDER_URL=http://127.0.0.1:8899 npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/fee-*.ts'
+(node:429795) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/tests/fee-admin-controls.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+  Fee Contract - Admin Controls Tests
+
+🚀 Setting up Fee Contract Admin Controls Tests...
+✅ Setup complete
+  Admin: FqNr846pRM653mttRSBjAX34esPXS8YKBh8UL4jFyA84
+  Non-Admin: FLh1o7g8StkvGR4g3GU7DFzwvfmXiTaYFqJ76Yg7EZ1A
+  State: HHDH7YGFfAM8RDr4dLK1HKqf5jywvPmQfaj36qWBovTk
+    Test 2.1: Admin Can Toggle Stake Contract (Disabled → Enabled)
+🔄 Toggling stake contract from disabled to enabled...
+✅ Toggle successful. TX: 3c3uGh3zvQ7k7rK81TPdNM9t46NbxSGb44ricdEyiVdCG5EBVBp4ovNkPmoSMrWTktttNwanrSFnw6EYHorFRaxf
+✅ Stake contract enabled successfully
+      ✔ Should enable stake contract when toggled from disabled (416ms)
+    Test 2.2: Admin Can Toggle Stake Contract (Enabled → Disabled)
+🔄 Toggling stake contract from enabled to disabled...
+✅ Toggle successful. TX: 3Yud1GHLq4A9eZBj9LGqF99vWCroQpdC7m6Q1wtGZUdzHxsURrVhAcN9JLxza5z6cZA7hZXrLaQAR551ETQuyMbe
+✅ Stake contract disabled successfully
+      ✔ Should disable stake contract when toggled from enabled (404ms)
+    Test 2.3: Admin Can Set Valid Stake Contract Address
+📝 Setting stake contract address...
+  New Address: 5YWbvtSK727ehaLZoqueF2npUhsQDY7jHn41WUtDrXVU
+✅ Address set. TX: 2KWXiP7DW5R1h3U7goPdY7uHsUUUhYynDteT55bW4WMeQcVNbux6HKvPAbAuVgeFjg8dk6FGuaFHTHpvWAbs5VV7
+✅ Stake contract address set successfully
+      ✔ Should set stake contract address successfully (408ms)
+✅ Address updated multiple times successfully
+      ✔ Should allow updating stake contract address multiple times (812ms)
+    Test 2.4: Reject Invalid Stake Contract Address
+🔒 Attempting to set invalid address...
+✅ Invalid address correctly rejected
+  Error: AnchorError occurred. Error Code: InvalidAddress. Error Number: 6005. Error Message: Invalid address.
+      ✔ Should fail with malformed address string
+✅ Empty address correctly rejected
+      ✔ Should fail with empty string address
+    Test 2.5: Non-Admin Cannot Toggle Stake Contract
+🔒 Attempting toggle as non-admin...
+✅ Non-admin toggle correctly prevented
+  Error: AnchorError caused by account: state. Error Code: Unauthorized. Error Number: 6000. Error Message: Unauthorized.
+      ✔ Should fail when non-admin tries to toggle
+    Test 2.6: Non-Admin Cannot Set Stake Contract Address
+🔒 Attempting to set address as non-admin...
+✅ Non-admin set address correctly prevented
+  Error: AnchorError caused by account: state. Error Code: Unauthorized. Error Number: 6000. Error Message: Unauthorized.
+      ✔ Should fail when non-admin tries to set address
+    Test 2.7: Multiple Rapid Toggles Work Correctly
+⚡ Performing rapid toggles...
+  Toggle 1: true
+  Toggle 2: false
+  Toggle 3: true
+  Toggle 4: false
+  Toggle 5: true
+✅ Rapid toggles completed successfully
+      ✔ Should handle rapid consecutive toggles (1931ms)
+✅ State consistency verified after rapid operations
+      ✔ Should maintain state consistency after rapid toggles
+
+✅ Fee Contract Admin Controls Tests Complete
+  Total Tests Passed: 10
+
+  Fee Contract - Stability Pool Distribution Mode
+
+🚀 Setting up Fee Distribution - Stability Pool Mode Tests...
+✅ Setup complete
+  Token Mint: GhBd2BJojbyarcu2CszJugPud9VEscfPCbe6P4UKo4vm
+  Payer: GV8CPq1VgdXNreaNZJ17UFH8NXiMFb9W1qTeRczLHPhc
+  Stake Contract: gboFaubHsbkozptxrWV3kRbFmNuX9gQjCNF72dA2FNm
+    Test 3.1: Enable Stake Mode and Set Stake Address
+🔄 Enabling stake mode...
+✅ Stake mode enabled and address set
+      ✔ Should enable stake mode and set address (825ms)
+    Test 3.2: Distribute Fees to Stability Pool (100% Transfer)
+💸 Distributing fees to stability pool...
+  Amount: 100000
+✅ Distribution successful. TX: 2reo3QnDUNjeaqjwKQ7WQv7JN4RAuKhhgaRfgo2Uj5o9hQ263KJfBSBYMkya7UnEYWCyRUUeq9VYGdS2gqPtWXye
+✅ 100% of fees transferred to stability pool
+      ✔ Should transfer 100% of fees to stability pool (409ms)
+    Test 3.3: Verify total_fees_collected Increments Correctly
+✅ total_fees_collected: 150000
+      ✔ Should increment total_fees_collected accurately (406ms)
+    Test 3.4: Validate Stability Pool Token Account Owner
+✅ Stability pool account owner validated
+      ✔ Should verify stability pool account owner matches stake_contract_address
+    Test 3.5: Reject Distribution if stake_contract_address is Default
+🔒 Attempting distribution with default stake address...
+✅ Distribution correctly rejected
+      ✔ Should fail if stake address is Pubkey::default() (838ms)
+    Test 3.6: Reject Distribution if Stability Pool Owner is Wrong
+🔒 Attempting distribution with wrong pool owner...
+✅ Wrong pool owner correctly rejected
+      ✔ Should fail if pool account owner doesn't match stake_contract_address (819ms)
+    Test 3.7: Validate Token Mint Matches Across Accounts
+🔒 Attempting distribution with mismatched token mints...
+✅ Mismatched token mints correctly rejected
+      ✔ Should fail if token mints don't match (1231ms)
+    Test 3.8: Test Large Fee Amounts
+💰 Distributing large fee amount: 999999999
+✅ Large amount handled correctly
+      ✔ Should handle large fee amounts correctly (377ms)
+    Test 3.9: Test Multiple Consecutive Distributions
+⚡ Performing multiple consecutive distributions...
+  Distribution 1: 1000 ✓
+  Distribution 2: 2000 ✓
+  Distribution 3: 3000 ✓
+  Distribution 4: 4000 ✓
+  Distribution 5: 5000 ✓
+✅ Multiple distributions completed
+  Total fees collected: 1000164999
+      ✔ Should handle multiple consecutive distributions (2043ms)
+
+✅ Fee Distribution - Stability Pool Mode Tests Complete
+  Total Tests Passed: 9
+
+  Fee Contract - Treasury Distribution Mode (50/50 Split)
+
+🚀 Setting up Fee Distribution - Treasury Mode Tests...
+✅ Setup complete
+  Token Mint: 46dCKtJK2FiM4FUeaEAy5LkMarnC1sZ5LLJqT6GXmYus
+  FEE_ADDR_1: 8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR
+  FEE_ADDR_2: GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX
+    Test 4.1: Disable Stake Mode (Switch to Treasury)
+✅ Treasury mode active (stake disabled)
+      ✔ Should disable stake mode for treasury distribution
+    Test 4.2: Distribute Fees 50/50 to FEE_ADDR_1 and FEE_ADDR_2
+💸 Distributing fees 50/50 to treasury addresses...
+  Total Amount: 100000
+✅ Distribution successful. TX: 4UZgkgDWyiUPkfVo4QHigD5YJSRVoVThuTbZwoLB4vhJEWvki8CBuv4Am3pmsgmmkrAo1w4trzXYtZcUUfadqQ7F
+✅ Fees split 50/50 correctly
+  FEE_ADDR_1 received: 50000
+  FEE_ADDR_2 received: 50000
+      ✔ Should split fees equally between two addresses (408ms)
+    Test 4.3: Verify 50/50 Split Calculation (Even Amounts)
+  ✓ 1000 → 500 each
+  ✓ 2000 → 1000 each
+  ✓ 10000 → 5000 each
+  ✓ 100000 → 50000 each
+✅ Even amount splits verified
+      ✔ Should calculate 50/50 split correctly for even amounts (1634ms)
+    Test 4.4: Verify 50/50 Split Calculation (Odd Amounts)
+  ✓ 1001 → 500 + 501
+  ✓ 2001 → 1000 + 1001
+  ✓ 99999 → 49999 + 50000
+✅ Odd amount splits verified
+      ✔ Should handle odd amounts correctly (remainder to addr2) (1230ms)
+    Test 4.5: Validate FEE_ADDR_1 Token Account Owner
+✅ FEE_ADDR_1 token account owner validated
+      ✔ Should verify FEE_ADDR_1 token account owner is correct
+    Test 4.6: Validate FEE_ADDR_2 Token Account Owner
+✅ FEE_ADDR_2 token account owner validated
+      ✔ Should verify FEE_ADDR_2 token account owner is correct
+    Test 4.7: Reject if Fee Address Token Account Owners are Wrong
+🔒 Attempting distribution with wrong FEE_ADDR_1 owner...
+✅ Wrong FEE_ADDR_1 owner correctly rejected
+      ✔ Should fail if FEE_ADDR_1 token account has wrong owner (832ms)
+🔒 Attempting distribution with wrong FEE_ADDR_2 owner...
+✅ Wrong FEE_ADDR_2 owner correctly rejected
+      ✔ Should fail if FEE_ADDR_2 token account has wrong owner (809ms)
+    Test 4.8: Test Zero Amount Distribution (Should Fail)
+🔒 Attempting distribution with zero amount...
+✅ Zero amount correctly rejected
+      ✔ Should reject distribution with zero amount
+    Test 4.9: Test total_fees_collected Accumulation
+📊 Testing total_fees_collected accumulation...
+  Starting total: 316001
+  After 1000: 317001
+  After 2000: 319001
+  After 3000: 322001
+✅ total_fees_collected accumulation verified
+      ✔ Should accumulate total_fees_collected across multiple distributions (1190ms)
+
+✅ Fee Distribution - Treasury Mode Tests Complete
+  Total Tests Passed: 11
+
+  Fee Contract - Edge Cases & Error Handling
+
+🚀 Setting up Fee Contract Edge Cases Tests...
+✅ Setup complete
+    Test 6.1: Distribute 1 Lamport (Minimum Amount)
+⚡ Distributing minimum amount (1)...
+✅ Minimum amount handled. TX: 4GdoD9LAndjF9o3CNoryhBQ9KQeDC73ADLN7hTWvnxoxSWJgZ8wyHdCsev39gU95DW9oNfWBenEbKVAAgTixwxWy
+✅ Minimum amount (1) distributed successfully
+      ✔ Should handle minimum amount (1) correctly (410ms)
+    Test 6.2: Distribute Maximum u64 Value
+⚡ Distributing large amount: 999999999
+✅ Large amount handled. TX: 4dm6iSK246XeDXeCSC9PZ2C1qDfxNWVvFB44AedeKLhRptBtoF2E7u8BV5e3bMKoYuPpxVHawMfhwVSgprbu1JsB
+      ✔ Should handle maximum u64 value if sufficient balance (408ms)
+    Test 6.3: Toggle Mode Mid-Operation
+🔄 Testing mode switching...
+✅ Mode switching handled correctly
+      ✔ Should handle mode switching correctly (1635ms)
+    Test 6.4: Change Stake Address Mid-Operation
+🔄 Testing stake address changes...
+✅ Stake address changes handled correctly
+      ✔ Should allow changing stake address between distributions (1225ms)
+    Test 6.5: Test with Uninitialized Token Accounts
+🔒 Testing with uninitialized token account...
+✅ Uninitialized account correctly rejected
+      ✔ Should fail gracefully with uninitialized accounts
+    Test 6.6: Test with Closed Token Accounts
+⚠️  Closed token account test - conceptual validation
+✅ SPL Token prevents closing accounts with balances
+✅ Contract would reject non-existent accounts
+      ✔ Should detect and reject closed token accounts
+    Test 6.7: Test Rapid State Changes (Stress Test)
+⚡ Performing rapid state changes...
+✅ Rapid operations completed
+      ✔ Should handle rapid consecutive operations (10175ms)
+✅ State consistency verified after stress test
+  Total fees collected: 1000061992
+      ✔ Should maintain state consistency after stress test
+    Test 6.8: Verify All Error Messages are Correct
+✅ NoFeesToDistribute error verified
+      ✔ Should return specific error for NoFeesToDistribute
+✅ Unauthorized error verified
+      ✔ Should return specific error for Unauthorized (399ms)
+✅ InvalidAddress error verified
+      ✔ Should return specific error for InvalidAddress
+
+✅ Fee Contract Edge Cases Tests Complete
+  Total Tests Passed: 13
+
+  Fee Contract - Initialization Tests
+
+🚀 Setting up Fee Contract Initialization Tests...
+✅ Admin funded: CiFSYaWJ5azQAG9ZMQ61E8WAJvjTstf853UkEVkukMyB
+    Test 1.1: Initialize Fee Contract Successfully
+📋 Initializing fee contract...
+  Admin: CiFSYaWJ5azQAG9ZMQ61E8WAJvjTstf853UkEVkukMyB
+  State Account: GSQmXg6sVRELSEEHiAuQjavY83nhwfg2pq75gPLRL5aJ
+✅ Fee contract initialized. TX: 4KGVKJuExEHAkSCj7ygC1pfbYykxJ6fqMSYkrvDcESZqk3eey2RiB6NNFxyHAG7oXP8JxofYkaT9XJFW26JWwoqD
+✅ All initial state values verified correctly
+      ✔ Should initialize fee contract with correct initial state (417ms)
+    Test 1.2: Verify Initial State Properties
+✅ State properties verified:
+  admin: CiFSYaWJ5azQAG9ZMQ61E8WAJvjTstf853UkEVkukMyB
+  isStakeEnabled: false
+  stakeContractAddress: 11111111111111111111111111111111
+  totalFeesCollected: 0
+      ✔ Should have all expected state properties
+    Test 1.3: Prevent Re-initialization
+🔒 Attempting to reinitialize same state account...
+✅ Reinitialization correctly prevented
+  Error: Simulation failed. 
+Message: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x0. 
+Logs: 
+[
+  "Program h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t invoke [1]",
+  "Program log: Instruction: Initialize",
+  "Program 11111111111111111111111111111111 invoke [2]",
+  "Allocate: account Address { address: GSQmXg6sVRELSEEHiAuQjavY83nhwfg2pq75gPLRL5aJ, base: None } already in use",
+  "Program 11111111111111111111111111111111 failed: custom program error: 0x0",
+  "Program h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t consumed 3441 of 200000 compute units",
+  "Program h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t failed: custom program error: 0x0"
+]. 
+Catch the `SendTransactionError` and call `getLogs()` on it for full details.
+      ✔ Should fail when trying to reinitialize same state account
+✅ New state account initialized successfully. TX: 4TafWwx4uf9MRn1wDnMS6MeFyuQCX5kXbTnonwBgprSRSMA5buQAkC3oVajii1D3kh76Jn69cahS8jTVRsEExmSX
+      ✔ Should allow initialization of different state account (782ms)
+    Test 1.4: Get Config Returns Correct Values
+📊 Config retrieved:
+  admin: CiFSYaWJ5azQAG9ZMQ61E8WAJvjTstf853UkEVkukMyB
+  isStakeEnabled: false
+  stakeContractAddress: 11111111111111111111111111111111
+  totalFeesCollected: 0
+✅ get_config returns correct initial values
+      ✔ Should return correct config immediately after initialization
+✅ get_config is callable by anyone (view function)
+      ✔ Should be callable by non-admin (read-only) (395ms)
+
+✅ Fee Contract Initialization Tests Complete
+  Total Tests Passed: 6
+  State Account: GSQmXg6sVRELSEEHiAuQjavY83nhwfg2pq75gPLRL5aJ
+
+  Fee Contract - Protocol CPI Integration Tests
+
+🚀 Setting up Fee Contract CPI Integration Tests...
+✅ Setup complete
+  Protocol Simulator: CqMHDftpHWKnagqXUhicHfVjMu8FJUPR5ofeHou1XE3v
+  Fee State: GbVyPoWAvrHzPJWKk6NQX89WGpzXFiiP2sKSFqEJjp68
+    Test 7.1: Protocol Calls distribute_fee via CPI (Stake Mode)
+📡 Simulating protocol CPI call (stake mode)...
+✅ Protocol CPI call successful (stake mode). TX: Jb75v2AHiXg63r3vQ3epEF2wCp3o8PVvk4C2qHhjyExVAxXEyFTFrb3RBkMpMZj46Xzb5rEyoH2PsoNXPLrpxC6
+      ✔ Should allow protocol to call distribute_fee in stake mode (1228ms)
+    Test 7.2: Protocol Calls distribute_fee via CPI (Treasury Mode)
+📡 Simulating protocol CPI call (treasury mode)...
+✅ Protocol CPI call successful (treasury mode). TX: 4MxbYAKp3d6fgtkYgsGpvoZuGRQVzCmnBfdnmMY3GHFSA7DCiw8S6eA9s6NSdSLtHSgefhau41FRGwQ91anVxJDz
+      ✔ Should allow protocol to call distribute_fee in treasury mode (818ms)
+    Test 7.3: Verify CPI Discriminator and Return Data
+🔍 Verifying CPI instruction processing...
+✅ CPI instruction processed. TX: 2FraWt87J6j6R8uWnmsTFWft28zAg6PfvGb2pUeDVrY48VHP4LuTRWtGedsXPJtEhwUWxpHKM7UVfDHXsNZE9pAF
+✅ Transaction details retrieved successfully
+✅ Transaction details retrieved successfully
+      ✔ Should process distribute_fee instruction correctly (1411ms)
+    Test 7.4: Test get_fees_config CPI from Protocol
+📡 Simulating protocol calling get_fees_config...
+📊 Config retrieved via CPI simulation:
+  admin: J6MsTGqiNfaFznAcqGfvmK25bqUsoYyaGaSCc6FZpqiE
+  isStakeEnabled: false
+  totalFeesCollected: 175000
+✅ get_fees_config CPI working correctly
+      ✔ Should allow protocol to query config via view function
+    Test 7.5: Validate Cross-Program State Consistency
+🔄 Testing state consistency across multiple CPI calls...
+✅ Cross-program state consistency verified
+      ✔ Should maintain consistent state across CPI calls (1025ms)
+    Test 7.6: Test Fee Distribution During Protocol Operations
+⚡ Simulating protocol operations with fee distribution...
+  Simulating open_trove with fee 5000...
+  ✓ open_trove complete
+  Simulating borrow_loan with fee 3000...
+  ✓ borrow_loan complete
+  Simulating repay_loan with fee 2000...
+  ✓ repay_loan complete
+  Simulating add_collateral with fee 1000...
+  ✓ add_collateral complete
+✅ All protocol operations with fees simulated successfully
+📊 Final fee state:
+  Total fees collected: 192000
+  Stake enabled: false
+      ✔ Should simulate fee distribution during protocol operations (1638ms)
+
+✅ Fee Contract CPI Integration Tests Complete
+  Total Tests Passed: 6
+  CPI integration fully validated
+
+  Fee Contract - Security & Attack Prevention
+
+🚀 Setting up Fee Contract Security Tests...
+✅ Setup complete
+  Attacker: A4ak7XdHjCgkxFQ9u88KGeSRwkDxrcyQTpcsLzjXz81c
+    Test 5.1: Reject Unauthorized payer_token_account
+🔒 Attempting to drain funds with unauthorized account...
+✅ Unauthorized payer_token_account correctly rejected
+  Error: AnchorError thrown in programs/aerospacer-fees/src/instructions/distribute_fee.rs:45. Error Code: UnauthorizedTokenAccount. Error Number: 6011. Error Message: Unauthorized token account - payer must own the payer_token_account.
+      ✔ Should fail if payer doesn't own payer_token_account
+✅ Authorized payer succeeds. TX: 44FBdEuX5pyfmMCAWnzr2jvdvaDYwKSdScg3LyL7622DeUS7KPYWPXP5PxsTySa9kkZ2Ufwwu2RFTMfz59ovdfcJ
+      ✔ Should succeed if payer owns payer_token_account (377ms)
+    Test 5.2: Reject Mixed Token Mints
+🔒 Attempting distribution with mismatched stability pool mint...
+✅ Mixed token mints correctly rejected
+      ✔ Should fail when stability pool has different mint (2043ms)
+🔒 Attempting distribution with mismatched fee address mint...
+✅ Mixed fee address mints correctly rejected
+      ✔ Should fail when fee addresses have different mints (837ms)
+    Test 5.3: Test Overflow Protection on total_fees_collected
+⚠️  Testing overflow protection...
+✅ Insufficient funds or overflow protection active
+      ✔ Should handle near-max values safely
+    Test 5.4: Prevent Fee Distribution with Zero Amount
+🔒 Attempting distribution with zero amount...
+✅ Zero amount correctly rejected
+      ✔ Should reject zero amount distribution
+    Test 5.5: Validate All Token Account Ownership Checks
+🔒 Testing payer ownership validation...
+✅ Attacker cannot use payer's account
+      ✔ Should validate payer owns payer_token_account
+    Test 5.6: Test CPI Security
+✅ distribute_fee can be called by anyone (designed for protocol CPI)
+   Security relies on payer_token_account ownership validation
+✅ Legitimate call succeeds. TX: 64E8uEGaLH7qNVxue5BPaZ113WZMqwgj721tZ1t4eWC3w7RxHLcVjXVGDypLN9BXvjWwdWCkUH6MfumeifNW2vGF
+      ✔ Should only allow legitimate protocol to call distribute_fee (318ms)
+    Test 5.7: Attempt to Drain Funds with Fake Accounts
+🔒 Comprehensive attack prevention test...
+  Testing: Unauthorized payer_token_account...
+  ✓ Unauthorized payer_token_account prevented
+  Testing: Wrong token mint...
+  ✓ Wrong token mint prevented
+✅ All attack scenarios prevented
+      ✔ Should prevent fund draining with all security checks (1246ms)
+
+✅ Fee Contract Security Tests Complete
+  Total Tests Passed: 12
+  All attack vectors successfully prevented
+
+
+  61 passing (1m)
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 
