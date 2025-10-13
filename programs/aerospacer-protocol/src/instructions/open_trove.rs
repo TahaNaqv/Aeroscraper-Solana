@@ -230,23 +230,23 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     // Create context structs for clean architecture
     let mut trove_ctx = TroveContext {
         user: ctx.accounts.user.clone(),
-        user_debt_amount: ctx.accounts.user_debt_amount.clone(),
-        liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
-        state: ctx.accounts.state.clone(),
+        user_debt_amount: (*ctx.accounts.user_debt_amount).clone(),
+        liquidity_threshold: (*ctx.accounts.liquidity_threshold).clone(),
+        state: (*ctx.accounts.state).clone(),
     };
     
     let mut collateral_ctx = CollateralContext {
         user: ctx.accounts.user.clone(),
-        user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
-        user_collateral_account: ctx.accounts.user_collateral_account.clone(),
-        protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
+        user_collateral_amount: (*ctx.accounts.user_collateral_amount).clone(),
+        user_collateral_account: (*ctx.accounts.user_collateral_account).clone(),
+        protocol_collateral_account: (*ctx.accounts.protocol_collateral_account).clone(),
         total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
         token_program: ctx.accounts.token_program.clone(),
     };
     
     let mut sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
-        state: ctx.accounts.state.clone(),
+        sorted_troves_state: (*ctx.accounts.sorted_troves_state).clone(),
+        state: (*ctx.accounts.state).clone(),
     };
     
     let oracle_ctx = OracleContext {

@@ -167,23 +167,23 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     // Create context structs for clean architecture
     let mut trove_ctx = TroveContext {
         user: ctx.accounts.user.clone(),
-        user_debt_amount: ctx.accounts.user_debt_amount.clone(),
-        liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
-        state: ctx.accounts.state.clone(),
+        user_debt_amount: (*ctx.accounts.user_debt_amount).clone(),
+        liquidity_threshold: (*ctx.accounts.liquidity_threshold).clone(),
+        state: (*ctx.accounts.state).clone(),
     };
     
     let mut collateral_ctx = CollateralContext {
         user: ctx.accounts.user.clone(),
-        user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
-        user_collateral_account: ctx.accounts.user_collateral_account.clone(),
-        protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
+        user_collateral_amount: (*ctx.accounts.user_collateral_amount).clone(),
+        user_collateral_account: (*ctx.accounts.user_collateral_account).clone(),
+        protocol_collateral_account: (*ctx.accounts.protocol_collateral_account).clone(),
         total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
         token_program: ctx.accounts.token_program.clone(),
     };
     
     let mut sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
-        state: ctx.accounts.state.clone(),
+        sorted_troves_state: (*ctx.accounts.sorted_troves_state).clone(),
+        state: (*ctx.accounts.state).clone(),
     };
     
     let oracle_ctx = OracleContext {
@@ -209,7 +209,7 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
-    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
+    *ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
     
     // Reinsert trove in sorted list based on new ICR (debt increases = lower ICR = riskier)
     // Note: Caller must pass remaining_accounts for reinsert operation
