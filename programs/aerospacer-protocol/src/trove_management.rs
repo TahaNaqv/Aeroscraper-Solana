@@ -447,8 +447,8 @@ impl TroveManager {
     /// Redeem stablecoin for collateral from riskiest troves
     pub fn redeem(
         trove_ctx: &mut TroveContext,
-        collateral_ctx: &mut CollateralContext,
-        oracle_ctx: &OracleContext,
+        _collateral_ctx: &mut CollateralContext,
+        _oracle_ctx: &OracleContext,
         redeem_amount: u64,
     ) -> Result<RedeemResult> {
         let mut collateral_sent = Vec::new();

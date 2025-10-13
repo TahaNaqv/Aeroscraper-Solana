@@ -237,7 +237,7 @@ impl<'info> LiquidationContext<'info> {
     ) -> Result<()> {
         // Calculate liquidation gains
         let mut total_collateral_gain = 0u64;
-        for (denom, amount) in &collateral_amounts {
+        for (_denom, amount) in &collateral_amounts {
             total_collateral_gain = total_collateral_gain.saturating_add(*amount);
         }
         

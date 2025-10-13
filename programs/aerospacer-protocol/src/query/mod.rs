@@ -102,10 +102,10 @@ pub fn query_liquidation_gains<'a>(
 
 pub fn query_find_sorted_troves_insert_position(
     state_account: &StateAccount,
-    sorted_troves_state: &Account<SortedTrovesState>,
-    icr: u64, // Equivalent to Decimal256
-    prev_node_id: Option<Pubkey>,
-    next_node_id: Option<Pubkey>,
+    _sorted_troves_state: &Account<SortedTrovesState>,
+    _icr: u64, // Equivalent to Decimal256
+    _prev_node_id: Option<Pubkey>,
+    _next_node_id: Option<Pubkey>,
 ) -> Result<(Option<Pubkey>, Option<Pubkey>)> {
     let collateral_prices = query_all_collateral_prices(state_account)?;
     

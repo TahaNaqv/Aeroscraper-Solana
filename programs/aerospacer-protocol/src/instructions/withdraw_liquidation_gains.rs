@@ -71,7 +71,7 @@ pub fn handler(ctx: Context<WithdrawLiquidationGains>, params: WithdrawLiquidati
     let user_stake_amount = &mut ctx.accounts.user_stake_amount;
     let user_collateral_snapshot = &mut ctx.accounts.user_collateral_snapshot;
     let stability_pool_snapshot = &ctx.accounts.stability_pool_snapshot;
-    let state = &mut ctx.accounts.state;
+    let _state = &mut ctx.accounts.state;
     
     // Validate user has stake
     require!(

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::error::*;
-use crate::instructions::TroveAmounts;
+
 // LiquidityData is now defined in trove_management.rs
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct LiquidityData {
@@ -27,28 +27,6 @@ pub struct PriceResponse {
     pub denom: String,
     pub price: u64, // Equivalent to Uint256
     pub decimal: u8,
-}
-
-pub fn query_collateral_price(
-    _state_account: &StateAccount,
-    denom: &str,
-) -> Result<PriceResponse> {
-    // In Injective: querier.query_wasm_smart(oracle_helper_addr, &OracleHelperQueryMsg::Price { denom: denom.to_string() })
-    // For Solana: we would query the oracle program via CPI
-    // For now, return mock price based on denom
-    let (price, decimal) = match denom {
-        "SOL" => (100_000_000, 9), // $100 with 9 decimals
-        "USDC" => (1_000_000, 6),  // $1 with 6 decimals
-        "INJ" => (144015750000, 18), // Mock INJ price with 18 decimals
-        "ATOM" => (6313260000, 6),  // Mock ATOM price with 6 decimals
-        _ => (50_000_000, 6),      // $50 with 6 decimals
-    };
-    
-    Ok(PriceResponse {
-        denom: denom.to_string(),
-        price,
-        decimal,
-    })
 }
 
 pub fn query_all_collateral_prices(
@@ -81,19 +59,6 @@ pub fn query_all_collateral_prices(
     });
     
     Ok(map)
-}
-
-pub fn query_all_denoms(
-    _state_account: &StateAccount,
-) -> Result<Vec<String>> {
-    // In Injective: deps.querier.query_wasm_smart(oracle_helper_addr, &OracleHelperQueryMsg::AllDenoms {})
-    // For Solana: we would query the oracle program for all supported denoms via CPI
-    Ok(vec![
-        "SOL".to_string(),
-        "USDC".to_string(),
-        "INJ".to_string(),
-        "ATOM".to_string(),
-    ])
 }
 
 pub fn get_liquidation_gains<'a>(
@@ -165,126 +130,6 @@ pub fn get_liquidation_gains<'a>(
     Ok(collateral_gains)
 }
 
-pub fn populate_fee_coins(
-    coins: &mut Vec<u64>, // Equivalent to Vec<Coin>
-    fee_amount: u64, // Equivalent to Uint256
-    _fee_denom: &str,
-) -> Result<()> {
-    // In Injective: coins.push(Coin { denom: fee_denom.to_string(), amount: Uint128::try_from(*fee_amount)? })
-    // For Solana: we would create token transfer instructions
-    coins.push(fee_amount);
-    Ok(())
-}
-
-pub fn process_protocol_fees(
-    fee_distributor_addr: Pubkey,
-    fee_amount: u64,
-    fee_denom: String,
-) -> Result<()> {
-    // In Injective: msgs.push(CosmosMsg::Wasm(WasmMsg::Execute { contract_addr: fee_distributor_addr.to_string(), msg: to_json_binary(&FeeDistributorExecuteMsg::DistributeFee {})?, funds: coins }))
-    // For Solana: we would call the fee distributor program via CPI
-    msg!("Processing protocol fee: {} {} to {}", fee_amount, fee_denom, fee_distributor_addr);
-    // For now, just log the fee processing
-    Ok(())
-}
-
-// Additional utils from INJECTIVE packages/utils - Exact replication for Solana
-
-// FundsError equivalent for Solana
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq)]
-pub enum FundsError {
-    InvalidDenom { got: String, expected: String },
-    InvalidFunds { got: String, expected: String },
-    MissingFunds,
-    ExtraFunds,
-}
-
-// Coin equivalent for Solana
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
-pub struct Coin {
-    pub denom: String,
-    pub amount: u64, // Equivalent to Uint128
-}
-
-// MessageInfo equivalent for Solana
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
-pub struct MessageInfo {
-    pub funds: Vec<Coin>,
-}
-
-pub fn check_single_coin(info: &MessageInfo, expected: Coin) -> Result<()> {
-    if info.funds.len() != 1 {
-        return Err(AerospacerProtocolError::FundsError.into());
-    };
-    let sent_fund = info.funds.get(0).unwrap();
-    if sent_fund.denom != expected.denom {
-        return Err(AerospacerProtocolError::FundsError.into());
-    }
-    if sent_fund.amount != expected.amount {
-        return Err(AerospacerProtocolError::FundsError.into());
-    }
-    Ok(())
-}
-
-pub fn check_funds(
-    info: &MessageInfo,
-    // collateral_denom: &str,
-) -> Result<()> {
-    if info.funds.len() == 0 {
-        return Err(AerospacerProtocolError::FundsError.into());
-    }
-    if info.funds.len() > 1 {
-        return Err(AerospacerProtocolError::FundsError.into());
-    }
-    // let sent_fund = info.funds.get(0).unwrap();
-    // if sent_fund.denom != collateral_denom {
-    //     return Err(FundsError::InvalidDenom {
-    //         got: sent_fund.denom.clone(),
-    //         expected: collateral_denom.to_string(),
-    //     });
-    // }
-    Ok(())
-}
-
-// Stake calculation functions - Exact replication from INJECTIVE packages/utils/stake.rs
-
-pub fn calculate_stake_amount(
-    total_amount: u64, // Equivalent to Uint256
-    percentage: u64, // Equivalent to Decimal256 (simplified)
-    up: bool,
-) -> Result<u64> {
-    let stake_amount;
-    if up {
-        // In Injective: (percentage.checked_add(Decimal256::new(Uint256::from_u128(1)))? * total_amount).checked_div(Uint256::from_u128(100))?
-        // For Solana: simplified calculation
-        let adjusted_percentage = percentage.checked_add(1).ok_or(AerospacerProtocolError::OverflowError)?;
-        stake_amount = (adjusted_percentage.checked_mul(total_amount).ok_or(AerospacerProtocolError::OverflowError)?)
-            .checked_div(100).ok_or(AerospacerProtocolError::OverflowError)?;
-    } else {
-        // In Injective: (percentage * total_amount).checked_div(Uint256::from_u128(100))?
-        // For Solana: simplified calculation
-        stake_amount = (percentage.checked_mul(total_amount).ok_or(AerospacerProtocolError::OverflowError)?)
-            .checked_div(100).ok_or(AerospacerProtocolError::OverflowError)?;
-    }
-
-    Ok(stake_amount)
-}
-
-pub fn calculate_stake_percentage(
-    total_amount: u64, // Equivalent to Uint256
-    stake_amount: u64, // Equivalent to Uint256
-) -> Result<u64> { // Equivalent to Decimal256 (simplified)
-    // In Injective: Decimal256::new(stake_amount.checked_mul(Uint256::from_u128(100))?).checked_div(Decimal256::new(total_amount))
-    // For Solana: simplified calculation
-    let res = stake_amount
-        .checked_mul(100)
-        .ok_or(AerospacerProtocolError::OverflowError)?
-        .checked_div(total_amount)
-        .ok_or(AerospacerProtocolError::OverflowError)?;
-    
-    Ok(res)
-}
-
 // Safe arithmetic functions - Exact replication from INJECTIVE
 pub fn safe_add(a: u64, b: u64) -> Result<u64> {
     a.checked_add(b).ok_or(AerospacerProtocolError::OverflowError.into())
@@ -305,17 +150,7 @@ pub fn safe_div(a: u64, b: u64) -> Result<u64> {
     a.checked_div(b).ok_or(AerospacerProtocolError::OverflowError.into())
 }
 
-// Helper functions for total collateral amount management
-pub fn get_total_collateral_amount(
-    denom: &str,
-    _state_key: &Pubkey,
-    remaining_accounts: &[AccountInfo],
-) -> Result<u64> {
-    // For now, return a mock value to avoid complex lifetime issues
-    // In a real implementation, this would find the TotalCollateralAmount PDA
-    Ok(1000000) // Mock value: 1,000,000 units
-}
-
+// Helper function to update total collateral amount
 pub fn update_total_collateral_from_account_info(
     _account_info: &AccountInfo,
     amount_change: i64,
@@ -324,170 +159,6 @@ pub fn update_total_collateral_from_account_info(
     // For now, just log the change
     msg!("Updating total collateral by: {}", amount_change);
     Ok(())
-}
-
-
-// Check if a trove can be liquidated
-pub fn can_liquidate_trove(
-    collateral_amount: u64,
-    debt_amount: u64,
-    collateral_price: PriceResponse,
-    minimum_collateral_ratio: u64,
-) -> Result<bool> {
-    if debt_amount == 0 {
-        return Ok(false);
-    }
-
-    // Calculate collateral value in USD
-    let collateral_value = safe_mul(collateral_amount, collateral_price.price)?;
-    let collateral_value = safe_div(collateral_value, 10_u64.pow(collateral_price.decimal as u32))?;
-
-    // Calculate collateral ratio
-    let collateral_ratio = safe_mul(collateral_value, 100)?;
-    let collateral_ratio = safe_div(collateral_ratio, debt_amount)?;
-
-    // Check if ratio is below minimum
-    Ok(collateral_ratio < minimum_collateral_ratio)
-}
-
-// Helper function to calculate liquidation ratio
-pub fn calculate_liquidation_ratio(
-    trove_amounts: &TroveAmounts,
-    collateral_prices: &HashMap<String, u64>,
-) -> Result<u64> {
-    let mut total_collateral_value = 0u64;
-    
-    for (denom, amount) in &trove_amounts.collateral_amounts {
-        if let Some(price) = collateral_prices.get(denom) {
-            total_collateral_value = safe_add(total_collateral_value, safe_mul(*amount, *price)?)?;
-        }
-    }
-    
-    if trove_amounts.debt_amount == 0 {
-        return Ok(u64::MAX); // No debt means infinite ratio
-    }
-    
-    safe_div(total_collateral_value, trove_amounts.debt_amount)
-}
-
-// Helper function to process liquidation
-pub fn process_liquidation<'a>(
-    state: &mut StateAccount,
-    remaining_accounts: &'a [AccountInfo<'a>],
-    user_addr: Pubkey,
-    amount: u64,
-    trove_amounts: &TroveAmounts,
-) -> Result<()> {
-    // Calculate collateral to liquidate
-    let collateral_to_liquidate = safe_div(
-        safe_mul(amount, 1000000)?, // 100% of debt
-        state.minimum_collateral_ratio as u64,
-    )?;
-    
-    // Update user debt amount
-    let user_debt_seeds = UserDebtAmount::seeds(&user_addr);
-    let (user_debt_pda, _bump) = Pubkey::find_program_address(&user_debt_seeds, &crate::ID);
-    
-    for account in remaining_accounts {
-        if account.key() == user_debt_pda {
-            let mut user_debt: Account<UserDebtAmount> = Account::try_from(account)?;
-            user_debt.amount = 0; // Clear debt
-            break;
-        }
-    }
-    
-    // Update user collateral amounts
-    for (denom, _amount) in &trove_amounts.collateral_amounts {
-        let user_collateral_seeds = UserCollateralAmount::seeds(&user_addr, denom);
-        let (user_collateral_pda, _bump) = Pubkey::find_program_address(&user_collateral_seeds, &crate::ID);
-        
-        for account in remaining_accounts {
-            if account.key() == user_collateral_pda {
-                let mut user_collateral: Account<UserCollateralAmount> = Account::try_from(account)?;
-                user_collateral.amount = 0; // Clear collateral
-                break;
-            }
-        }
-    }
-    
-    // Update total debt
-    state.total_debt_amount = state.total_debt_amount.saturating_sub(amount);
-    
-    Ok(())
-}
-
-// Helper function to process redemption
-pub fn process_redemption<'a>(
-    state: &mut StateAccount,
-    remaining_accounts: &'a [AccountInfo<'a>],
-    amount: u64,
-    liquidity_ratios: &[LiquidityData],
-) -> Result<()> {
-    // Calculate collateral to redeem
-    let mut remaining_amount = amount;
-    
-    for liquidity in liquidity_ratios {
-        if remaining_amount == 0 {
-            break;
-        }
-        
-        let collateral_to_redeem = safe_div(
-            safe_mul(remaining_amount, liquidity.liquidity)?,
-            1000000, // 100% of liquidity
-        )?;
-        
-        // Update total collateral amount
-        let total_collateral_seeds = TotalCollateralAmount::seeds(&liquidity.denom);
-        let (total_collateral_pda, _bump) = Pubkey::find_program_address(&total_collateral_seeds, &crate::ID);
-        
-        for account in remaining_accounts {
-            if account.key() == total_collateral_pda {
-                let mut total_collateral: Account<TotalCollateralAmount> = Account::try_from(account)?;
-                total_collateral.amount = total_collateral.amount.saturating_sub(collateral_to_redeem);
-                break;
-            }
-        }
-        
-        remaining_amount = remaining_amount.saturating_sub(collateral_to_redeem);
-    }
-    
-    // Update total stake amount (closest equivalent to stablecoin supply)
-    state.total_stake_amount = state.total_stake_amount.saturating_sub(amount);
-    
-    Ok(())
-}
-
-// Helper function to get trove amounts for liquidation
-pub fn get_trove_amounts<'a>(
-    remaining_accounts: &'a [AccountInfo<'a>],
-    user_addr: Pubkey,
-) -> Result<TroveAmounts> {
-    let collateral_amounts: Vec<(String, u64)> = Vec::new();
-    let mut debt_amount = 0u64;
-    
-    // Find user debt amount account
-    let user_debt_seeds = UserDebtAmount::seeds(&user_addr);
-    let (user_debt_pda, _bump) = Pubkey::find_program_address(&user_debt_seeds, &crate::ID);
-    
-    for account in remaining_accounts {
-        if account.key() == user_debt_pda {
-            let user_debt: Account<UserDebtAmount> = Account::try_from(account)?;
-            debt_amount = user_debt.amount;
-        } else {
-            // Check if this is a user collateral amount account
-            // For now, we'll use a simple approach to identify collateral accounts
-            // In a real implementation, you'd need to track which accounts correspond to which denoms
-            if account.owner == &crate::ID {
-                // This is a potential collateral account, but we need to know the denom
-                // For now, we'll skip this complexity
-            }
-        }
-    }
-
-    Ok(TroveAmounts {
-        collateral_amounts,
-        debt_amount,
-    })
 }
 
 // Fee calculation utilities for protocol-fees integration
@@ -628,60 +299,77 @@ pub fn check_minimum_icr(icr: u64, minimum_collateral_ratio: u8) -> Result<()> {
     Ok(())
 }
 
-pub fn get_first_trove(storage: &Account<SortedTrovesState>) -> Result<Option<Pubkey>> {
-    Ok(storage.head)
+pub fn get_first_trove(storage: &Account<SortedTrovesState>) -> Option<Pubkey> {
+    storage.head
 }
 
-pub fn get_last_trove(storage: &Account<SortedTrovesState>) -> Result<Option<Pubkey>> {
-    Ok(storage.tail)
+pub fn get_last_trove(storage: &Account<SortedTrovesState>) -> Option<Pubkey> {
+    storage.tail
 }
 
-/// Calculate compounded stake using Liquity's Product-Sum snapshot algorithm
-/// Formula: compounded_stake = initial_deposit × (P_current / P_snapshot)
-/// This accounts for pool depletion from liquidations
+/// Calculate compounded stake using Liquity Product-Sum algorithm
+/// 
+/// Formula: compounded_deposit = initial_deposit × (P_current / P_snapshot)
+/// 
+/// This accounts for pool depletion during liquidations:
+/// - P_snapshot: P factor when user last deposited
+/// - P_current: Current P factor
+/// - Ratio P_current/P_snapshot represents the depletion factor
 pub fn calculate_compounded_stake(
     initial_deposit: u64,
     p_snapshot: u128,
     p_current: u128,
 ) -> Result<u64> {
-    // Handle edge cases
-    if initial_deposit == 0 {
+    // If P_snapshot is 0, this is first deposit or corrupted state - return initial
+    if p_snapshot == 0 {
+        return Ok(initial_deposit);
+    }
+    
+    // If P_current is 0, pool is completely depleted - return 0
+    if p_current == 0 {
         return Ok(0);
     }
     
-    if p_snapshot == 0 {
-        return Err(AerospacerProtocolError::InvalidSnapshot.into());
-    }
+    // Calculate: compounded = initial × (P_current / P_snapshot)
+    // Use safe math to prevent overflow
+    let deposit_u128 = initial_deposit as u128;
     
-    // Calculate: deposit × (P_current / P_snapshot)
-    // Use 128-bit math to avoid overflow
-    let deposit_128 = initial_deposit as u128;
-    let numerator = deposit_128
+    // compounded = (deposit × P_current) / P_snapshot
+    let numerator = deposit_u128
         .checked_mul(p_current)
-        .ok_or(AerospacerProtocolError::MathOverflow)?;
+        .ok_or(AerospacerProtocolError::OverflowError)?;
     
     let compounded = numerator
         .checked_div(p_snapshot)
-        .ok_or(AerospacerProtocolError::MathOverflow)?;
+        .ok_or(AerospacerProtocolError::DivideByZeroError)?;
     
-    // Convert back to u64
-    let result = u64::try_from(compounded)
-        .map_err(|_| AerospacerProtocolError::MathOverflow)?;
+    // Convert back to u64, capping at u64::MAX if overflow
+    let result = if compounded > u64::MAX as u128 {
+        u64::MAX
+    } else {
+        compounded as u64
+    };
     
     Ok(result)
 }
 
-/// Calculate collateral gain using Liquity's Product-Sum snapshot algorithm
-/// Formula: gain = initial_deposit × (S_current - S_snapshot) / P_snapshot
-/// This calculates the proportional share of liquidation collateral gains
+/// Calculate collateral gain using Liquity Product-Sum algorithm
+/// 
+/// Formula: gain = deposit × (S_current - S_snapshot) / P_snapshot
+/// 
+/// Where:
+/// - S_snapshot: User's last recorded S factor for this collateral type
+/// - S_current: Current S factor for this collateral type
+/// - P_snapshot: User's P factor snapshot (accounts for pool depletion)
+/// - deposit: User's stake amount
 pub fn calculate_collateral_gain(
-    initial_deposit: u64,
+    deposit: u64,
     s_snapshot: u128,
     s_current: u128,
     p_snapshot: u128,
 ) -> Result<u64> {
-    // Handle edge cases
-    if initial_deposit == 0 || p_snapshot == 0 {
+    // If P_snapshot is 0, no valid snapshot exists - return 0
+    if p_snapshot == 0 {
         return Ok(0);
     }
     
@@ -690,23 +378,26 @@ pub fn calculate_collateral_gain(
         return Ok(0);
     }
     
-    // Calculate: deposit × (S_current - S_snapshot) / P_snapshot
-    let deposit_128 = initial_deposit as u128;
-    let s_diff = s_current
-        .checked_sub(s_snapshot)
-        .ok_or(AerospacerProtocolError::MathOverflow)?;
+    // Calculate S_diff = S_current - S_snapshot
+    let s_diff = s_current.saturating_sub(s_snapshot);
     
-    let numerator = deposit_128
+    // Calculate: gain = (deposit × S_diff) / P_snapshot
+    let deposit_u128 = deposit as u128;
+    
+    let numerator = deposit_u128
         .checked_mul(s_diff)
-        .ok_or(AerospacerProtocolError::MathOverflow)?;
+        .ok_or(AerospacerProtocolError::OverflowError)?;
     
     let gain = numerator
         .checked_div(p_snapshot)
-        .ok_or(AerospacerProtocolError::MathOverflow)?;
+        .ok_or(AerospacerProtocolError::DivideByZeroError)?;
     
-    // Convert back to u64
-    let result = u64::try_from(gain)
-        .map_err(|_| AerospacerProtocolError::MathOverflow)?;
+    // Convert back to u64, capping at u64::MAX if overflow
+    let result = if gain > u64::MAX as u128 {
+        u64::MAX
+    } else {
+        gain as u64
+    };
     
     Ok(result)
 }

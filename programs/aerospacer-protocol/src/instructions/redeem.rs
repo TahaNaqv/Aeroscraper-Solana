@@ -619,7 +619,7 @@ fn update_trove_after_partial_redemption(
 // Helper function to get next trove in sorted list
 fn get_next_trove_in_sorted_list(
     current_trove: &Pubkey,
-    sorted_troves_state: &Account<SortedTrovesState>,
+    _sorted_troves_state: &Account<SortedTrovesState>,
     remaining_accounts: &[AccountInfo],
 ) -> Result<Option<Pubkey>> {
     // Find the current trove's Node account in remaining_accounts to get next_id
