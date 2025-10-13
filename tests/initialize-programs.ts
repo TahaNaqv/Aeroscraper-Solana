@@ -9,9 +9,9 @@ describe("Program Initialization", () => {
   anchor.setProvider(provider);
 
   // Use the actual deployed program IDs
-  const PROTOCOL_PROGRAM_ID = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24";
-  const ORACLE_PROGRAM_ID = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx";
-  const FEES_PROGRAM_ID = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC";
+  const PROTOCOL_PROGRAM_ID = "6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2";
+  const ORACLE_PROGRAM_ID = "D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ";
+  const FEES_PROGRAM_ID = "h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t";
 
   // Test accounts
   const admin = Keypair.generate();

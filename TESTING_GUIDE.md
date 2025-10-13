@@ -12,9 +12,9 @@
 
 | Program | Program ID | Status |
 |---------|------------|---------|
-| **aerospacer_oracle** | `5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx` | ✅ Live |
-| **aerospacer_protocol** | `9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24` | ✅ Live |
-| **aerospacer_fees** | `3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC` | ✅ Live |
+| **aerospacer_oracle** | `D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ` | ✅ Live |
+| **aerospacer_protocol** | `6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2` | ✅ Live |
+| **aerospacer_fees** | `h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t` | ✅ Live |
 | **aerospacer_solana** | `6kJZg8PDkutRui282AnspEnLcyExxcpsbCvyfBoTcDwN` | ✅ Live |
 
 ---
@@ -74,13 +74,13 @@ anchor test --provider.cluster devnet --grep "Should stake stablecoins"
 ### **1. Verify Program Deployment**
 ```bash
 # Check Oracle Program
-solana program show 5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx
+solana program show D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
 
 # Check Protocol Program
-solana program show 9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24
+solana program show 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2
 
 # Check Fees Program
-solana program show 3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC
+solana program show h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
 ```
 
 ### **2. Check Account Balances**

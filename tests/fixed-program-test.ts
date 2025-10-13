@@ -37,9 +37,9 @@ describe("Fixed Program IDs Test", () => {
   describe("Program ID Verification", () => {
     it("Should verify program IDs match deployed programs", async () => {
       // Expected deployed program IDs
-      const EXPECTED_PROTOCOL_ID = "9VW7X4D6SmjAMFYAUp7XASjpshW3QSk5QEf1cWdyjP24";
-      const EXPECTED_ORACLE_ID = "5oqS8Q6eqMHGJUnKF4VrYE6JnjcFVRhgktrHErkyLoKx";
-      const EXPECTED_FEES_ID = "3nbhQ7bahEr733uiBYKmTgnuGFzCCnc6JDkpZDjXdomC";
+      const EXPECTED_PROTOCOL_ID = "6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2";
+      const EXPECTED_ORACLE_ID = "D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ";
+      const EXPECTED_FEES_ID = "h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t";
 
       // Check if programs exist in workspace
       const workspace = anchor.workspace;
