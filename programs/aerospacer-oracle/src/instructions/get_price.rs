@@ -35,31 +35,31 @@ pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceRe
     let d = params.denom.as_str();
     
     // Enhanced mock implementation with proper error handling
-    match d {
-        "SOL" => Ok(PriceResponse {
-            denom: params.denom,
+    let response = match d {
+        "SOL" => PriceResponse {
+            denom: params.denom.clone(),
             price: 183415750000, // Mock SOL price: $183.41
             decimal: collateral_data.decimal,
             timestamp: clock.unix_timestamp,
             confidence: 1000,
             exponent: -9,
-        }),
-        "ETH" => Ok(PriceResponse {
-            denom: params.denom,
+        },
+        "ETH" => PriceResponse {
+            denom: params.denom.clone(),
             price: 7891575000, // Mock ETH price: $7,891.58
             decimal: collateral_data.decimal,
             timestamp: clock.unix_timestamp,
             confidence: 1000,
             exponent: -6,
-        }),
-        "BTC" => Ok(PriceResponse {
-            denom: params.denom,
+        },
+        "BTC" => PriceResponse {
+            denom: params.denom.clone(),
             price: 125000000000, // Mock BTC price: $125,000.00
             decimal: collateral_data.decimal,
             timestamp: clock.unix_timestamp,
             confidence: 1000,
             exponent: -8,
-        }),
+        },
         "INVALID_ASSET" => {
             // Special case for testing error handling
             return Err(AerospacerOracleError::PriceFeedNotFound.into());
@@ -72,18 +72,25 @@ pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceRe
             // Special case for testing low confidence error
             return Err(AerospacerOracleError::PythPriceValidationFailed.into());
         },
-        _ => {
+        _ => PriceResponse {
             // For other assets, use a default mock price
-            Ok(PriceResponse {
-                denom: params.denom,
-                price: 1000000000, // Mock price: $1.00
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -6,
-            })
-        }
-    }
+            denom: params.denom.clone(),
+            price: 1000000000, // Mock price: $1.00
+            decimal: collateral_data.decimal,
+            timestamp: clock.unix_timestamp,
+            confidence: 1000,
+            exponent: -6,
+        },
+    };
+
+    // Emit parseable logs for tests that simulate and parse logs
+    msg!("Price query successful");
+    msg!("Denom: {}", response.denom);
+    msg!("Decimal: {}", response.decimal);
+    msg!("Publish Time: {}", response.timestamp);
+    msg!("Price: {} ± {} x 10^{}", response.price, response.confidence, response.exponent);
+
+    Ok(response)
 
     // PRODUCTION PYTH INTEGRATION CODE (COMMENTED FOR TESTING)
     // Parse the price_id to get the Pyth price feed address

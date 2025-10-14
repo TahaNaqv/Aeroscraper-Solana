@@ -59,7 +59,7 @@ describe("Oracle Contract - Initialization Tests", () => {
         0,
         "Should start with no collateral data"
       );
-      expect(state.lastUpdate).to.be.greaterThan(0);
+      expect(state.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
 
       console.log("✅ All initial state values verified");
     });
@@ -125,11 +125,11 @@ describe("Oracle Contract - Initialization Tests", () => {
           })
           .accounts({
             state: stateAccount.publicKey,
-            admin: admin.publicKey,
+            admin: provider.wallet.publicKey,
             systemProgram: SystemProgram.programId,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .signers([admin, stateAccount])
+          .signers([stateAccount])
           .rpc();
 
         assert.fail("Should have thrown an error");
@@ -179,7 +179,7 @@ describe("Oracle Contract - Initialization Tests", () => {
         PYTH_ORACLE_ADDRESS.toString()
       );
       assert.equal(config.assetCount, 0);
-      expect(config.lastUpdate).to.be.greaterThan(0);
+      expect(config.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
 
       console.log("✅ get_config working correctly");
     });

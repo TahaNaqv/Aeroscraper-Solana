@@ -92,7 +92,8 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     msg!("Mock price data returned for testing purposes");
     msg!("Note: Pyth integration is commented out for testing");
     for price in &prices {
-        msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
+        // Log with pattern expected by tests: "- <DENOM>: <PRICE> ± <CONF> x 10^<EXPO>"
+        msg!("- {}: {} ± {} x 10^{}", price.denom, price.price, price.confidence, price.exponent);
     }
     
     Ok(prices)

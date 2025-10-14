@@ -291,7 +291,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       console.log(`  Last Update: ${config.lastUpdate}`);
 
       assert.equal(config.assetCount, 3);
-      expect(config.lastUpdate).to.be.greaterThan(0);
+      expect(config.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
     });
   });
 

@@ -12,9 +12,9 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
 
   const attacker = Keypair.generate();
   const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-  
+
   const SOL_PRICE_FEED = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
-  
+
   let stateAccount: Keypair;
 
   before(async () => {
@@ -142,7 +142,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
               state: stateAccount.publicKey,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
-            .rpc()
             .rpc();
 
           assert.fail("Should have rejected invalid price ID");
@@ -173,7 +172,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .rpc()
           .rpc();
 
         assert.fail("Should have rejected empty denom");
@@ -201,7 +199,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .rpc()
           .rpc();
 
         assert.fail("Should have rejected zero decimal");
@@ -233,7 +230,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
               state: stateAccount.publicKey,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
-            .rpc()
             .rpc();
 
           assert.fail("Should have rejected wrong length price ID");
@@ -260,7 +256,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .rpc()
           .rpc();
 
         assert.fail("Should have failed");
@@ -284,7 +279,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
         })
         .view();
 
-      expect(priceResponse.price).to.be.greaterThan(0);
+      expect(priceResponse.price).to.be.a('number').and.to.be.greaterThan(0);
       console.log("  ✓ get_price accessible");
 
       const config = await oracleProgram.methods
@@ -352,7 +347,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .rpc()
           .rpc();
 
         assert.fail("Should have rejected batch");
@@ -387,7 +381,6 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .rpc()
           .rpc();
       } catch (error) {
         // Expected to fail

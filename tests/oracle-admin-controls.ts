@@ -290,11 +290,10 @@ describe("Oracle Contract - Admin Controls Tests", () => {
             data: [],
           })
           .accounts({
-            admin: admin.publicKey,
+            admin: provider.wallet.publicKey,
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .signers([admin])
           .rpc();
 
         assert.fail("Should have thrown an error");
@@ -318,11 +317,10 @@ describe("Oracle Contract - Admin Controls Tests", () => {
             pythPriceAccount: Keypair.generate().publicKey,
           })
           .accounts({
-            admin: admin.publicKey,
+            admin: provider.wallet.publicKey,
             state: stateAccount.publicKey,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
-          .signers([admin])
           .rpc();
 
         assert.fail("Should have thrown an error");
