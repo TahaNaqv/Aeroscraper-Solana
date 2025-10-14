@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import * as fs from "fs";
 
 /**
@@ -42,9 +42,9 @@ async function main() {
       .accounts({
         state: stateAccount.publicKey,
         admin: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
+        systemProgram: SystemProgram.programId,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
+      } as any)
       .signers([stateAccount])
       .rpc();
 

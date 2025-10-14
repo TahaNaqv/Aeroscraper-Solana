@@ -71,10 +71,10 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     //             exponent: -6,
     //         }
     //     };
-    //     
+        
     //     prices.push(mock_price);
     // }
-    // 
+    
     // msg!("All prices query successful (TESTING MODE)");
     // msg!("Found {} price responses", prices.len());
     // msg!("Mock price data returned for testing purposes");
@@ -82,10 +82,10 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     // for price in &prices {
     //     msg!("- {}: {} (decimals: {})", price.denom, price.price, price.decimal);
     // }
-    // 
+    
     // Ok(prices)
 
-    // PRODUCTION PYTH INTEGRATION CODE
+    // PRODUCTION PYTH INTEGRATION CODE (COMMENT FOR TESTING)
     // This replicates INJECTIVE's Prices query functionality exactly
     // For each collateral asset, fetch real price data using corresponding Pyth account
     for (index, collateral_data) in state.collateral_data.iter().enumerate() {

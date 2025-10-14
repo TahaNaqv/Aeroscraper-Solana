@@ -66,7 +66,7 @@ async function main() {
           state: stateAccountPubkey,
           pythPriceAccount: feed.pythAccount,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
+        } as any)
         .view();
 
       // Calculate human-readable price
@@ -107,7 +107,7 @@ async function main() {
       .accounts({
         state: stateAccountPubkey,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
+      } as any)
       .remainingAccounts(
         priceFeeds.map((feed) => ({
           pubkey: feed.pythAccount,

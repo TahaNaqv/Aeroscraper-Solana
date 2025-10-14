@@ -80,7 +80,7 @@ async function main() {
           admin: provider.wallet.publicKey,
           state: stateAccountPubkey,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
+        } as any)
         .rpc();
 
       console.log(`   ✅ ${asset.denom} configured successfully!`);

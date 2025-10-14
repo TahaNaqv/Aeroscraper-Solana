@@ -11,7 +11,6 @@ pub struct GetPriceParams {
 #[derive(Accounts)]
 #[instruction(params: GetPriceParams)]
 pub struct GetPrice<'info> {
-    #[account(mut)]
     pub state: Account<'info, OracleStateAccount>,
     
     /// CHECK: This is the Pyth price account that contains the price data
