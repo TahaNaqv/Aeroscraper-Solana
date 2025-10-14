@@ -59,7 +59,7 @@ describe("Oracle Contract - Initialization Tests", () => {
         0,
         "Should start with no collateral data"
       );
-      expect(state.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
+      expect(state.lastUpdate.toNumber()).to.be.a('number').and.to.be.greaterThan(0);
 
       console.log("✅ All initial state values verified");
     });
@@ -179,7 +179,7 @@ describe("Oracle Contract - Initialization Tests", () => {
         PYTH_ORACLE_ADDRESS.toString()
       );
       assert.equal(config.assetCount, 0);
-      expect(config.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
+      expect(config.lastUpdate.toNumber()).to.be.a('number').and.to.be.greaterThan(0);
 
       console.log("✅ get_config working correctly");
     });

@@ -21,7 +21,7 @@ pub struct BorrowLoanParams {
 pub struct BorrowLoan<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-
+    
     #[account(
         mut,
         seeds = [b"user_debt_amount", user.key().as_ref()],
@@ -70,7 +70,7 @@ pub struct BorrowLoan<'info> {
         constraint = user_collateral_amount.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
     pub user_collateral_amount: Box<Account<'info, UserCollateralAmount>>,
-
+    
     #[account(mut)]
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
 
@@ -135,7 +135,7 @@ pub struct BorrowLoan<'info> {
     /// CHECK: Fee address 2 token account
     #[account(mut)]
     pub fee_address_2_token_account: AccountInfo<'info>,
-
+    
     pub token_program: Program<'info, Token>,
 }
 
@@ -258,7 +258,7 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
         msg!("Fee collected and distributed: {} aUSD", fee_amount);
         msg!("Net loan amount after fee: {} aUSD", net_amount);
     }
-
+    
     msg!("Loan borrowed successfully");
     msg!("Total amount: {} aUSD", params.loan_amount);
     msg!("Net loan amount: {} aUSD", net_loan_amount);
@@ -267,6 +267,6 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     msg!("New debt amount: {}", result.new_debt_amount);
     msg!("New ICR: {}", result.new_icr);
     msg!("Collateral amount: {}", result.new_collateral_amount);
-
+    
     Ok(())
 }

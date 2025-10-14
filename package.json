@@ -1,11 +1,13 @@
 {
   "license": "ISC",
   "scripts": {
+    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "init_oracle_devnet": "ts-node scripts/init-oracle-devnet.ts",
     "add_assets_devnet": "ts-node scripts/add-assets-devnet.ts",
-    "test_prices_devnet": "ts-node scripts/test-prices-devnet.ts",
-    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "check_price_ids": "ts-node scripts/check-price-ids.ts",
+    "fix_price_ids": "ts-node scripts/fix-price-ids.ts",
+    "test_prices_devnet": "ts-node scripts/test-prices-devnet.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

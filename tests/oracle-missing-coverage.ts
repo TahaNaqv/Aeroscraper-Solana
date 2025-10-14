@@ -72,7 +72,7 @@ describe("Oracle Contract - Missing Coverage Tests", () => {
         stateAccount.publicKey
       );
 
-      expect(state.lastUpdate).to.be.a('number').and.to.be.greaterThan(0);
+      expect(state.lastUpdate.toNumber()).to.be.a('number').and.to.be.greaterThan(0);
       console.log("✅ update_pyth_price working correctly");
     });
 

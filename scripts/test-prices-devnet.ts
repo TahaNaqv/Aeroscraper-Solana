@@ -41,7 +41,7 @@ function parsePriceFromLogs(logs: string[]): PriceData | null {
   if (denom && price !== 0) {
     return { denom, price, decimal, timestamp, confidence, exponent };
   }
-  
+
   return null;
 }
 
@@ -52,9 +52,9 @@ async function main() {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.AerospacerOracle as Program<AerospacerOracle>;
-  
+
   let stateAccountPubkey: PublicKey;
-  
+
   try {
     const configData = fs.readFileSync("scripts/.oracle-devnet-config.json", "utf-8");
     const config = JSON.parse(configData);
@@ -97,7 +97,7 @@ async function main() {
           state: stateAccountPubkey,
           pythPriceAccount: feed.pythAccount,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
+        } as any)
         .instruction();
 
       const { blockhash } = await provider.connection.getLatestBlockhash();
@@ -160,7 +160,7 @@ async function main() {
       .accounts({
         state: stateAccountPubkey,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
+      } as any)
       .remainingAccounts(
         priceFeeds.map((feed) => ({
           pubkey: feed.pythAccount,
@@ -189,7 +189,7 @@ async function main() {
 
     const logs = simulation.value.logs || [];
     const priceMatches: { denom: string; price: string }[] = [];
-    
+
     for (const log of logs) {
       const match = log.match(/- (\w+): (-?\d+) ± (\d+) x 10\^(-?\d+)/);
       if (match) {

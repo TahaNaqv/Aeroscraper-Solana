@@ -279,7 +279,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
         })
         .view();
 
-      expect(priceResponse.price).to.be.a('number').and.to.be.greaterThan(0);
+      expect(priceResponse.price.toNumber()).to.be.a('number').and.to.be.greaterThan(0);
       console.log("  ✓ get_price accessible");
 
       const config = await oracleProgram.methods

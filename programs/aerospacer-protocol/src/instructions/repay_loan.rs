@@ -20,7 +20,7 @@ pub struct RepayLoanParams {
 pub struct RepayLoan<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
-
+    
     #[account(
         mut,
         seeds = [b"user_debt_amount", user.key().as_ref()],
@@ -44,16 +44,16 @@ pub struct RepayLoan<'info> {
         constraint = liquidity_threshold.owner == user.key() @ AerospacerProtocolError::Unauthorized
     )]
     pub liquidity_threshold: Account<'info, LiquidityThreshold>,
-
+    
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
-
+    
     #[account(mut)]
     pub user_stablecoin_account: Account<'info, TokenAccount>,
-
+    
     #[account(mut)]
     pub user_collateral_account: Account<'info, TokenAccount>,
-
+    
     #[account(
         mut,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
@@ -107,7 +107,7 @@ pub struct RepayLoan<'info> {
     
     /// Clock sysvar for timestamp validation
     pub clock: Sysvar<'info, Clock>,
-
+    
     pub token_program: Program<'info, Token>,
 }
 
@@ -224,13 +224,13 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
         },
     );
     anchor_spl::token::burn(burn_ctx, params.amount)?;
-
+    
     msg!("Loan repaid successfully");
     msg!("Amount: {} aUSD", params.amount);
     msg!("Collateral denom: {}", params.collateral_denom);
     msg!("New debt amount: {}", result.new_debt_amount);
     msg!("New ICR: {}", result.new_icr);
     msg!("Collateral amount: {}", result.new_collateral_amount);
-
+    
     Ok(())
 }

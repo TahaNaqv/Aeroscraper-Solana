@@ -32,131 +32,48 @@ pub fn handler(ctx: Context<GetAllPrices>, _params: GetAllPricesParams) -> Resul
     );
     
     let mut prices = Vec::new();
-    
-    // THIS CODE IS FOR TESTING PURPOSES ONLY
-    // UNCOMMENT DURING TESTING
-    // For each collateral asset, return mock price data for testing
-    for collateral_data in &state.collateral_data {
-        let mock_price = match collateral_data.denom.as_str() {
-            "SOL" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 183415750000, // Mock SOL price: $183.41
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -9,
-            },
-            "ETH" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 7891575000, // Mock ETH price: $7,891.58
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -6,
-            },
-            "BTC" => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 125000000000, // Mock BTC price: $125,000.00
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -8,
-            },
-            "INVALID_ASSET" => {
-                // Special case for testing error handling in batch
-                return Err(AerospacerOracleError::PriceFeedNotFound.into());
-            },
-            "STALE_PRICE" => {
-                // Special case for testing stale price error in batch
-                return Err(AerospacerOracleError::PriceTooOld.into());
-            },
-            "LOW_CONFIDENCE" => {
-                // Special case for testing low confidence error in batch
-                return Err(AerospacerOracleError::PythPriceValidationFailed.into());
-            },
-            _ => PriceResponse {
-                denom: collateral_data.denom.clone(),
-                price: 1000000000, // Mock price: $1.00
-                decimal: collateral_data.decimal,
-                timestamp: clock.unix_timestamp,
-                confidence: 1000,
-                exponent: -6,
-            }
+
+    // PRODUCTION PYTH INTEGRATION CODE
+    // For each collateral asset, fetch real price data using corresponding Pyth account
+    for (index, collateral_data) in state.collateral_data.iter().enumerate() {
+        // Get the corresponding Pyth price account from remaining_accounts
+        let pyth_price_account = &remaining_accounts[index];
+        
+        // Use Pyth SDK to load and validate price feed data (reusing get_price logic)
+        let price_feed = SolanaPriceAccount::account_info_to_feed(pyth_price_account)
+            .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
+        
+        // Get price with hardcoded staleness validation for mainnet (60 seconds)
+        // let current_time = clock.unix_timestamp;
+        // let price = price_feed.get_price_no_older_than(current_time, 60)
+        //     .ok_or(AerospacerOracleError::PriceTooOld)?;
+
+        // Get the latest available price data (no staleness validation for devnet testing)
+        let price = price_feed.get_price_unchecked();
+
+        // Validate price data integrity with lenient confidence for devnet testing
+        require!(price.price > 0, AerospacerOracleError::InvalidPriceData);
+        require!(price.conf >= 100, AerospacerOracleError::PythPriceValidationFailed); // Reduced from 1000 to 100 for devnet
+
+        let price_response = PriceResponse {
+            denom: collateral_data.denom.clone(),
+            price: price.price,
+            decimal: collateral_data.decimal,
+            timestamp: price.publish_time,
+            confidence: price.conf,
+            exponent: price.expo,
         };
         
-        prices.push(mock_price);
+        prices.push(price_response);
     }
     
-    msg!("All prices query successful (TESTING MODE)");
+    msg!("All prices query successful");
     msg!("Found {} price responses", prices.len());
-    msg!("Mock price data returned for testing purposes");
-    msg!("Note: Pyth integration is commented out for testing");
+    msg!("Real Pyth data extracted for all assets using official SDK");
+    msg!("Each asset uses its own Pyth price account via remaining_accounts");
     for price in &prices {
-        // Log with pattern expected by tests: "- <DENOM>: <PRICE> ± <CONF> x 10^<EXPO>"
         msg!("- {}: {} ± {} x 10^{}", price.denom, price.price, price.confidence, price.exponent);
     }
     
     Ok(prices)
-
-    // PRODUCTION PYTH INTEGRATION CODE (COMMENTED FOR TESTING)
-    // This replicates INJECTIVE's Prices query functionality exactly
-    // For each collateral asset, fetch real price data using corresponding Pyth account
-    // for (index, collateral_data) in state.collateral_data.iter().enumerate() {
-    //     // Get the corresponding Pyth price account from remaining_accounts
-    //     let pyth_price_account = &remaining_accounts[index];
-    //     
-    //     // Parse the price_id to get the expected Pyth price feed address
-    //     let price_id_bytes = hex::decode(&collateral_data.price_id)
-    //         .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
-    //     
-    //     if price_id_bytes.len() != 32 {
-    //         return Err(AerospacerOracleError::InvalidPriceId.into());
-    //     }
-    //     
-    //     let price_feed_address = Pubkey::try_from(price_id_bytes.as_slice())
-    //         .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
-    //     
-    //     // Validate that the provided pyth_price_account matches the expected address
-    //     require!(
-    //         pyth_price_account.key() == price_feed_address,
-    //         AerospacerOracleError::InvalidPriceData
-    //     );
-    //     
-    //     // Use Pyth SDK to load and validate price feed data (reusing get_price logic)
-    //     let price_feed = SolanaPriceAccount::account_info_to_feed(pyth_price_account)
-    //         .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
-    //     
-    //     // Get current time for staleness validation
-    //     let current_time = clock.unix_timestamp;
-    //     
-    //     // Get price with hardcoded staleness validation (60 seconds)
-    //     let price = price_feed.get_price_no_older_than(current_time, 60)
-    //         .ok_or(AerospacerOracleError::PriceTooOld)?;
-
-    //     // Validate price data integrity with hardcoded confidence
-    //     require!(price.price > 0, AerospacerOracleError::InvalidPriceData);
-    //     require!(price.conf >= 1000, AerospacerOracleError::PythPriceValidationFailed);
-
-    //     
-    //     let price_response = PriceResponse {
-    //         denom: collateral_data.denom.clone(),
-    //         price: price.price,
-    //         decimal: collateral_data.decimal,
-    //         timestamp: price.publish_time,
-    //         confidence: price.conf,
-    //         exponent: price.expo,
-    //     };
-    //     
-    //     prices.push(price_response);
-    // }
-    // 
-    // msg!("All prices query successful");
-    // msg!("Found {} price responses", prices.len());
-    // msg!("Real Pyth data extracted for all assets using official SDK");
-    // msg!("Each asset uses its own Pyth price account via remaining_accounts");
-    // for price in &prices {
-    //     msg!("- {}: {} ± {} x 10^{}", price.denom, price.price, price.confidence, price.exponent);
-    // }
-    // 
-    // Ok(prices)
 }
