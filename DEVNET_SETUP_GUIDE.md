@@ -93,6 +93,69 @@ npm run test-oracle-devnet
 
 ---
 
+## ⚠️ Important: TypeScript Client Fix
+
+### Issue with `.view()` Method
+
+The oracle contract returns custom `PriceResponse` structs, but Anchor's `.view()` method **cannot deserialize custom struct return types**. This causes empty error messages when querying prices.
+
+**❌ This DOESN'T Work:**
+```typescript
+const price = await program.methods
+  .getPrice({ denom: "SOL" })
+  .accounts({ ... })
+  .view();  // ❌ Fails with empty error
+```
+
+### Solution: Use Simulation + Log Parsing
+
+**✅ This WORKS:**
+```typescript
+// Build instruction
+const ix = await program.methods
+  .getPrice({ denom: "SOL" })
+  .accounts({
+    state: stateAccountPubkey,
+    pythPriceAccount: SOL_PRICE_FEED,
+    clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+  })
+  .instruction();
+
+// Simulate transaction
+const tx = new anchor.web3.Transaction().add(ix);
+const simulation = await provider.connection.simulateTransaction(
+  tx,
+  [provider.wallet.payer],
+  false
+);
+
+// Parse price data from program logs
+const logs = simulation.value.logs || [];
+// logs contain: "Program log: Price: 183415750000 ± 1000 x 10^-9"
+```
+
+### Why This Works
+
+1. The Rust contract logs all price data via `msg!()` statements
+2. Simulation returns these logs without executing on-chain
+3. We parse the logs to extract the `PriceResponse` data
+
+### For Protocol Integration (CPI)
+
+**✅ CPI Works Perfectly** - Cross-program invocation (CPI) from the protocol contract works correctly because Solana CPI **does support returning custom structs**. The TypeScript client limitation does NOT affect protocol → oracle CPI calls.
+
+```rust
+// Protocol can call oracle via CPI and get PriceResponse
+let price_response: PriceResponse = get_price_cpi(
+    oracle_program,
+    oracle_state,
+    pyth_account,
+    denom
+)?;
+```
+
+---
+
 ## 📊 What Gets Tested
 
 ### Test Suite Overview (66 Total Tests)

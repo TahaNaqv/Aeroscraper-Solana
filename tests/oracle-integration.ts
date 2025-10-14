@@ -4,6 +4,47 @@ import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { assert, expect } from "chai";
 
+interface PriceData {
+  denom: string;
+  price: number;
+  decimal: number;
+  timestamp: number;
+  confidence: number;
+  exponent: number;
+}
+
+function parsePriceFromLogs(logs: string[]): PriceData | null {
+  let denom = "";
+  let decimal = 0;
+  let timestamp = 0;
+  let price = 0;
+  let confidence = 0;
+  let exponent = 0;
+
+  for (const log of logs) {
+    if (log.includes("Program log: Denom:")) {
+      denom = log.split("Denom: ")[1].trim();
+    } else if (log.includes("Program log: Decimal:")) {
+      decimal = parseInt(log.split("Decimal: ")[1].trim());
+    } else if (log.includes("Program log: Publish Time:")) {
+      timestamp = parseInt(log.split("Publish Time: ")[1].trim());
+    } else if (log.includes("Program log: Price:")) {
+      const priceMatch = log.match(/Price: (-?\d+) ± (\d+) x 10\^(-?\d+)/);
+      if (priceMatch) {
+        price = parseInt(priceMatch[1]);
+        confidence = parseInt(priceMatch[2]);
+        exponent = parseInt(priceMatch[3]);
+      }
+    }
+  }
+
+  if (denom && price !== 0) {
+    return { denom, price, decimal, timestamp, confidence, exponent };
+  }
+  
+  return null;
+}
+
 describe("Oracle Contract - Protocol CPI Integration Tests", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -18,6 +59,84 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
   const BTC_PRICE_FEED = new PublicKey("HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J");
   
   let stateAccount: Keypair;
+
+  async function queryPrice(denom: string, pythAccount: PublicKey): Promise<PriceData> {
+    const ix = await oracleProgram.methods
+      .getPrice({ denom })
+      .accounts({
+        state: stateAccount.publicKey,
+        pythPriceAccount: pythAccount,
+        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+      })
+      .instruction();
+
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    const tx = new anchor.web3.Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = provider.wallet.publicKey;
+    tx.add(ix);
+
+    const simulation = await provider.connection.simulateTransaction(tx);
+
+    if (simulation.value.err) {
+      throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+    }
+
+    const priceData = parsePriceFromLogs(simulation.value.logs || []);
+    if (!priceData) {
+      throw new Error("Failed to parse price data from logs");
+    }
+
+    return priceData;
+  }
+
+  async function queryAllPrices(pythAccounts: PublicKey[]): Promise<PriceData[]> {
+    const ix = await oracleProgram.methods
+      .getAllPrices({})
+      .accounts({
+        state: stateAccount.publicKey,
+        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+      })
+      .remainingAccounts(
+        pythAccounts.map(pubkey => ({ pubkey, isSigner: false, isWritable: false }))
+      )
+      .instruction();
+
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    const tx = new anchor.web3.Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = provider.wallet.publicKey;
+    tx.add(ix);
+
+    const simulation = await provider.connection.simulateTransaction(tx);
+
+    if (simulation.value.err) {
+      throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+    }
+
+    const prices: PriceData[] = [];
+    const logs = simulation.value.logs || [];
+    
+    for (const log of logs) {
+      const match = log.match(/- (\w+): (-?\d+) ± (\d+) x 10\^(-?\d+)/);
+      if (match) {
+        prices.push({
+          denom: match[1],
+          price: parseInt(match[2]),
+          decimal: 0,
+          timestamp: 0,
+          confidence: parseInt(match[3]),
+          exponent: parseInt(match[4]),
+        });
+      }
+    }
+
+    if (prices.length === 0) {
+      throw new Error("Failed to parse prices from logs");
+    }
+
+    return prices;
+  }
 
   before(async () => {
     console.log("\n🚀 Setting up Oracle CPI Integration Tests...");
@@ -69,7 +188,6 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
         state: stateAccount.publicKey,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
-      .rpc()
       .rpc();
 
     console.log("✅ Setup complete - Oracle ready for CPI");
@@ -79,14 +197,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     it("Should allow protocol to query SOL price via CPI simulation", async () => {
       console.log("📡 Simulating protocol CPI: get_price(SOL)...");
 
-      const priceResponse = await oracleProgram.methods
-        .getPrice({ denom: "SOL" })
-        .accounts({
-          state: stateAccount.publicKey,
-          pythPriceAccount: SOL_PRICE_FEED,
-          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
-        .view();
+      const priceResponse = await queryPrice("SOL", SOL_PRICE_FEED);
 
       const price = Number(priceResponse.price);
       const exponent = priceResponse.exponent;
@@ -105,18 +216,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     it("Should allow protocol to query all prices at once", async () => {
       console.log("📡 Simulating protocol CPI: get_all_prices()...");
 
-      const allPrices = await oracleProgram.methods
-        .getAllPrices({})
-        .accounts({
-          state: stateAccount.publicKey,
-          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
-        .remainingAccounts([
-          { pubkey: SOL_PRICE_FEED, isSigner: false, isWritable: false },
-          { pubkey: ETH_PRICE_FEED, isSigner: false, isWritable: false },
-          { pubkey: BTC_PRICE_FEED, isSigner: false, isWritable: false },
-        ])
-        .view();
+      const allPrices = await queryAllPrices([SOL_PRICE_FEED, ETH_PRICE_FEED, BTC_PRICE_FEED]);
 
       console.log(`✅ Protocol received ${allPrices.length} prices:`);
       
@@ -200,15 +300,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       console.log("⚡ Simulating 10 consecutive protocol CPI calls...");
 
       for (let i = 0; i < 10; i++) {
-        const priceResponse = await oracleProgram.methods
-          .getPrice({ denom: "SOL" })
-          .accounts({
-            state: stateAccount.publicKey,
-            pythPriceAccount: SOL_PRICE_FEED,
-            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-          })
-          .view();
-
+        const priceResponse = await queryPrice("SOL", SOL_PRICE_FEED);
         expect(priceResponse.price).to.be.greaterThan(0);
         console.log(`  CPI ${i + 1}: ✓`);
       }
@@ -225,14 +317,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       const debtAsset = "USD";
       
       console.log(`  1. Query ${collateralAsset} price...`);
-      const solPrice = await oracleProgram.methods
-        .getPrice({ denom: collateralAsset })
-        .accounts({
-          state: stateAccount.publicKey,
-          pythPriceAccount: SOL_PRICE_FEED,
-          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
-        .view();
+      const solPrice = await queryPrice(collateralAsset, SOL_PRICE_FEED);
 
       const price = Number(solPrice.price);
       const exponent = solPrice.exponent;
@@ -273,14 +358,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       console.log("  Querying all collateral prices:");
 
       for (const pos of position) {
-        const priceResponse = await oracleProgram.methods
-          .getPrice({ denom: pos.asset })
-          .accounts({
-            state: stateAccount.publicKey,
-            pythPriceAccount: pos.feed,
-            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-          })
-          .view();
+        const priceResponse = await queryPrice(pos.asset, pos.feed);
 
         const price = Number(priceResponse.price);
         const exponent = priceResponse.exponent;
