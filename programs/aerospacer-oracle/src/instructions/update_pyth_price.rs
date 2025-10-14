@@ -41,59 +41,59 @@ pub fn handler(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> 
     // THIS CODE IS FOR TESTING PURPOSES ONLY
     // UNCOMMENT DURING TESTING
     // For testing, we just update the timestamp without fetching real Pyth data
-    // msg!("Pyth price update successful (TESTING MODE)");
-    // msg!("Denom: {}", params.denom);
-    // msg!("Mock price update completed for testing");
-    // msg!("Note: Pyth integration is commented out for testing");
+    msg!("Pyth price update successful (TESTING MODE)");
+    msg!("Denom: {}", params.denom);
+    msg!("Mock price update completed for testing");
+    msg!("Note: Pyth integration is commented out for testing");
     
-    // state.last_update = clock.unix_timestamp;
-    
-    // msg!("Updated at: {}", clock.unix_timestamp);
-    
-    // Ok(())
-
-    // PRODUCTION PYTH INTEGRATION CODE (COMMENT FOR TESTING)
-    // Parse the price_id to get the Pyth price feed address
-    let price_id_bytes = hex::decode(&collateral_data.price_id)
-        .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
-    
-    if price_id_bytes.len() != 32 {
-        return Err(AerospacerOracleError::InvalidPriceId.into());
-    }
-    
-    let price_feed_address = Pubkey::try_from(price_id_bytes.as_slice())
-        .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
-    
-    // Validate that the provided pyth_price_account matches the expected address
-    require!(
-        ctx.accounts.pyth_price_account.key() == price_feed_address,
-        AerospacerOracleError::InvalidPriceData
-    );
-    
-    // Use Pyth SDK to load and validate price feed data
-    let price_feed = SolanaPriceAccount::account_info_to_feed(&ctx.accounts.pyth_price_account)
-        .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
-    
-    // Get current time for staleness validation
-    let current_time = clock.unix_timestamp;
-    
-    // Get latest price with hardcoded staleness validation (60 seconds)
-    let price = price_feed.get_price_no_older_than(current_time, 60)
-        .ok_or(AerospacerOracleError::PriceTooOld)?;
-
-    // Validate price data integrity with hardcoded confidence
-    require!(price.price > 0, AerospacerOracleError::PythPriceValidationFailed);
-    require!(price.conf >= 1000, AerospacerOracleError::PythPriceValidationFailed);
-
-    
-    // Update the last update timestamp
     state.last_update = clock.unix_timestamp;
     
-    msg!("Pyth price update successful");
-    msg!("Denom: {}", params.denom);
-    msg!("New Price: {} ± {} x 10^{}", price.price, price.conf, price.expo);
-    msg!("Publish Time: {}", price.publish_time);
     msg!("Updated at: {}", clock.unix_timestamp);
     
     Ok(())
+
+    // PRODUCTION PYTH INTEGRATION CODE (COMMENT FOR TESTING)
+    // Parse the price_id to get the Pyth price feed address
+    // let price_id_bytes = hex::decode(&collateral_data.price_id)
+    //     .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
+    
+    // if price_id_bytes.len() != 32 {
+    //     return Err(AerospacerOracleError::InvalidPriceId.into());
+    // }
+    
+    // let price_feed_address = Pubkey::try_from(price_id_bytes.as_slice())
+    //     .map_err(|_| AerospacerOracleError::InvalidPriceId)?;
+    
+    // // Validate that the provided pyth_price_account matches the expected address
+    // require!(
+    //     ctx.accounts.pyth_price_account.key() == price_feed_address,
+    //     AerospacerOracleError::InvalidPriceData
+    // );
+    
+    // // Use Pyth SDK to load and validate price feed data
+    // let price_feed = SolanaPriceAccount::account_info_to_feed(&ctx.accounts.pyth_price_account)
+    //     .map_err(|_| AerospacerOracleError::PythPriceFeedLoadFailed)?;
+    
+    // // Get current time for staleness validation
+    // let current_time = clock.unix_timestamp;
+    
+    // // Get latest price with hardcoded staleness validation (60 seconds)
+    // let price = price_feed.get_price_no_older_than(current_time, 60)
+    //     .ok_or(AerospacerOracleError::PriceTooOld)?;
+
+    // // Validate price data integrity with hardcoded confidence
+    // require!(price.price > 0, AerospacerOracleError::PythPriceValidationFailed);
+    // require!(price.conf >= 1000, AerospacerOracleError::PythPriceValidationFailed);
+
+    
+    // // Update the last update timestamp
+    // state.last_update = clock.unix_timestamp;
+    
+    // msg!("Pyth price update successful");
+    // msg!("Denom: {}", params.denom);
+    // msg!("New Price: {} ± {} x 10^{}", price.price, price.conf, price.expo);
+    // msg!("Publish Time: {}", price.publish_time);
+    // msg!("Updated at: {}", clock.unix_timestamp);
+    
+    // Ok(())
 }
