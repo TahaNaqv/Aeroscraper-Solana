@@ -70,12 +70,13 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       })
       .instruction();
 
-    const tx = new anchor.web3.Transaction().add(ix);
-    const simulation = await provider.connection.simulateTransaction(
-      tx,
-      [provider.wallet.payer],
-      false
-    );
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    const tx = new anchor.web3.Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = provider.wallet.publicKey;
+    tx.add(ix);
+
+    const simulation = await provider.connection.simulateTransaction(tx);
 
     if (simulation.value.err) {
       throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
@@ -87,6 +88,54 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     }
 
     return priceData;
+  }
+
+  async function queryAllPrices(pythAccounts: PublicKey[]): Promise<PriceData[]> {
+    const ix = await oracleProgram.methods
+      .getAllPrices({})
+      .accounts({
+        state: stateAccount.publicKey,
+        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+      })
+      .remainingAccounts(
+        pythAccounts.map(pubkey => ({ pubkey, isSigner: false, isWritable: false }))
+      )
+      .instruction();
+
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    const tx = new anchor.web3.Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = provider.wallet.publicKey;
+    tx.add(ix);
+
+    const simulation = await provider.connection.simulateTransaction(tx);
+
+    if (simulation.value.err) {
+      throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+    }
+
+    const prices: PriceData[] = [];
+    const logs = simulation.value.logs || [];
+    
+    for (const log of logs) {
+      const match = log.match(/- (\w+): (-?\d+) ± (\d+) x 10\^(-?\d+)/);
+      if (match) {
+        prices.push({
+          denom: match[1],
+          price: parseInt(match[2]),
+          decimal: 0,
+          timestamp: 0,
+          confidence: parseInt(match[3]),
+          exponent: parseInt(match[4]),
+        });
+      }
+    }
+
+    if (prices.length === 0) {
+      throw new Error("Failed to parse prices from logs");
+    }
+
+    return prices;
   }
 
   before(async () => {
@@ -167,18 +216,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     it("Should allow protocol to query all prices at once", async () => {
       console.log("📡 Simulating protocol CPI: get_all_prices()...");
 
-      const allPrices = await oracleProgram.methods
-        .getAllPrices({})
-        .accounts({
-          state: stateAccount.publicKey,
-          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        })
-        .remainingAccounts([
-          { pubkey: SOL_PRICE_FEED, isSigner: false, isWritable: false },
-          { pubkey: ETH_PRICE_FEED, isSigner: false, isWritable: false },
-          { pubkey: BTC_PRICE_FEED, isSigner: false, isWritable: false },
-        ])
-        .view();
+      const allPrices = await queryAllPrices([SOL_PRICE_FEED, ETH_PRICE_FEED, BTC_PRICE_FEED]);
 
       console.log(`✅ Protocol received ${allPrices.length} prices:`);
       

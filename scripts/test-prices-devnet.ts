@@ -100,12 +100,13 @@ async function main() {
         })
         .instruction();
 
-      const tx = new anchor.web3.Transaction().add(ix);
-      const simulation = await provider.connection.simulateTransaction(
-        tx,
-        [provider.wallet.payer],
-        false
-      );
+      const { blockhash } = await provider.connection.getLatestBlockhash();
+      const tx = new anchor.web3.Transaction();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = provider.wallet.publicKey;
+      tx.add(ix);
+
+      const simulation = await provider.connection.simulateTransaction(tx);
 
       if (simulation.value.err) {
         console.error(`   ❌ Simulation error:`, simulation.value.err);
@@ -169,12 +170,13 @@ async function main() {
       )
       .instruction();
 
-    const tx = new anchor.web3.Transaction().add(ix);
-    const simulation = await provider.connection.simulateTransaction(
-      tx,
-      [provider.wallet.payer],
-      false
-    );
+    const { blockhash } = await provider.connection.getLatestBlockhash();
+    const tx = new anchor.web3.Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = provider.wallet.publicKey;
+    tx.add(ix);
+
+    const simulation = await provider.connection.simulateTransaction(tx);
 
     if (simulation.value.err) {
       console.error("❌ Simulation error:", simulation.value.err);
