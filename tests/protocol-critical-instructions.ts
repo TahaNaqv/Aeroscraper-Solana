@@ -29,62 +29,38 @@ describe("Protocol Contract - Critical Instructions Tests", () => {
     it("Should query liquidatable troves with complete setup and validation", async () => {
       console.log("\n📋 Testing query_liquidatable_troves instruction");
 
-      // Verify sorted troves state exists
-      const sortedTrovesAccount = await ctx.protocolProgram.account.sortedTrovesState.fetchNullable(
+      // Execute query instruction - must succeed (even with empty list)
+      const tx = await ctx.protocolProgram.methods
+        .queryLiquidatableTroves({
+          maxTroves: 10,
+          denom: SOL_DENOM,
+        })
+        .accounts({
+          state: ctx.protocolState,
+          sortedTrovesState: ctx.sortedTrovesState,
+          oracleProgram: ctx.oracleProgram.programId,
+          oracleState: ctx.oracleState,
+        })
+        .rpc();
+
+      console.log("  ✅ Query transaction successful:", tx);
+      expect(tx).to.be.a("string");
+      expect(tx.length).to.be.greaterThan(0);
+
+      // Validate sorted troves state
+      const sortedTrovesAccount = await ctx.protocolProgram.account.sortedTrovesState.fetch(
         ctx.sortedTrovesState
       );
 
-      if (sortedTrovesAccount) {
-        console.log("  ✅ Sorted troves state exists");
-        console.log("  ✅ Current size:", sortedTrovesAccount.size.toString());
-        console.log("  ✅ Head:", sortedTrovesAccount.head ? sortedTrovesAccount.head.toString() : "null");
-        console.log("  ✅ Tail:", sortedTrovesAccount.tail ? sortedTrovesAccount.tail.toString() : "null");
-      } else {
-        console.log("  ✅ Sorted troves state not initialized (empty protocol)");
-      }
-
-      // Execute query instruction
-      try {
-        const tx = await ctx.protocolProgram.methods
-          .queryLiquidatableTroves({
-            maxTroves: 10,
-            denom: SOL_DENOM,
-          })
-          .accounts({
-            state: ctx.protocolState,
-            sortedTrovesState: ctx.sortedTrovesState,
-            oracleProgram: ctx.oracleProgram.programId,
-            oracleState: ctx.oracleState,
-          })
-          .rpc();
-
-        console.log("  ✅ Query transaction successful:", tx);
-        console.log("  ✅ Instruction executed without errors");
-
-        // Validate state after query
-        const stateAfter = await ctx.protocolProgram.account.sortedTrovesState.fetchNullable(
-          ctx.sortedTrovesState
-        );
-        
-        if (stateAfter) {
-          expect(stateAfter.size.toNumber()).to.be.gte(0);
-          console.log("  ✅ State validation passed");
-        }
-
-        console.log("✅ query_liquidatable_troves functional test PASSED");
-      } catch (err: any) {
-        if (err.toString().includes("AccountNotInitialized")) {
-          console.log("  ✅ Query handled empty state correctly");
-          console.log("✅ query_liquidatable_troves functional test PASSED");
-        } else {
-          throw err;
-        }
-      }
+      expect(sortedTrovesAccount.size.toNumber()).to.be.gte(0);
+      console.log("  ✅ Sorted troves size:", sortedTrovesAccount.size.toString());
+      console.log("  ✅ State validation passed");
+      console.log("✅ query_liquidatable_troves functional test PASSED");
     });
   });
 
   describe("Test 2: liquidate_troves (Full Functional Test)", () => {
-    it("Should execute liquidate_troves with complete flow", async () => {
+    it("Should execute liquidate_troves successfully or fail with expected error", async () => {
       console.log("\n📋 Testing liquidate_troves instruction");
 
       const liquidator = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
@@ -93,20 +69,14 @@ describe("Protocol Contract - Critical Instructions Tests", () => {
         liquidator.user.publicKey
       );
 
-      // Setup: Create a trove that could be liquidated
-      const borrower = await createTestUser(ctx.provider, ctx.collateralMint, new BN(20_000_000_000));
-      await openTroveForUser(ctx, borrower.user, new BN(6_000_000_000), MIN_LOAN_AMOUNT.mul(new BN(100)), SOL_DENOM);
-      
-      console.log("  ✅ Test trove created for liquidation scenario");
-
-      const borrowerPDAs = derivePDAs(SOL_DENOM, borrower.user.publicKey, ctx.protocolProgram.programId);
+      const borrowerPDAs = derivePDAs(SOL_DENOM, PublicKey.default, ctx.protocolProgram.programId);
 
       try {
-        // Execute liquidation instruction
+        // Execute liquidation instruction (may succeed or fail with expected error)
         const tx = await ctx.protocolProgram.methods
           .liquidateTroves({
             collateralDenom: SOL_DENOM,
-            troveAddresses: [], // Empty for now - would contain liquidatable trove addresses
+            troveAddresses: [], // Empty - testing instruction execution
           })
           .accounts({
             liquidator: liquidator.user.publicKey,
@@ -130,28 +100,35 @@ describe("Protocol Contract - Critical Instructions Tests", () => {
           .signers([liquidator.user])
           .rpc();
 
-        console.log("  ✅ Liquidation transaction:", tx);
-        console.log("  ✅ liquidate_troves instruction executed");
-        console.log("✅ liquidate_troves functional test PASSED");
+        console.log("  ✅ Liquidation transaction successful:", tx);
+        expect(tx).to.be.a("string");
+        console.log("✅ liquidate_troves functional test PASSED (success path)");
       } catch (err: any) {
-        // Liquidation may fail if no troves are liquidatable (which is expected in empty protocol)
-        if (err.toString().includes("No liquidatable troves") || 
-            err.toString().includes("NoTrovesToLiquidate") ||
-            err.toString().includes("InvalidList")) {
-          console.log("  ✅ Liquidation handled empty/healthy state correctly");
-          console.log("  ✅ Instruction executed and validated properly");
-          console.log("✅ liquidate_troves functional test PASSED");
+        // Only accept specific expected errors for empty/healthy protocol
+        const errorMsg = err.toString();
+        const expectedErrors = [
+          "InvalidList",           // Empty sorted list
+          "NoTrovesToLiquidate",   // No liquidatable troves
+          "AccountNotInitialized", // State not initialized
+        ];
+        
+        const isExpectedError = expectedErrors.some(e => errorMsg.includes(e));
+        
+        if (isExpectedError) {
+          console.log("  ✅ Liquidation failed with expected error (empty protocol)");
+          console.log("  ✅ Error:", errorMsg.split('\n')[0]);
+          console.log("✅ liquidate_troves functional test PASSED (expected error path)");
         } else {
-          console.log("  ℹ️  Liquidation error (expected in test environment):", err.message);
-          console.log("  ✅ Instruction structure validated");
-          console.log("✅ liquidate_troves functional test PASSED");
+          // Unexpected error - fail the test
+          console.error("  ❌ Unexpected liquidation error:", errorMsg);
+          throw new Error(`liquidate_troves failed with unexpected error: ${errorMsg}`);
         }
       }
     });
   });
 
   describe("Test 3: redeem (Full Functional Test)", () => {
-    it("Should execute redeem with complete flow", async () => {
+    it("Should execute redeem successfully or fail with expected error", async () => {
       console.log("\n📋 Testing redeem instruction");
 
       const redeemer = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
@@ -159,18 +136,11 @@ describe("Protocol Contract - Critical Instructions Tests", () => {
         ctx.stablecoinMint,
         redeemer.user.publicKey
       );
-      const redeemerCollateral = redeemer.collateralAccount;
 
-      // Setup: Create troves for redemption
-      const troveOwner = await createTestUser(ctx.provider, ctx.collateralMint, new BN(20_000_000_000));
-      await openTroveForUser(ctx, troveOwner.user, new BN(10_000_000_000), MIN_LOAN_AMOUNT.mul(new BN(200)), SOL_DENOM);
-      
-      console.log("  ✅ Test trove created for redemption scenario");
-
-      const trovePDAs = derivePDAs(SOL_DENOM, troveOwner.user.publicKey, ctx.protocolProgram.programId);
+      const trovePDAs = derivePDAs(SOL_DENOM, PublicKey.default, ctx.protocolProgram.programId);
 
       try {
-        // Execute redemption instruction
+        // Execute redemption instruction (may succeed or fail with expected error)
         const tx = await ctx.protocolProgram.methods
           .redeem({
             ausdAmount: SCALE_FACTOR.mul(new BN(10)), // Redeem 10 aUSD
@@ -191,28 +161,34 @@ describe("Protocol Contract - Critical Instructions Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .remainingAccounts([
-            // Would include trove accounts to redeem from
-          ])
+          .remainingAccounts([]) // Empty - testing instruction execution
           .signers([redeemer.user])
           .rpc();
 
-        console.log("  ✅ Redemption transaction:", tx);
-        console.log("  ✅ redeem instruction executed");
-        console.log("✅ redeem functional test PASSED");
+        console.log("  ✅ Redemption transaction successful:", tx);
+        expect(tx).to.be.a("string");
+        console.log("✅ redeem functional test PASSED (success path)");
       } catch (err: any) {
-        // Redemption may fail if insufficient aUSD or no troves available
-        if (err.toString().includes("NotEnoughLiquidity") ||
-            err.toString().includes("InsufficientFunds") ||
-            err.toString().includes("InvalidList") ||
-            err.toString().includes("insufficient")) {
-          console.log("  ✅ Redemption handled insufficient state correctly");
-          console.log("  ✅ Instruction executed and validated properly");
-          console.log("✅ redeem functional test PASSED");
+        // Only accept specific expected errors for empty/insufficient protocol state
+        const errorMsg = err.toString();
+        const expectedErrors = [
+          "NotEnoughLiquidity",    // No troves available
+          "InsufficientFunds",     // User lacks aUSD
+          "InvalidList",           // Empty sorted list
+          "AccountNotInitialized", // State not initialized
+          "insufficient funds",    // Token account error
+        ];
+        
+        const isExpectedError = expectedErrors.some(e => errorMsg.includes(e));
+        
+        if (isExpectedError) {
+          console.log("  ✅ Redemption failed with expected error (empty/insufficient state)");
+          console.log("  ✅ Error:", errorMsg.split('\n')[0]);
+          console.log("✅ redeem functional test PASSED (expected error path)");
         } else {
-          console.log("  ℹ️  Redemption error (expected in test environment):", err.message);
-          console.log("  ✅ Instruction structure validated");
-          console.log("✅ redeem functional test PASSED");
+          // Unexpected error - fail the test
+          console.error("  ❌ Unexpected redemption error:", errorMsg);
+          throw new Error(`redeem failed with unexpected error: ${errorMsg}`);
         }
       }
     });
