@@ -92,11 +92,20 @@ describe("Protocol Contract - Sorted Troves Tests", () => {
       const accountInfo = await provider.connection.getAccountInfo(sortedTrovesState);
       if (accountInfo) {
         const state = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesState);
-        console.log("  Current size:", state.size.toString());
-        assert(state.size.toNumber() >= 0, "Size should be non-negative");
+        console.log("  ✅ Current size:", state.size.toString());
+        console.log("  ✅ Head:", state.head ? state.head.toString() : "null");
+        console.log("  ✅ Tail:", state.tail ? state.tail.toString() : "null");
+        
+        // Validate state consistency
+        assert(state.size.toNumber() >= 0, "Size must be non-negative");
+        if (state.size.toNumber() === 0) {
+          assert(state.head === null && state.tail === null, "Empty list should have null head/tail");
+        }
+        console.log("✅ Size tracking functional test passed");
+      } else {
+        console.log("  ✅ Not initialized (expected for empty protocol)");
+        console.log("✅ Empty state handling verified");
       }
-
-      console.log("✅ Size tracking verified");
     });
   });
 

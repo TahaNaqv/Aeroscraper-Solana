@@ -199,8 +199,51 @@ describe("Protocol Contract - Error Coverage Tests", () => {
   describe("Error 7: CollateralBelowMinimum", () => {
     it("Should trigger CollateralBelowMinimum error", async () => {
       console.log("\n🔴 Testing: CollateralBelowMinimum");
-      // Covered in previous test
-      console.log("  ✅ Triggers when collateral < minimum (5 SOL)");
+      
+      const user = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
+      const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
+      const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, user.user.publicKey);
+
+      try {
+        // Try to open trove with 1 SOL (below 5 SOL minimum)
+        await ctx.protocolProgram.methods
+          .openTrove({
+            collateralAmount: new BN(1_000_000_000), // 1 SOL
+            loanAmount: MIN_LOAN_AMOUNT,
+            collateralDenom: SOL_DENOM,
+          })
+          .accounts({
+            user: user.user.publicKey,
+            state: ctx.protocolState,
+            userDebtAmount: pdas.userDebtAmount,
+            userCollateralAmount: pdas.userCollateralAmount,
+            liquidityThreshold: pdas.liquidityThreshold,
+            node: pdas.node,
+            sortedTrovesState: pdas.sortedTrovesState,
+            totalCollateralAmount: pdas.totalCollateralAmount,
+            stableCoinMint: ctx.stablecoinMint,
+            collateralMint: ctx.collateralMint,
+            userCollateralAccount: user.collateralAccount,
+            userStablecoinAccount,
+            protocolStablecoinVault: pdas.protocolStablecoinVault,
+            protocolCollateralVault: pdas.protocolCollateralVault,
+            oracleProgram: ctx.oracleProgram.programId,
+            oracleState: ctx.oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            feesProgram: ctx.feesProgram.programId,
+            feesState: ctx.feeState,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([user.user])
+          .rpc();
+
+        throw new Error("Should have failed");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/CollateralBelowMinimum|InvalidAmount/);
+        console.log("  ✅ CollateralBelowMinimum error triggered (1 SOL < 5 SOL min)");
+      }
     });
   });
 
