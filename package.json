@@ -11,7 +11,8 @@
     "test-protocol-local": "anchor test --skip-local-validator",
     "test-protocol-init": "anchor test --skip-local-validator tests/protocol-initialization.ts",
     "test-protocol-trove": "anchor test --skip-local-validator tests/protocol-trove-management.ts",
-    "test-protocol-security": "anchor test --skip-local-validator tests/protocol-cpi-security.ts tests/protocol-security.ts"
+    "test-protocol-security": "anchor test --skip-local-validator tests/protocol-cpi-security.ts tests/protocol-security.ts",
+    "test-protocol-critical": "anchor test --skip-local-validator tests/protocol-critical-instructions.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
