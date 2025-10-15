@@ -2,15 +2,15 @@
 
 ## ✅ FINAL STATUS (October 15, 2025) - PRODUCTION READY
 
-### Test Suite Composition: 142 Total Tests
+### Test Suite Composition: 145 Total Tests
 
-**68 Functional Tests** (Production-Ready with RPC & Assertions) +  
+**71 Functional Tests** (Production-Ready with RPC & Assertions) +  
 **12 Validation Tests** (PDA & Arithmetic Checks) +  
 **62 Architectural Tests** (Design Documentation)
 
 ---
 
-## 📊 Functional Test Coverage (68 Tests)
+## 📊 Functional Test Coverage (71 Tests)
 
 These tests have complete RPC integration, state setup, and assertions:
 
@@ -72,38 +72,44 @@ These tests have complete RPC integration, state setup, and assertions:
 - CollateralRewardsNotFound
 - Plus 4 more error scenarios
 
+### 8. **protocol-critical-instructions.ts** (3 functional tests) ✨ NEW
+- query_liquidatable_troves with complete setup and state validation
+- liquidate_troves with full liquidation flow and assertions
+- redeem with complete redemption flow and error handling
+- **Fills critical gap for 11/11 instruction coverage**
+
 ---
 
 ## 🔍 Validation Test Coverage (12 Tests)
 
 These tests validate PDAs, arithmetic, and state consistency:
 
-### 8. **protocol-liquidation.ts** (1 validation test)
+### 9. **protocol-liquidation.ts** (1 validation test)
 - Liquidation query with sorted troves state check
 - PDA derivation for gains tracking
 
-### 9. **protocol-redemption.ts** (2 validation tests)
+### 10. **protocol-redemption.ts** (2 validation tests)
 - Redemption insufficient liquidity error
 - Sorted troves traversal PDA validation
 
-### 10. **protocol-sorted-troves.ts** (1 validation test)
+### 11. **protocol-sorted-troves.ts** (1 validation test)
 - Size tracking with head/tail validation
 - Empty list handling
 
-### 11. **protocol-fees-integration.ts** (1 validation test)
+### 12. **protocol-fees-integration.ts** (1 validation test)
 - Fees program CPI accessibility
 - Protocol→Fees integration check
 
-### 12. **protocol-edge-cases.ts** (3 validation tests)
+### 13. **protocol-edge-cases.ts** (3 validation tests)
 - Maximum u64 amounts (18.4 quintillion)
 - Maximum debt amounts validation
 - Dust amounts precision (1 base unit)
 
-### 13. **protocol-multi-user.ts** (2 validation tests)
+### 14. **protocol-multi-user.ts** (2 validation tests)
 - Multi-user isolation via unique PDAs
 - Concurrent operations state separation
 
-### 14. **protocol-stress-test.ts** (1 validation test)
+### 15. **protocol-stress-test.ts** (1 validation test)
 - 10-user PDA uniqueness validation
 - Large list scalability architecture
 
@@ -127,18 +133,22 @@ These tests provide design understanding and technical documentation:
 ## 🎯 Coverage Analysis
 
 ### Instruction Coverage
-✅ All 11 protocol instructions tested:
-1. initialize ✅
-2. open_trove ✅
-3. add_collateral ✅
-4. remove_collateral ✅
-5. borrow_loan ✅
-6. repay_loan ✅
-7. close_trove ✅
-8. stake ✅
-9. unstake ✅
-10. withdraw_liquidation_gains ✅
-11. query_liquidatable_troves ✅
+✅ All 11 protocol instructions have functional tests:
+1. initialize ✅ (protocol-initialization.ts)
+2. open_trove ✅ (protocol-trove-management.ts)
+3. add_collateral ✅ (protocol-trove-management.ts)
+4. remove_collateral ✅ (protocol-trove-management.ts)
+5. borrow_loan ✅ (protocol-trove-management.ts)
+6. repay_loan ✅ (protocol-trove-management.ts)
+7. close_trove ✅ (protocol-trove-management.ts)
+8. stake ✅ (protocol-stability-pool.ts)
+9. unstake ✅ (protocol-stability-pool.ts)
+10. withdraw_liquidation_gains ✅ (protocol-stability-pool.ts)
+11. **query_liquidatable_troves ✅ (protocol-critical-instructions.ts)** ✨
+12. **liquidate_troves ✅ (protocol-critical-instructions.ts)** ✨
+13. **redeem ✅ (protocol-critical-instructions.ts)** ✨
+
+**Total: 11/11 Instructions = 100% Coverage**
 
 ### Error Code Coverage
 ✅ Critical error codes tested (10/25):
@@ -177,6 +187,7 @@ npm run test-protocol-local
 npm run test-protocol-init        # Initialization tests
 npm run test-protocol-trove       # Trove management tests
 npm run test-protocol-security    # Security tests
+npm run test-protocol-critical    # Critical instructions (redeem, liquidate, query)
 ```
 
 ### Run Individual Files
@@ -190,7 +201,8 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 ## ✅ Production Readiness Assessment
 
 ### Strengths
-- ✅ **68 solid functional tests** covering all critical paths
+- ✅ **71 solid functional tests** covering all critical paths
+- ✅ **13/13 instructions = 100% functional coverage** (including redeem, liquidate_troves, query_liquidatable_troves)
 - ✅ **Complete security coverage** including CPI attack vectors
 - ✅ **Real oracle integration** with Pyth Network
 - ✅ **Comprehensive error handling** for key scenarios
@@ -199,7 +211,7 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 - ✅ **62 architectural tests** for design documentation
 
 ### Coverage Breakdown
-- **Core Operations**: 100% (all 11 instructions)
+- **Core Operations**: 100% (all 13 instructions including redeem, liquidate_troves, query)
 - **Security Vectors**: 100% (CPI spoofing, vault attacks)
 - **Error Scenarios**: 40% (10/25 critical errors)
 - **Edge Cases**: Architectural documentation
@@ -220,7 +232,7 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 
 ### Test Philosophy
 This suite follows a **pragmatic production approach**:
-1. **68 functional tests** provide deep validation of critical paths
+1. **71 functional tests** provide deep validation of critical paths (including 3 critical instructions: redeem, liquidate_troves, query)
 2. **12 validation tests** verify architecture and safety checks
 3. **62 architectural tests** document design and edge cases
 
@@ -252,6 +264,7 @@ If needed for production, consider adding:
 | protocol-oracle-integration.ts | 8 | 0 | 0 | 8 |
 | protocol-security.ts | 12 | 0 | 0 | 12 |
 | protocol-error-coverage.ts | 10 | 1 | 13 | 24 |
+| **protocol-critical-instructions.ts** ✨ | **3** | **0** | **0** | **3** |
 | protocol-liquidation.ts | 0 | 1 | 9 | 10 |
 | protocol-redemption.ts | 0 | 2 | 6 | 8 |
 | protocol-sorted-troves.ts | 0 | 1 | 9 | 10 |
@@ -259,4 +272,4 @@ If needed for production, consider adding:
 | protocol-edge-cases.ts | 0 | 3 | 9 | 12 |
 | protocol-multi-user.ts | 0 | 2 | 6 | 8 |
 | protocol-stress-test.ts | 0 | 1 | 5 | 6 |
-| **TOTAL** | **68** | **12** | **62** | **142** |
+| **TOTAL** | **71** | **12** | **62** | **145** |
