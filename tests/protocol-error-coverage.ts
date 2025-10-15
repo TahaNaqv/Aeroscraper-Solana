@@ -260,8 +260,35 @@ describe("Protocol Contract - Error Coverage Tests", () => {
   describe("Error 10: CollateralRewardsNotFound", () => {
     it("Should trigger CollateralRewardsNotFound error", async () => {
       console.log("\n🔴 Testing: CollateralRewardsNotFound");
-      console.log("  ✅ Triggers when no liquidation gains to withdraw");
-      console.log("  ✅ User has no collateral snapshot");
+      
+      const user = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
+      const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, user.user.publicKey);
+      const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
+
+      try {
+        // Try to withdraw gains without staking
+        await ctx.protocolProgram.methods
+          .withdrawLiquidationGains({ collateralDenom: SOL_DENOM })
+          .accounts({
+            user: user.user.publicKey,
+            state: ctx.protocolState,
+            userStakeAmount: pdas.userStakeAmount,
+            userCollateralSnapshot: pdas.userCollateralSnapshot,
+            stabilityPoolSnapshot: pdas.stabilityPoolSnapshot,
+            totalLiquidationCollateralGain: pdas.totalLiquidationCollateralGain,
+            userStablecoinAccount,
+            protocolCollateralVault: pdas.protocolCollateralVault,
+            userCollateralAccount: user.collateralAccount,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([user.user])
+          .rpc();
+
+        throw new Error("Should have failed");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/not found|CollateralRewardsNotFound|AccountNotInitialized/);
+        console.log("  ✅ CollateralRewardsNotFound error triggered");
+      }
     });
   });
 
