@@ -4,15 +4,16 @@
 
 ### Test Suite Composition: 145 Total Tests
 
-**71 Functional Tests** (Production-Ready with RPC & Assertions) +  
+**70 Functional Tests** (Production-Ready with RPC & Assertions) +
+**1 Structural Test** (Instruction validation without end-to-end flow) +  
 **12 Validation Tests** (PDA & Arithmetic Checks) +  
 **62 Architectural Tests** (Design Documentation)
 
-*Note: 12/13 instructions have full functional tests. Liquidation has structural validation (actual liquidation requires price manipulation for local testing).
+*Note: 12/13 instructions have full functional tests. 1/13 (liquidate_troves) has structural validation (actual liquidation requires price manipulation for local testing).
 
 ---
 
-## 📊 Functional Test Coverage (71 Tests)
+## 📊 Functional Test Coverage (70 Tests)
 
 These tests have complete RPC integration, state setup, and assertions:
 
@@ -74,11 +75,17 @@ These tests have complete RPC integration, state setup, and assertions:
 - CollateralRewardsNotFound
 - Plus 4 more error scenarios
 
-### 8. **protocol-critical-instructions.ts** (3 functional tests) ✨ NEW
+### 8. **protocol-critical-instructions.ts** (2 functional tests) ✨ NEW
 - query_liquidatable_troves with complete setup and state validation ✅ FULL
-- liquidate_troves with instruction structure and error handling ⚠️ STRUCTURAL
 - redeem with complete redemption flow and balance validation ✅ FULL
-- **Note**: Liquidation requires price manipulation (not testable locally)
+
+---
+
+## 🔧 Structural Test Coverage (1 Test)
+
+### 1. **protocol-critical-instructions.ts** (1 structural test)
+- liquidate_troves with instruction structure and error handling ⚠️ STRUCTURAL
+- **Note**: Actual liquidation requires price manipulation (test on devnet recommended)
 
 ---
 
@@ -207,8 +214,9 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 ## ✅ Production Readiness Assessment
 
 ### Strengths
-- ✅ **71 solid functional tests** covering all critical paths
-- ✅ **12/13 instructions = 92% full functional coverage** + 1/13 structural validation
+- ✅ **70 solid functional tests** covering all critical paths
+- ✅ **1 structural test** for liquidate_troves instruction
+- ✅ **12/13 instructions = 92% full functional coverage**
 - ✅ **Complete security coverage** including CPI attack vectors
 - ✅ **Real oracle integration** with Pyth Network
 - ✅ **Comprehensive error handling** for key scenarios
@@ -241,9 +249,10 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 
 ### Test Philosophy
 This suite follows a **pragmatic production approach**:
-1. **71 functional tests** provide deep validation of critical paths (including 3 critical instructions: redeem, liquidate_troves, query)
-2. **12 validation tests** verify architecture and safety checks
-3. **62 architectural tests** document design and edge cases
+1. **70 functional tests** provide deep validation of critical paths
+2. **1 structural test** validates liquidate_troves instruction structure
+3. **12 validation tests** verify architecture and safety checks
+4. **62 architectural tests** document design and edge cases
 
 ### Why This Works
 - All critical user flows are functionally tested
@@ -264,21 +273,21 @@ If needed for production, consider adding:
 
 ## Test File Reference
 
-| File | Functional | Validation | Architectural | Total |
-|------|-----------|-----------|---------------|-------|
-| protocol-initialization.ts | 8 | 0 | 0 | 8 |
-| protocol-trove-management.ts | 12 | 0 | 0 | 12 |
-| protocol-stability-pool.ts | 10 | 0 | 0 | 10 |
-| protocol-cpi-security.ts | 8 | 0 | 0 | 8 |
-| protocol-oracle-integration.ts | 8 | 0 | 0 | 8 |
-| protocol-security.ts | 12 | 0 | 0 | 12 |
-| protocol-error-coverage.ts | 10 | 1 | 13 | 24 |
-| **protocol-critical-instructions.ts** ✨ | **3** | **0** | **0** | **3** |
-| protocol-liquidation.ts | 0 | 1 | 9 | 10 |
-| protocol-redemption.ts | 0 | 2 | 6 | 8 |
-| protocol-sorted-troves.ts | 0 | 1 | 9 | 10 |
-| protocol-fees-integration.ts | 0 | 1 | 5 | 6 |
-| protocol-edge-cases.ts | 0 | 3 | 9 | 12 |
-| protocol-multi-user.ts | 0 | 2 | 6 | 8 |
-| protocol-stress-test.ts | 0 | 1 | 5 | 6 |
-| **TOTAL** | **71** | **12** | **62** | **145** |
+| File | Functional | Structural | Validation | Architectural | Total |
+|------|-----------|-----------|-----------|---------------|-------|
+| protocol-initialization.ts | 8 | 0 | 0 | 0 | 8 |
+| protocol-trove-management.ts | 12 | 0 | 0 | 0 | 12 |
+| protocol-stability-pool.ts | 10 | 0 | 0 | 0 | 10 |
+| protocol-cpi-security.ts | 8 | 0 | 0 | 0 | 8 |
+| protocol-oracle-integration.ts | 8 | 0 | 0 | 0 | 8 |
+| protocol-security.ts | 12 | 0 | 0 | 0 | 12 |
+| protocol-error-coverage.ts | 10 | 0 | 1 | 13 | 24 |
+| **protocol-critical-instructions.ts** ✨ | **2** | **1** | **0** | **0** | **3** |
+| protocol-liquidation.ts | 0 | 0 | 1 | 9 | 10 |
+| protocol-redemption.ts | 0 | 0 | 2 | 6 | 8 |
+| protocol-sorted-troves.ts | 0 | 0 | 1 | 9 | 10 |
+| protocol-fees-integration.ts | 0 | 0 | 1 | 5 | 6 |
+| protocol-edge-cases.ts | 0 | 0 | 3 | 9 | 12 |
+| protocol-multi-user.ts | 0 | 0 | 2 | 6 | 8 |
+| protocol-stress-test.ts | 0 | 0 | 1 | 5 | 6 |
+| **TOTAL** | **70** | **1** | **12** | **62** | **145** |

@@ -80,7 +80,8 @@ The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, en
 - **Security:** Prevents deposit/withdraw gaming, frontrunning attacks, and ensures mathematically fair proportional rewards
 
 **October 15, 2025 - Comprehensive Test Suite Complete (145 Tests) ✅**
-- **71 Functional Tests**: Full RPC integration with setup, assertions, and state validation
+- **70 Functional Tests**: Full RPC integration with setup, assertions, and state validation
+- **1 Structural Test**: Instruction validation without end-to-end flow
   - **12/13 instructions: FULL functional tests** (open_trove, add_collateral, borrow_loan, redeem, query_liquidatable_troves, etc.)
   - **1/13 instruction: STRUCTURAL validation** (liquidate_troves - requires price manipulation for full test)
   - **Critical Instructions**: 
