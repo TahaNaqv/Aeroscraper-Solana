@@ -337,3 +337,58 @@ export function calculateICR(collateralValue: BN, debtValue: BN): number {
   if (debtValue.isZero()) return Infinity;
   return collateralValue.mul(new BN(100)).div(debtValue).toNumber();
 }
+
+// Helper to stake aUSD in stability pool (for liquidation absorber)
+export async function stakeInStabilityPool(
+  ctx: TestContext,
+  user: Keypair,
+  ausdAmount: BN
+): Promise<void> {
+  const pdas = derivePDAs(SOL_DENOM, user.publicKey, ctx.protocolProgram.programId);
+  
+  const userStablecoinAccount = await getAssociatedTokenAddress(
+    ctx.stablecoinMint,
+    user.publicKey
+  );
+
+  await ctx.protocolProgram.methods
+    .stake({ amount: ausdAmount })
+    .accounts({
+      user: user.publicKey,
+      state: ctx.protocolState,
+      userStakeAmount: pdas.userStakeAmount,
+      stableCoinMint: ctx.stablecoinMint,
+      userStablecoinAccount,
+      protocolStablecoinVault: pdas.protocolStablecoinVault,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([user])
+    .rpc();
+}
+
+// Helper to create a liquidatable trove (ICR close to liquidation threshold)
+export async function createLiquidatableTrove(
+  ctx: TestContext,
+  user: Keypair,
+  collateralDenom: string
+): Promise<void> {
+  // Create trove with 112% ICR (just above 110% liquidation threshold)
+  // If price drops slightly or fees accrue, it becomes liquidatable
+  const collateralAmount = new BN(5_600_000_000); // 5.6 SOL
+  const loanAmount = SCALE_FACTOR.mul(new BN(100)); // 100 aUSD
+  
+  // At $200/SOL: 5.6 SOL * $200 = $1120 collateral, $100 debt = 112% ICR
+  await openTroveForUser(ctx, user, collateralAmount, loanAmount, collateralDenom);
+}
+
+// Helper to create a healthy trove for redemption target
+export async function createRedeemableTrove(
+  ctx: TestContext,
+  user: Keypair,
+  collateralAmount: BN,
+  loanAmount: BN,
+  collateralDenom: string
+): Promise<void> {
+  await openTroveForUser(ctx, user, collateralAmount, loanAmount, collateralDenom);
+}
