@@ -1,12 +1,14 @@
 # Protocol Testing Implementation Status
 
-## ✅ FINAL STATUS (October 15, 2025) - PRODUCTION READY
+## ✅ FINAL STATUS (October 15, 2025) - PRODUCTION READY*
 
 ### Test Suite Composition: 145 Total Tests
 
 **71 Functional Tests** (Production-Ready with RPC & Assertions) +  
 **12 Validation Tests** (PDA & Arithmetic Checks) +  
 **62 Architectural Tests** (Design Documentation)
+
+*Note: 12/13 instructions have full functional tests. Liquidation has structural validation (actual liquidation requires price manipulation for local testing).
 
 ---
 
@@ -73,10 +75,10 @@ These tests have complete RPC integration, state setup, and assertions:
 - Plus 4 more error scenarios
 
 ### 8. **protocol-critical-instructions.ts** (3 functional tests) ✨ NEW
-- query_liquidatable_troves with complete setup and state validation
-- liquidate_troves with full liquidation flow and assertions
-- redeem with complete redemption flow and error handling
-- **Fills critical gap for 11/11 instruction coverage**
+- query_liquidatable_troves with complete setup and state validation ✅ FULL
+- liquidate_troves with instruction structure and error handling ⚠️ STRUCTURAL
+- redeem with complete redemption flow and balance validation ✅ FULL
+- **Note**: Liquidation requires price manipulation (not testable locally)
 
 ---
 
@@ -133,22 +135,26 @@ These tests provide design understanding and technical documentation:
 ## 🎯 Coverage Analysis
 
 ### Instruction Coverage
-✅ All 11 protocol instructions have functional tests:
-1. initialize ✅ (protocol-initialization.ts)
-2. open_trove ✅ (protocol-trove-management.ts)
-3. add_collateral ✅ (protocol-trove-management.ts)
-4. remove_collateral ✅ (protocol-trove-management.ts)
-5. borrow_loan ✅ (protocol-trove-management.ts)
-6. repay_loan ✅ (protocol-trove-management.ts)
-7. close_trove ✅ (protocol-trove-management.ts)
-8. stake ✅ (protocol-stability-pool.ts)
-9. unstake ✅ (protocol-stability-pool.ts)
-10. withdraw_liquidation_gains ✅ (protocol-stability-pool.ts)
-11. **query_liquidatable_troves ✅ (protocol-critical-instructions.ts)** ✨
-12. **liquidate_troves ✅ (protocol-critical-instructions.ts)** ✨
-13. **redeem ✅ (protocol-critical-instructions.ts)** ✨
+**12/13 instructions have FULL functional tests:**
+1. initialize ✅ FULL (protocol-initialization.ts)
+2. open_trove ✅ FULL (protocol-trove-management.ts)
+3. add_collateral ✅ FULL (protocol-trove-management.ts)
+4. remove_collateral ✅ FULL (protocol-trove-management.ts)
+5. borrow_loan ✅ FULL (protocol-trove-management.ts)
+6. repay_loan ✅ FULL (protocol-trove-management.ts)
+7. close_trove ✅ FULL (protocol-trove-management.ts)
+8. stake ✅ FULL (protocol-stability-pool.ts)
+9. unstake ✅ FULL (protocol-stability-pool.ts)
+10. withdraw_liquidation_gains ✅ FULL (protocol-stability-pool.ts)
+11. **query_liquidatable_troves ✅ FULL (protocol-critical-instructions.ts)** ✨
+12. **redeem ✅ FULL (protocol-critical-instructions.ts)** ✨
 
-**Total: 11/11 Instructions = 100% Coverage**
+**1/13 instruction has STRUCTURAL validation:**
+13. **liquidate_troves ⚠️ STRUCTURAL (protocol-critical-instructions.ts)** ✨
+    - Validates instruction structure, account setup, and error handling
+    - Actual liquidation requires price manipulation (devnet testing recommended)
+
+**Total: 12/13 Full Functional + 1/13 Structural**
 
 ### Error Code Coverage
 ✅ Critical error codes tested (10/25):
@@ -202,7 +208,7 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 
 ### Strengths
 - ✅ **71 solid functional tests** covering all critical paths
-- ✅ **13/13 instructions = 100% functional coverage** (including redeem, liquidate_troves, query_liquidatable_troves)
+- ✅ **12/13 instructions = 92% full functional coverage** + 1/13 structural validation
 - ✅ **Complete security coverage** including CPI attack vectors
 - ✅ **Real oracle integration** with Pyth Network
 - ✅ **Comprehensive error handling** for key scenarios
@@ -211,7 +217,9 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 - ✅ **62 architectural tests** for design documentation
 
 ### Coverage Breakdown
-- **Core Operations**: 100% (all 13 instructions including redeem, liquidate_troves, query)
+- **Core Operations**: 92% (12/13 full functional + 1/13 structural)
+  - 12 instructions: Full functional tests with RPC & assertions
+  - 1 instruction (liquidate_troves): Structural validation only
 - **Security Vectors**: 100% (CPI spoofing, vault attacks)
 - **Error Scenarios**: 40% (10/25 critical errors)
 - **Edge Cases**: Architectural documentation
@@ -219,11 +227,12 @@ anchor test --skip-local-validator tests/protocol-cpi-security.ts
 - **Stress Testing**: Architecture verified
 
 ### Production Deployment Confidence
-- ✅ Critical paths fully tested with RPC integration
+- ✅ Critical paths fully tested with RPC integration (12/13 instructions)
 - ✅ Security vulnerabilities validated and protected
 - ✅ Oracle integration working on devnet
 - ✅ Fee distribution CPI operational
 - ✅ State consistency enforced
+- ⚠️ **Liquidation mechanism**: Structurally validated. Recommend devnet testing with real price fluctuations
 - ⚠️ Advanced scenarios (mass liquidations, 100+ users) documented but not fully integration tested
 
 ---

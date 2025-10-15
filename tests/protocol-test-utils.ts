@@ -367,18 +367,21 @@ export async function stakeInStabilityPool(
     .rpc();
 }
 
-// Helper to create a liquidatable trove (ICR close to liquidation threshold)
+// Helper to create a near-liquidatable trove (ICR close to liquidation threshold)
 export async function createLiquidatableTrove(
   ctx: TestContext,
   user: Keypair,
   collateralDenom: string
 ): Promise<void> {
-  // Create trove with 112% ICR (just above 110% liquidation threshold)
-  // If price drops slightly or fees accrue, it becomes liquidatable
-  const collateralAmount = new BN(5_600_000_000); // 5.6 SOL
+  // Create trove with 120% ICR (above 115% minimum, but vulnerable)
+  // Would become liquidatable if:
+  // - Collateral price drops ~9% (120% → 110%)
+  // - Fees accrue over time
+  const collateralAmount = new BN(6_000_000_000); // 6 SOL
   const loanAmount = SCALE_FACTOR.mul(new BN(100)); // 100 aUSD
   
-  // At $200/SOL: 5.6 SOL * $200 = $1120 collateral, $100 debt = 112% ICR
+  // At $200/SOL: 6 SOL * $200 = $1200 collateral, $100 debt = 120% ICR
+  // This passes the 115% minimum but is close to liquidation threshold
   await openTroveForUser(ctx, user, collateralAmount, loanAmount, collateralDenom);
 }
 

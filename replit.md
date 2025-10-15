@@ -81,8 +81,12 @@ The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, en
 
 **October 15, 2025 - Comprehensive Test Suite Complete (145 Tests) ✅**
 - **71 Functional Tests**: Full RPC integration with setup, assertions, and state validation
-  - All 13 protocol instructions tested (open_trove, add_collateral, borrow_loan, redeem, liquidate_troves, query_liquidatable_troves, etc.)
-  - **Critical Instructions Coverage**: redeem, liquidate_troves, query_liquidatable_troves (protocol-critical-instructions.ts)
+  - **12/13 instructions: FULL functional tests** (open_trove, add_collateral, borrow_loan, redeem, query_liquidatable_troves, etc.)
+  - **1/13 instruction: STRUCTURAL validation** (liquidate_troves - requires price manipulation for full test)
+  - **Critical Instructions**: 
+    * query_liquidatable_troves ✅ FULL (protocol-critical-instructions.ts)
+    * redeem ✅ FULL (protocol-critical-instructions.ts)
+    * liquidate_troves ⚠️ STRUCTURAL (protocol-critical-instructions.ts)
   - Complete security coverage (CPI spoofing, fake vault attacks, PDA validation)
   - Real Pyth oracle integration on devnet
   - Critical error scenarios (10/25 error codes)
@@ -94,7 +98,8 @@ The Aerospacer Protocol is a decentralized lending platform (DeFi) on Solana, en
   - 100+ trove scenarios, performance benchmarks
 - **Test Infrastructure**: Shared utilities (protocol-test-utils.ts), test scripts in package.json
 - **Test Execution**: `npm run test-protocol-local` for full suite, `npm run test-protocol-critical` for critical instructions
-- **Status**: Production-ready test coverage - 13/13 instructions = 100% functional coverage
+- **Status**: Production-ready test coverage - 12/13 full functional + 1/13 structural (92% coverage)
+- **Recommendation**: Test liquidation mechanism on devnet with real price fluctuations
 
 ### User Preferences
 *This section will be updated as you work with the project*
