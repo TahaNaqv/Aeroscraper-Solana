@@ -1,0 +1,552 @@
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/protocol-*.ts'
+
+📋 **PROTOCOL ERROR CODES COVERAGE**
+============================================================
+(node:96882) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/tests/protocol-core.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+  Aeroscraper Protocol Core Operations
+    1) "before all" hook in "Aeroscraper Protocol Core Operations"
+
+  Protocol Contract - CPI Security Tests
+
+🔒 Setting up CPI Security Tests...
+    2) "before all" hook in "Protocol Contract - CPI Security Tests"
+
+  Protocol Contract - Critical Instructions (Full Functional Tests)
+
+🚀 Setting up Critical Instructions Tests...
+    3) "before all" hook in "Protocol Contract - Critical Instructions (Full Functional Tests)"
+
+  Protocol Contract - Edge Cases Tests
+    Test 11.1: Maximum Collateral Amounts
+📋 Testing max collateral...
+  ✅ Max u64: 18446744073709551615
+  ✅ Practical max: 1000000000000000000
+✅ Max amounts functional test passed
+      ✔ Should handle maximum u64 collateral
+    Test 11.2: Maximum Debt Amounts
+📋 Testing max debt...
+  ✅ Max u64: 18446744073709551615
+  ✅ Practical max debt: 100000000000000000
+✅ Max debt functional test passed
+      ✔ Should handle maximum u64 debt
+    Test 11.3: Zero Collateral Rejection
+📋 Testing zero collateral...
+  Minimum collateral required
+  Error: CollateralBelowMinimum
+✅ Zero collateral rejected
+      ✔ Should reject zero collateral
+    Test 11.4: Dust Amounts Handling
+📋 Testing dust amounts...
+  ✅ Dust amount (1 base unit): 1
+  ✅ Min practical: 1000
+  ✅ Precision maintained for smallest units
+✅ Dust amounts functional test passed
+      ✔ Should handle dust amounts correctly
+    Test 11.5: Rapid Add/Remove Cycles
+📋 Testing rapid operations...
+  Multiple add/remove in sequence
+  State remains consistent
+✅ Rapid operations handled
+      ✔ Should handle rapid operations
+    Test 11.6: Simultaneous Liquidations
+📋 Testing simultaneous liquidations...
+  Multiple troves liquidated
+  Stability pool depleted correctly
+✅ Concurrent liquidations handled
+      ✔ Should handle concurrent liquidations
+    Test 11.7: Empty Stability Pool Liquidation
+📋 Testing empty pool liquidation...
+  Falls back to redistribution
+  Debt and collateral redistributed
+✅ Empty pool handling verified
+      ✔ Should handle liquidation with empty pool
+    Test 11.8: Full Stability Pool Depletion
+📋 Testing full pool depletion...
+  All stake burned
+  P factor drops below threshold
+  Epoch incremented
+✅ Full depletion handled
+      ✔ Should handle complete pool depletion
+    Test 11.9: Epoch Boundary Conditions
+📋 Testing epoch transitions...
+  P < 10^9 triggers rollover
+  Epoch increments
+  P resets to SCALE_FACTOR
+✅ Epoch boundaries handled
+      ✔ Should handle epoch transitions
+    Test 11.10: Precision Loss in Calculations
+📋 Testing precision...
+  Uses 10^18 scale factor
+  Minimizes rounding errors
+✅ Precision maintained
+      ✔ Should minimize precision loss
+    Test 11.11: Sorted List with 1000+ Troves
+📋 Testing large lists...
+  1000+ troves
+  Insertion/removal efficient
+  Traversal performance acceptable
+✅ Large lists handled
+      ✔ Should handle very large sorted lists
+    Test 11.12: Concurrent User Operations
+📋 Testing concurrency...
+  Multiple users simultaneously
+  No race conditions
+  State remains consistent
+✅ Concurrency handled
+      ✔ Should handle concurrent user operations
+
+  Protocol Contract - Error Coverage Tests
+
+🔴 Setting up Error Coverage Tests...
+    4) "before all" hook in "Protocol Contract - Error Coverage Tests"
+
+  Protocol Contract - Fees Integration Tests
+    Test 8.1: Fee Distribution via CPI
+📋 Testing fee distribution CPI...
+  ✅ Fees program: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+  ✅ Protocol→Fees CPI integration configured
+  ✅ Fee distribution mechanism verified
+✅ Fee CPI functional test passed
+      ✔ Should distribute fees through CPI call (156ms)
+    Test 8.2: Protocol Fee Calculation (5%)
+📋 Testing fee calculation...
+  Default protocol_fee = 5%
+  Applied on loan amounts
+✅ Fee calculation verified
+      ✔ Should calculate 5% protocol fee correctly
+    Test 8.3: Stability Pool Mode Distribution
+📋 Testing stability pool mode...
+  stake_contract_enabled = true
+  100% fees to stability pool
+✅ Stability pool distribution verified
+      ✔ Should distribute fees to stability pool when enabled
+    Test 8.4: Treasury Mode Distribution
+📋 Testing treasury mode...
+  stake_contract_enabled = false
+  50% to fee_address_1, 50% to fee_address_2
+✅ Treasury distribution verified
+      ✔ Should distribute fees 50/50 to treasury addresses
+    Test 8.5: Fee State Validation
+📋 Testing fee state validation...
+  Checks fee_state_addr in protocol state
+  Prevents fake fee contract injection
+✅ Fee state validation verified
+      ✔ Should validate fee state PDA in CPI
+    Test 8.6: Fee Account Owner Validation
+📋 Testing account ownership...
+  Validates payer token account owner
+  Prevents unauthorized fund draining
+✅ Ownership validation verified
+      ✔ Should validate fee account ownership
+
+  Protocol Contract - Initialization Tests
+
+🚀 Setting up Protocol Initialization Tests...
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+    5) "before all" hook in "Protocol Contract - Initialization Tests"
+
+  Protocol Contract - Liquidation Tests
+
+🚀 Setting up Liquidation Tests...
+    6) "before all" hook in "Protocol Contract - Liquidation Tests"
+
+  Protocol Contract - Multi-User Tests
+    Test 13.1: Multiple Users Opening Troves
+📋 Testing multiple users...
+  ✅ User1: pae4dt6x...
+  ✅ User2: Bk2HqVZ3...
+  ✅ User3: BQKu1cTj...
+  ✅ Each has independent state (unique PDAs)
+✅ Multi-user isolation functional test passed
+      ✔ Should allow multiple users to open troves
+    Test 13.2: Concurrent Collateral Operations
+📋 Testing concurrent operations...
+  ✅ User1 PDA: FgpMfSGn...
+  ✅ User2 PDA: HVy3v3xz...
+  ✅ No state conflicts possible (separate accounts)
+✅ Concurrent operations functional test passed
+      ✔ Should handle concurrent add/remove collateral
+    Test 13.3: Competing Liquidations
+📋 Testing competing liquidations...
+  Multiple liquidators target same trove
+  First liquidator wins
+  Others fail gracefully
+✅ Competing liquidations verified
+      ✔ Should handle competing liquidators
+    Test 13.4: Stability Pool Multi-Depositor
+📋 Testing multi-depositor pool...
+  10+ users stake aUSD
+  Proportional rewards distributed
+  Fair gain allocation
+✅ Multi-depositor verified
+      ✔ Should handle multiple stakers
+    Test 13.5: Redemption Queue Ordering
+📋 Testing redemption queue...
+  Lowest ICR redeemed first
+  Fair ordering maintained
+✅ Queue ordering verified
+      ✔ Should process redemptions in ICR order
+    Test 13.6: Fairness in Gain Distribution
+📋 Testing fair distribution...
+  Gains proportional to stake
+  No manipulation possible
+  Product-Sum algorithm ensures fairness
+✅ Fair distribution verified
+      ✔ Should distribute gains fairly
+    Test 13.7: Race Condition Handling
+📋 Testing race conditions...
+  Atomic state updates
+  Proper locking mechanisms
+  No double-spending
+✅ Race conditions prevented
+      ✔ Should prevent race conditions
+    Test 13.8: Resource Contention
+📋 Testing resource contention...
+  Multiple users access same resources
+  Transaction ordering maintained
+  No deadlocks
+✅ Resource contention handled
+      ✔ Should handle resource contention
+
+  Protocol Contract - Oracle Integration Tests
+
+🔮 Setting up Oracle Integration Tests...
+    7) "before all" hook in "Protocol Contract - Oracle Integration Tests"
+
+  Protocol Contract - Redemption Tests
+
+🚀 Setting up Redemption Tests...
+    8) "before all" hook in "Protocol Contract - Redemption Tests"
+
+  Protocol Contract - Security Tests
+
+🔒 Setting up Security Tests...
+    9) "before all" hook in "Protocol Contract - Security Tests"
+
+  Aerospacer Protocol - Simple Test
+
+🚀 Setting up Simple Protocol Test...
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+✅ All programs initialized successfully
+  Protocol State: A2UyPrAKgFB79JTJgYxA2KwrVGako9ADc9Q3pPipLT9r
+  Oracle State: CSD3QQEQopfqUTQiJZZwXZdRn6bcEVHyrFAnki4tx815
+  Fee State: CGqXgTG4XRMohKFFKDy9CPBGzdfAzonujsMNNepWvfFo
+  Stablecoin Mint: BnZJVczGg3ks5VquXfhPKCQsRC7nKjKvGDE2iFRjPthB
+    Basic Protocol Tests
+📋 Verifying protocol state...
+✅ Protocol state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Stable Coin: BnZJVczGg3ks5VquXfhPKCQsRC7nKjKvGDE2iFRjPthB
+  Oracle Helper: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
+  Fee Distributor: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+  MCR: 115
+  Protocol Fee: 5
+      ✔ Should verify protocol state after initialization
+📋 Verifying oracle state...
+  Oracle Address: 11111111111111111111111111111111
+  Expected: gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s
+  Note: Oracle address is set to default initially (this is expected)
+✅ Oracle state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Oracle Address: 11111111111111111111111111111111
+      ✔ Should verify oracle state after initialization
+📋 Verifying fees state...
+✅ Fees state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Is Stake Enabled: false
+  Total Fees Collected: 0
+      ✔ Should verify fees state after initialization
+📋 Verifying stablecoin mint...
+✅ Stablecoin mint verification passed
+  Mint Address: BnZJVczGg3ks5VquXfhPKCQsRC7nKjKvGDE2iFRjPthB
+      ✔ Should verify stablecoin mint
+📋 Verifying program IDs...
+  Protocol Program ID: 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2
+  Oracle Program ID: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
+  Fees Program ID: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+✅ Program ID verification passed
+      ✔ Should verify program IDs are correct
+    Integration Tests
+📋 Testing program communication...
+  Protocol accounts: 15
+  Oracle accounts: 33
+  Fees accounts: 8
+✅ Program communication verification passed
+      ✔ Should verify programs can communicate (189ms)
+📋 Testing account ownership...
+✅ Account ownership verification passed
+      ✔ Should verify account ownership
+    Summary
+
+============================================================
+📊 **SIMPLE PROTOCOL TEST SUMMARY**
+============================================================
+✅ Protocol initialization: PASSED
+✅ Oracle initialization: PASSED
+✅ Fees initialization: PASSED
+✅ State verification: PASSED
+✅ Program communication: PASSED
+✅ Account ownership: PASSED
+
+🎉 All basic protocol tests PASSED!
+============================================================
+      ✔ Should display test summary
+
+  Protocol Contract - Sorted Troves Tests
+    Test 6.1: Insert Trove in Sorted Order (by ICR)
+📋 Testing sorted insertion...
+  Troves sorted by ICR (lowest to highest)
+  Tail = riskiest, Head = safest
+✅ Sorted insertion mechanism verified
+      ✔ Should insert trove at correct position based on ICR
+    Test 6.2: Remove Trove from List
+📋 Testing trove removal...
+  Updates prev and next pointers
+  Decrements size
+✅ Removal mechanism verified
+      ✔ Should remove trove and update links
+    Test 6.3: Update Trove Position on ICR Change
+📋 Testing position update...
+  ICR changes due to price fluctuations
+  Trove repositioned accordingly
+✅ Position update verified
+      ✔ Should reposition trove when ICR changes
+    Test 6.4: Head/Tail Management
+📋 Testing head/tail management...
+  Sorted troves state PDA: Gb4NaNbu89CrP1M6etkmhCY8GnhygtvQBhQ2cxkVsbH3
+  Not initialized (expected for empty protocol)
+✅ Head/tail management verified
+      ✔ Should correctly manage head and tail pointers
+    Test 6.5: Linked List Integrity
+📋 Testing linked list integrity...
+  Bidirectional links maintained
+  No orphaned nodes
+  Circular references prevented
+✅ List integrity verified
+      ✔ Should maintain doubly-linked list integrity
+    Test 6.6: Traversal from Riskiest to Safest
+📋 Testing traversal direction...
+  Tail → Head = Low ICR → High ICR
+  Used for liquidations and redemptions
+✅ Traversal direction verified
+      ✔ Should traverse from tail to head
+    Test 6.7: Size Tracking Accuracy
+📋 Testing size tracking...
+  ✅ Not initialized (expected for empty protocol)
+✅ Empty state handling verified
+      ✔ Should accurately track number of troves
+    Test 6.8: Empty List Handling
+📋 Testing empty list...
+  Head = null, Tail = null, Size = 0
+  First insertion creates both head and tail
+✅ Empty list handling verified
+      ✔ Should handle empty list correctly
+    Test 6.9: Single Node List
+📋 Testing single node...
+  Head = Tail = single node
+  prev_id = null, next_id = null
+✅ Single node handling verified
+      ✔ Should handle single-node list
+    Test 6.10: Large List Performance (100+ nodes)
+📋 Testing large list performance...
+  100+ troves in sorted order
+  Insertion/removal remains efficient
+  Traversal performance acceptable
+✅ Large list performance verified
+      ✔ Should handle large lists efficiently
+
+  Protocol Contract - Stability Pool Tests
+
+🚀 Setting up Stability Pool Tests...
+    10) "before all" hook in "Protocol Contract - Stability Pool Tests"
+
+  Protocol Contract - Stress Tests
+    Test 14.1: 100+ Troves in Sorted List
+📋 Testing large trove list...
+  ✅ Generated 10 test users for list stress test
+  ✅ 10 unique node PDAs validated
+  ✅ Sorted list can scale to 100+ troves (architecture verified)
+✅ Large list stress test passed
+      ✔ Should handle 100+ troves efficiently
+    Test 14.2: Mass Liquidation (50+ troves)
+📋 Testing mass liquidation...
+  50+ undercollateralized troves
+  Batch liquidation successful
+  Stability pool handles load
+✅ Mass liquidation stress test passed
+      ✔ Should liquidate 50+ troves in batch
+    Test 14.3: Large Redemption Batch
+📋 Testing large redemption...
+  Redeem from 20+ troves
+  Traversal efficient
+  State updates consistent
+✅ Large redemption stress test passed
+      ✔ Should handle large redemption amounts
+    Test 14.4: Stability Pool with 100+ Depositors
+📋 Testing 100+ depositors...
+  100+ users stake aUSD
+  Gain distribution efficient
+  Snapshot calculations accurate
+✅ Large pool stress test passed
+      ✔ Should handle 100+ stakers
+    Test 14.5: Maximum Transaction Size
+📋 Testing max transaction size...
+  Maximum accounts per transaction
+  Maximum data per transaction
+  No transaction size limit errors
+✅ Max transaction stress test passed
+      ✔ Should handle maximum account count
+    Test 14.6: Performance Benchmarks
+📋 Testing performance...
+
+📊 **PERFORMANCE BENCHMARKS:**
+  - Trove opening: < 5 seconds
+  - Liquidation: < 10 seconds
+  - Redemption: < 15 seconds
+  - Stake/Unstake: < 3 seconds
+  - List traversal (100 nodes): < 20 seconds
+
+✅ Performance benchmarks met
+      ✔ Should meet performance benchmarks
+
+  Protocol Contract - Trove Management Tests
+
+🚀 Setting up Trove Management Tests...
+    11) "before all" hook in "Protocol Contract - Trove Management Tests"
+
+
+  50 passing (20s)
+  11 failing
+
+  1) Aeroscraper Protocol Core Operations
+       "before all" hook in "Aeroscraper Protocol Core Operations":
+     Error: Simulation failed. 
+Message: Transaction simulation failed: Error processing Instruction 0: incorrect program id for instruction. 
+Logs: 
+[
+  "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]",
+  "Program log: Create",
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]",
+  "Program log: Instruction: GetAccountDataSize",
+  "Program log: Error: IncorrectProgramId",
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 884 of 194635 compute units",
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: incorrect program id for instruction",
+  "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 6249 of 200000 compute units",
+  "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL failed: incorrect program id for instruction"
+]. 
+Catch the `SendTransactionError` and call `getLogs()` on it for full details.
+      at Connection.sendEncodedTransaction (node_modules/@solana/web3.js/src/connection.ts:6053:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at Connection.sendRawTransaction (node_modules/@solana/web3.js/src/connection.ts:6009:20)
+      at Connection.sendTransaction (node_modules/@solana/web3.js/src/connection.ts:5997:12)
+      at sendAndConfirmTransaction (node_modules/@solana/web3.js/src/utils/send-and-confirm-transaction.ts:36:21)
+
+  2) Protocol Contract - CPI Security Tests
+       "before all" hook in "Protocol Contract - CPI Security Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  3) Protocol Contract - Critical Instructions (Full Functional Tests)
+       "before all" hook in "Protocol Contract - Critical Instructions (Full Functional Tests)":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  4) Protocol Contract - Error Coverage Tests
+       "before all" hook in "Protocol Contract - Error Coverage Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  5) Protocol Contract - Initialization Tests
+       "before all" hook in "Protocol Contract - Initialization Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  6) Protocol Contract - Liquidation Tests
+       "before all" hook in "Protocol Contract - Liquidation Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  7) Protocol Contract - Oracle Integration Tests
+       "before all" hook in "Protocol Contract - Oracle Integration Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  8) Protocol Contract - Redemption Tests
+       "before all" hook in "Protocol Contract - Redemption Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  9) Protocol Contract - Security Tests
+       "before all" hook in "Protocol Contract - Security Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+  10) Protocol Contract - Stability Pool Tests
+       "before all" hook in "Protocol Contract - Stability Pool Tests":
+     Error: Simulation failed. 
+Message: Transaction simulation failed: Error processing Instruction 0: custom program error: 0xe. 
+Logs: 
+[
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+  "Program log: Instruction: MintTo",
+  "Program log: Error: Operation overflowed",
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4311 of 200000 compute units",
+  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0xe"
+]. 
+Catch the `SendTransactionError` and call `getLogs()` on it for full details.
+      at Connection.sendEncodedTransaction (node_modules/@solana/web3.js/src/connection.ts:6053:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at Connection.sendRawTransaction (node_modules/@solana/web3.js/src/connection.ts:6009:20)
+      at Connection.sendTransaction (node_modules/@solana/web3.js/src/connection.ts:5997:12)
+      at sendAndConfirmTransaction (node_modules/@solana/web3.js/src/utils/send-and-confirm-transaction.ts:36:21)
+
+  11) Protocol Contract - Trove Management Tests
+       "before all" hook in "Protocol Contract - Trove Management Tests":
+     Error: provided too many arguments [object Object],[object Object] to instruction initialize expecting: 
+      at splitArgsAndCtx (node_modules/@coral-xyz/anchor/src/program/context.ts:92:13)
+      at txFn (node_modules/@coral-xyz/anchor/src/program/namespace/transaction.ts:17:38)
+      at MethodsBuilder.rpc [as _rpcFn] (node_modules/@coral-xyz/anchor/src/program/namespace/rpc.ts:21:18)
+      at MethodsBuilder.rpc (node_modules/@coral-xyz/anchor/src/program/namespace/methods.ts:434:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 
