@@ -150,7 +150,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   // Initialize oracle
   const oracleStateKeypair = Keypair.generate();
   await oracleProgram.methods
-    .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
+    .initialize(PYTH_ORACLE_ADDRESS)
     .accounts({
       state: oracleStateKeypair.publicKey,
       admin: admin.publicKey,
@@ -163,11 +163,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   // Initialize fees
   const feeStateKeypair = Keypair.generate();
   await feesProgram.methods
-    .initialize({
-      admin: admin.publicKey,
-      feeAddress1: admin.publicKey,
-      feeAddress2: admin.publicKey,
-    })
+    .initialize()
     .accounts({
       state: feeStateKeypair.publicKey,
       admin: admin.publicKey,
@@ -182,18 +178,16 @@ export async function setupTestEnvironment(): Promise<TestContext> {
 
   await protocolProgram.methods
     .initialize({
-      stablecoinMintAddress: stablecoinMint,
-      collateralMintAddress: collateralMint,
-      minCollateralRatio: MIN_COLLATERAL_RATIO,
+      stableCoinCodeId: new anchor.BN(1),
       oracleHelperAddr: oracleProgram.programId,
-      feeHelperAddr: feesProgram.programId,
       oracleStateAddr: oracleStateKeypair.publicKey,
+      feeDistributorAddr: feesProgram.programId,
       feeStateAddr: feeStateKeypair.publicKey,
     })
     .accounts({
       state: protocolStateKeypair.publicKey,
       admin: admin.publicKey,
-      sortedTrovesState,
+      stableCoinMint: stablecoinMint,
       systemProgram: SystemProgram.programId,
     })
     .signers([protocolStateKeypair])
