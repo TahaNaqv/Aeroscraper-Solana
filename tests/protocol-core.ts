@@ -3,9 +3,20 @@ import { Program } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccount,
+  createMint,
+  mintTo,
+  transfer
+} from "@solana/spl-token";
 import { assert } from "chai";
+
+// Constants
+const PYTH_ORACLE_ADDRESS = new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG");
 
 describe("Aeroscraper Protocol Core Operations", () => {
   const provider = anchor.AnchorProvider.env();
@@ -45,6 +56,19 @@ describe("Aeroscraper Protocol Core Operations", () => {
   let user1Stake: PublicKey;
   let user2Stake: PublicKey;
 
+  // PDA accounts
+  let user1DebtAmountPDA: PublicKey;
+  let user1LiquidityThresholdPDA: PublicKey;
+  let user1CollateralAmountPDA: PublicKey;
+  let user1NodePDA: PublicKey;
+  let protocolCollateralAccountPDA: PublicKey;
+  let totalCollateralAmountPDA: PublicKey;
+  let sortedTrovesStatePDA: PublicKey;
+  let protocolStablecoinAccountPDA: PublicKey;
+  let stabilityPoolTokenAccount: PublicKey;
+  let feeAddress1TokenAccount: PublicKey;
+  let feeAddress2TokenAccount: PublicKey;
+
   before(async () => {
     // Airdrop SOL to admin
     const signature = await provider.connection.requestAirdrop(admin.publicKey, 1000000000);
@@ -63,12 +87,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
     user2CollateralAccount = await getAssociatedTokenAddress(collateralMint, user2.publicKey);
 
     // Create token accounts
-    await createAssociatedTokenAccount(provider.connection, admin, admin.publicKey, stablecoinMint);
-    await createAssociatedTokenAccount(provider.connection, admin, admin.publicKey, collateralMint);
-    await createAssociatedTokenAccount(provider.connection, admin, user1.publicKey, stablecoinMint);
-    await createAssociatedTokenAccount(provider.connection, admin, user1.publicKey, collateralMint);
-    await createAssociatedTokenAccount(provider.connection, admin, user2.publicKey, stablecoinMint);
-    await createAssociatedTokenAccount(provider.connection, admin, user2.publicKey, collateralMint);
+    await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, admin.publicKey);
+    await createAssociatedTokenAccount(provider.connection, admin, collateralMint, admin.publicKey);
+    await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, user1.publicKey);
+    await createAssociatedTokenAccount(provider.connection, admin, collateralMint, user1.publicKey);
+    await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, user2.publicKey);
+    await createAssociatedTokenAccount(provider.connection, admin, collateralMint, user2.publicKey);
 
     // Mint initial tokens
     await mintTo(provider.connection, admin, stablecoinMint, adminStablecoinAccount, admin, 1000000000);
@@ -122,6 +146,74 @@ describe("Aeroscraper Protocol Core Operations", () => {
     user1Stake = user1StakePda;
     user2Stake = user2StakePda;
 
+    // Derive additional PDAs for openTrove
+    const [user1DebtAmountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_debt_amount"), user1.publicKey.toBuffer()],
+      protocolProgram.programId
+    );
+    const [user1LiquidityThresholdPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidity_threshold"), user1.publicKey.toBuffer()],
+      protocolProgram.programId
+    );
+    const [user1CollateralAmountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_collateral_amount"), user1.publicKey.toBuffer(), Buffer.from("SOL")],
+      protocolProgram.programId
+    );
+    const [user1NodePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("node"), user1.publicKey.toBuffer()],
+      protocolProgram.programId
+    );
+    const [protocolCollateralAccountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_collateral_vault"), Buffer.from("SOL")],
+      protocolProgram.programId
+    );
+    const [totalCollateralAmountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("total_collateral_amount"), Buffer.from("SOL")],
+      protocolProgram.programId
+    );
+    const [sortedTrovesStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("sorted_troves_state")],
+      protocolProgram.programId
+    );
+    const [protocolStablecoinAccountPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_stablecoin_vault")],
+      protocolProgram.programId
+    );
+
+    user1DebtAmountPDA = user1DebtAmountPda;
+    user1LiquidityThresholdPDA = user1LiquidityThresholdPda;
+    user1CollateralAmountPDA = user1CollateralAmountPda;
+    user1NodePDA = user1NodePda;
+    protocolCollateralAccountPDA = protocolCollateralAccountPda;
+    totalCollateralAmountPDA = totalCollateralAmountPda;
+    sortedTrovesStatePDA = sortedTrovesStatePda;
+    protocolStablecoinAccountPDA = protocolStablecoinAccountPda;
+
+    // Get associated token addresses for fee addresses and stability pool
+    const feeAddress1 = Keypair.generate();
+    const feeAddress2 = Keypair.generate();
+
+    // Airdrop SOL to fee addresses
+    await provider.connection.requestAirdrop(feeAddress1.publicKey, 1 * LAMPORTS_PER_SOL);
+    await provider.connection.requestAirdrop(feeAddress2.publicKey, 1 * LAMPORTS_PER_SOL);
+
+    // Wait for airdrops to complete
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    stabilityPoolTokenAccount = await getAssociatedTokenAddress(
+      stablecoinMint,
+      protocolStablecoinAccountPDA,
+      true // allowOwnerOffCurve
+    );
+    feeAddress1TokenAccount = await getAssociatedTokenAddress(
+      stablecoinMint,
+      feeAddress1.publicKey
+    );
+    feeAddress2TokenAccount = await getAssociatedTokenAddress(
+      stablecoinMint,
+      feeAddress2.publicKey
+    );
+
     // Initialize programs
     try {
       await oracleProgram.methods
@@ -163,7 +255,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
           oracleState: oracleState,
           feesProgram: feesProgram.programId,
           feesState: feesState,
-          stablecoinMint: stablecoinMint,
+          stableCoinMint: stablecoinMint,
           systemProgram: SystemProgram.programId,
           rent: SYSVAR_RENT_PUBKEY,
         })
@@ -188,20 +280,30 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: collateralDenom,
           })
           .accounts({
-            trove: user1Trove,
-            state: protocolState,
             user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
             userCollateralAccount: user1CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user1NodePDA,
+            state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
-            stablecoinMint: stablecoinMint,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
-            rent: SYSVAR_RENT_PUBKEY,
           })
           .signers([user1])
           .rpc();
@@ -223,16 +325,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: "SOL",
           })
           .accounts({
-            trove: user1Trove,
-            state: protocolState,
             user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user1NodePDA,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            feesProgram: feesProgram.programId,
-            feesState: feesState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
           })
           .signers([user1])
           .rpc();
@@ -254,13 +361,28 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: "SOL",
           })
           .accounts({
-            trove: user1Trove,
-            state: protocolState,
             user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
+            userCollateralAccount: user1CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user1NodePDA,
+            state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
-            stablecoinMint: stablecoinMint,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
@@ -283,10 +405,17 @@ describe("Aeroscraper Protocol Core Operations", () => {
             amount: new anchor.BN(stakeAmount),
           })
           .accounts({
-            stake: user1Stake,
-            state: protocolState,
             user: user1.publicKey,
+            userStakeAmount: user1Stake,
+            state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
@@ -305,6 +434,24 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const loanAmount = 3000000; // 3 stablecoins
       const collateralDenom = "SOL";
 
+      // Derive user2 PDAs
+      const [user2DebtAmountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+      const [user2LiquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+      const [user2CollateralAmountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_collateral_amount"), user2.publicKey.toBuffer(), Buffer.from("SOL")],
+        protocolProgram.programId
+      );
+      const [user2NodePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
       try {
         await protocolProgram.methods
           .openTrove({
@@ -313,20 +460,30 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: collateralDenom,
           })
           .accounts({
-            trove: user2Trove,
-            state: protocolState,
             user: user2.publicKey,
+            userDebtAmount: user2DebtAmountPda,
+            liquidityThreshold: user2LiquidityThresholdPda,
+            userCollateralAmount: user2CollateralAmountPda,
             userCollateralAccount: user2CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user2NodePda,
+            state: protocolState,
             userStablecoinAccount: user2StablecoinAccount,
-            stablecoinMint: stablecoinMint,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
-            rent: SYSVAR_RENT_PUBKEY,
           })
           .signers([user2])
           .rpc();
@@ -348,13 +505,28 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: "SOL",
           })
           .accounts({
-            trove: user1Trove,
-            state: protocolState,
             user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
+            userCollateralAccount: user1CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user1NodePDA,
+            state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
-            stablecoinMint: stablecoinMint,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
@@ -378,14 +550,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralDenom: "SOL",
           })
           .accounts({
-            trove: user1Trove,
-            state: protocolState,
             user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            protocolCollateralAccount: protocolCollateralAccountPDA,
+            totalCollateralAmount: totalCollateralAmountPDA,
+            sortedTrovesState: sortedTrovesStatePDA,
+            node: user1NodePDA,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
+            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
           })
           .signers([user1])
           .rpc();
@@ -406,10 +585,17 @@ describe("Aeroscraper Protocol Core Operations", () => {
             amount: new anchor.BN(unstakeAmount),
           })
           .accounts({
-            stake: user1Stake,
-            state: protocolState,
             user: user1.publicKey,
+            userStakeAmount: user1Stake,
+            state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            stableCoinMint: stablecoinMint,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
+            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+            feeAddress1TokenAccount: feeAddress1TokenAccount,
+            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
@@ -434,11 +620,11 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- Total Stake Amount:", stateAccount.totalStakeAmount.toString());
         console.log("- Minimum Collateral Ratio:", stateAccount.minimumCollateralRatio.toString());
         console.log("- Protocol Fee:", stateAccount.protocolFee.toString());
-        
+
         assert(stateAccount.totalDebtAmount.gt(new anchor.BN(0)), "Total debt should be greater than 0");
         assert(stateAccount.totalCollateralAmount.gt(new anchor.BN(0)), "Total collateral should be greater than 0");
         assert(stateAccount.totalStakeAmount.gt(new anchor.BN(0)), "Total stake should be greater than 0");
-        
+
         console.log("✅ Protocol state verification passed");
       } catch (error) {
         console.log("❌ Protocol state verification failed:", error);
@@ -455,12 +641,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- Collateral Amount:", troveAccount.collateralAmount.toString());
         console.log("- Collateral Ratio:", troveAccount.collateralRatio.toString());
         console.log("- Is Active:", troveAccount.isActive);
-        
+
         assert(troveAccount.owner.equals(user1.publicKey), "Trove owner should match user1");
         assert(troveAccount.isActive, "Trove should be active");
         assert(troveAccount.debtAmount.gt(new anchor.BN(0)), "Debt amount should be greater than 0");
         assert(troveAccount.collateralAmount.gt(new anchor.BN(0)), "Collateral amount should be greater than 0");
-        
+
         console.log("✅ User trove verification passed");
       } catch (error) {
         console.log("❌ User trove verification failed:", error);
@@ -476,10 +662,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- Amount:", stakeAccount.amount.toString());
         console.log("- Total Stake At Time:", stakeAccount.totalStakeAtTime.toString());
         console.log("- Percentage:", stakeAccount.percentage.toString());
-        
+
         assert(stakeAccount.owner.equals(user1.publicKey), "Stake owner should match user1");
         assert(stakeAccount.amount.gt(new anchor.BN(0)), "Stake amount should be greater than 0");
-        
+
         console.log("✅ User stake verification passed");
       } catch (error) {
         console.log("❌ User stake verification failed:", error);
@@ -489,89 +675,4 @@ describe("Aeroscraper Protocol Core Operations", () => {
   });
 });
 
-// Helper functions
-import { 
-  createMint as splCreateMint,
-  createAssociatedTokenAccount as splCreateAssociatedTokenAccount,
-  mintTo as splMintTo,
-  transfer as splTransfer,
-  getMinimumBalanceForRentExemption
-} from "@solana/spl-token";
-
-async function createMint(
-  connection: anchor.web3.Connection,
-  payer: Keypair,
-  mintAuthority: PublicKey,
-  freezeAuthority: PublicKey | null,
-  decimals: number
-): Promise<PublicKey> {
-  return await splCreateMint(
-    connection,
-    payer,
-    mintAuthority,
-    freezeAuthority,
-    decimals,
-    undefined,
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
-}
-
-async function createAssociatedTokenAccount(
-  connection: anchor.web3.Connection,
-  payer: Keypair,
-  owner: PublicKey,
-  mint: PublicKey
-): Promise<void> {
-  await splCreateAssociatedTokenAccount(
-    connection,
-    payer,
-    owner,
-    mint,
-    undefined,
-    TOKEN_PROGRAM_ID,
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  );
-}
-
-async function mintTo(
-  connection: anchor.web3.Connection,
-  payer: Keypair,
-  mint: PublicKey,
-  destination: PublicKey,
-  authority: Keypair,
-  amount: number
-): Promise<void> {
-  await splMintTo(
-    connection,
-    payer,
-    mint,
-    destination,
-    authority,
-    amount,
-    [],
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
-}
-
-async function transfer(
-  connection: anchor.web3.Connection,
-  payer: Keypair,
-  source: PublicKey,
-  destination: PublicKey,
-  owner: Keypair,
-  amount: number
-): Promise<void> {
-  await splTransfer(
-    connection,
-    payer,
-    source,
-    destination,
-    owner,
-    amount,
-    [],
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
-}
+// Helper functions removed - using SPL Token library directly
