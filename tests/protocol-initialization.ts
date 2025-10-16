@@ -56,11 +56,7 @@ describe("Protocol Contract - Initialization Tests", () => {
     feeState = feeStateKeypair.publicKey;
 
     await feesProgram.methods
-      .initialize({
-        admin: provider.wallet.publicKey,
-        feeAddress1: provider.wallet.publicKey,
-        feeAddress2: provider.wallet.publicKey,
-      })
+      .initialize()
       .accounts({
         state: feeState,
         admin: provider.wallet.publicKey,
@@ -84,10 +80,10 @@ describe("Protocol Contract - Initialization Tests", () => {
 
       const tx = await protocolProgram.methods
         .initialize({
-          stableCoinMint: stablecoinMint,
-          oracleProgram: oracleProgram.programId,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
           oracleStateAddr: oracleState,
-          feeDistributor: feesProgram.programId,
+          feeDistributorAddr: feesProgram.programId,
           feeStateAddr: feeState,
         })
         .accounts({

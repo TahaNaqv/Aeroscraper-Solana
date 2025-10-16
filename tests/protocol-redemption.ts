@@ -41,7 +41,7 @@ describe("Protocol Contract - Redemption Tests", () => {
     const feeStateKeypair = Keypair.generate();
     feeState = feeStateKeypair.publicKey;
     await feesProgram.methods
-      .initialize({ admin: admin.publicKey, feeAddress1: admin.publicKey, feeAddress2: admin.publicKey })
+      .initialize()
       .accounts({ state: feeState, admin: admin.publicKey, systemProgram: SystemProgram.programId })
       .signers([feeStateKeypair])
       .rpc();
@@ -49,7 +49,7 @@ describe("Protocol Contract - Redemption Tests", () => {
     const protocolStateKeypair = Keypair.generate();
     protocolState = protocolStateKeypair.publicKey;
     await protocolProgram.methods
-      .initialize({ stableCoinMint: stablecoinMint, oracleProgram: oracleProgram.programId, oracleStateAddr: oracleState, feeDistributor: feesProgram.programId, feeStateAddr: feeState })
+      .initialize({ stableCoinCodeId: new anchor.BN(1), oracleHelperAddr: oracleProgram.programId, oracleStateAddr: oracleState, feeDistributorAddr: feesProgram.programId, feeStateAddr: feeState })
       .accounts({ state: protocolState, admin: admin.publicKey, stableCoinMint: stablecoinMint, systemProgram: SystemProgram.programId })
       .signers([protocolStateKeypair])
       .rpc();

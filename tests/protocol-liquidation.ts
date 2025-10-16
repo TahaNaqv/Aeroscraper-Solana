@@ -58,11 +58,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
     feeState = feeStateKeypair.publicKey;
 
     await feesProgram.methods
-      .initialize({
-        admin: admin.publicKey,
-        feeAddress1: admin.publicKey,
-        feeAddress2: admin.publicKey,
-      })
+      .initialize()
       .accounts({
         state: feeState,
         admin: admin.publicKey,
@@ -76,10 +72,10 @@ describe("Protocol Contract - Liquidation Tests", () => {
 
     await protocolProgram.methods
       .initialize({
-        stableCoinMint: stablecoinMint,
-        oracleProgram: oracleProgram.programId,
+        stableCoinCodeId: new anchor.BN(1),
+        oracleHelperAddr: oracleProgram.programId,
         oracleStateAddr: oracleState,
-        feeDistributor: feesProgram.programId,
+        feeDistributorAddr: feesProgram.programId,
         feeStateAddr: feeState,
       })
       .accounts({
