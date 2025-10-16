@@ -6,7 +6,10 @@ Your test suite had **initialization parameter mismatches** between test files a
 
 ## Root Cause
 
-`protocol-test-utils.ts` had **outdated initialization code** that didn't match the current contract interfaces, while `protocol-simple-test.ts` had the correct implementation.
+`protocol-test-utils.ts` had **incorrect initialization parameters** that didn't match the current contract interfaces. The issues were:
+1. Protocol init: Missing `stableCoinCodeId`, wrong field name `feeHelperAddr` → should be `feeDistributorAddr`
+2. Oracle init: The struct form `{ oracleAddress: ... }` was actually correct (original code had this right)
+3. Fees init: Passing unnecessary parameters when it expects none
 
 ## Fixes Applied
 
@@ -44,17 +47,13 @@ await protocolProgram.methods
 ```
 
 ### 2. Oracle Initialize ✅
-**Before (WRONG - protocol-test-utils.ts had this):**
+**Correct Form (Verified):**
 ```typescript
 await oracleProgram.methods
-  .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })  // Actually this WAS correct!
+  .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })  // ✅ Correct - expects InitializeParams struct
 ```
 
-**Note:** The original object form was correct. The contract expects `InitializeParams` struct:
-```typescript
-await oracleProgram.methods
-  .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })  // ✅ Correct struct form
-```
+**Note:** The oracle contract expects `InitializeParams` struct with `oracleAddress` field. Both test files now use the correct struct form.
 
 ### 3. Fees Initialize ✅
 **Before (WRONG):**
