@@ -150,7 +150,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   // Initialize oracle
   const oracleStateKeypair = Keypair.generate();
   await oracleProgram.methods
-    .initialize(PYTH_ORACLE_ADDRESS)
+    .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
     .accounts({
       state: oracleStateKeypair.publicKey,
       admin: admin.publicKey,

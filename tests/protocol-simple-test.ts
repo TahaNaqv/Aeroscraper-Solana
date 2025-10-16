@@ -41,7 +41,7 @@ describe("Aerospacer Protocol - Simple Test", () => {
     oracleState = oracleStateKeypair.publicKey;
 
     await oracleProgram.methods
-      .initialize(PYTH_ORACLE_ADDRESS)
+      .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
       .accounts({
         state: oracleState,
         admin: admin.publicKey,
