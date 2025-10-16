@@ -132,10 +132,10 @@ describe("Protocol Contract - Initialization Tests", () => {
 
       await protocolProgram.methods
         .initialize({
-          stableCoinMint: stablecoinMint,
-          oracleProgram: oracleProgram.programId,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
           oracleStateAddr: oracleState,
-          feeDistributor: feesProgram.programId,
+          feeDistributorAddr: feesProgram.programId,
           feeStateAddr: feeState,
         })
         .accounts({
@@ -152,10 +152,10 @@ describe("Protocol Contract - Initialization Tests", () => {
       try {
         await protocolProgram.methods
           .initialize({
-            stableCoinMint: stablecoinMint,
-            oracleProgram: oracleProgram.programId,
+            stableCoinCodeId: new anchor.BN(1),
+            oracleHelperAddr: oracleProgram.programId,
             oracleStateAddr: oracleState,
-            feeDistributor: feesProgram.programId,
+            feeDistributorAddr: feesProgram.programId,
             feeStateAddr: feeState,
           })
           .accounts({
@@ -181,10 +181,10 @@ describe("Protocol Contract - Initialization Tests", () => {
 
       await protocolProgram.methods
         .initialize({
-          stableCoinMint: stablecoinMint,
-          oracleProgram: oracleProgram.programId,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
           oracleStateAddr: oracleState,
-          feeDistributor: feesProgram.programId,
+          feeDistributorAddr: feesProgram.programId,
           feeStateAddr: feeState,
         })
         .accounts({
@@ -336,10 +336,10 @@ describe("Protocol Contract - Initialization Tests", () => {
 
       await protocolProgram.methods
         .initialize({
-          stableCoinMint: stablecoinMint,
-          oracleProgram: oracleProgram.programId,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
           oracleStateAddr: oracleState,
-          feeDistributor: feesProgram.programId,
+          feeDistributorAddr: feesProgram.programId,
           feeStateAddr: feeState,
         })
         .accounts({
@@ -386,10 +386,10 @@ describe("Protocol Contract - Initialization Tests", () => {
 
       await protocolProgram.methods
         .initialize({
-          stableCoinMint: stablecoinMint,
-          oracleProgram: oracleProgram.programId,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
           oracleStateAddr: oracleState,
-          feeDistributor: feesProgram.programId,
+          feeDistributorAddr: feesProgram.programId,
           feeStateAddr: feeState,
         })
         .accounts({
