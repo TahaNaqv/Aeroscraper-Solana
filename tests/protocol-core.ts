@@ -11,9 +11,7 @@ import {
   createAssociatedTokenAccount,
   createMint,
   mintTo,
-  transfer,
-  setAuthority,
-  AuthorityType
+  transfer
 } from "@solana/spl-token";
 import { assert } from "chai";
 
@@ -79,24 +77,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // Create token mints
     stablecoinMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
     collateralMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
-    
-    // Derive protocol stablecoin vault PDA (this will be the mint authority)
-    const [protocolStablecoinVaultPDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("protocol_stablecoin_vault")],
-      protocolProgram.programId
-    );
-    
-    // Transfer mint authority to the protocol vault PDA
-    await setAuthority(
-      provider.connection,
-      admin,
-      stablecoinMint,
-      admin.publicKey,
-      AuthorityType.MintTokens,
-      protocolStablecoinVaultPDA
-    );
-    
-    console.log("✅ Stablecoin mint authority transferred to vault PDA:", protocolStablecoinVaultPDA.toString());
 
     // Create token accounts
     adminStablecoinAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
@@ -114,7 +94,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
     await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, user2.publicKey);
     await createAssociatedTokenAccount(provider.connection, admin, collateralMint, user2.publicKey);
 
-    // Mint initial collateral tokens (stablecoins are minted by protocol only)
+    // Mint initial tokens
+    await mintTo(provider.connection, admin, stablecoinMint, adminStablecoinAccount, admin, 1000000000);
     await mintTo(provider.connection, admin, collateralMint, adminCollateralAccount, admin, 1000000000);
 
     // Transfer tokens to users
@@ -267,11 +248,11 @@ describe("Aeroscraper Protocol Core Operations", () => {
     try {
       await protocolProgram.methods
         .initialize({
-          stable_coin_code_id: new anchor.BN(1),
-          oracle_helper_addr: oracleProgram.programId,
-          oracle_state_addr: oracleState,
-          fee_distributor_addr: feesProgram.programId,
-          fee_state_addr: feesState,
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
+          oracleStateAddr: oracleState,
+          feeDistributorAddr: feesProgram.programId,
+          feeStateAddr: feesState,
         })
         .accounts({
           state: protocolState,
@@ -283,6 +264,37 @@ describe("Aeroscraper Protocol Core Operations", () => {
         .rpc();
     } catch (e) {
       console.log("Protocol already initialized");
+    }
+
+    // Create protocol vault token accounts
+    try {
+      const protocolCollateralVault = await createAssociatedTokenAccount(
+        provider.connection,
+        admin,
+        collateralMint,
+        protocolCollateralAccountPDA,
+        {}, // confirmOptions
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      console.log("Protocol collateral vault created");
+    } catch (e) {
+      console.log("Protocol collateral vault already exists");
+    }
+
+    try {
+      const protocolStablecoinVault = await createAssociatedTokenAccount(
+        provider.connection,
+        admin,
+        stablecoinMint,
+        protocolStablecoinAccountPDA,
+        {}, // confirmOptions
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      console.log("Protocol stablecoin vault created");
+    } catch (e) {
+      console.log("Protocol stablecoin vault already exists");
     }
   });
 
