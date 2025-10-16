@@ -34,13 +34,15 @@ pub struct Stake<'info> {
     )]
     pub user_stablecoin_account: Account<'info, TokenAccount>,
 
-    /// CHECK: Protocol stablecoin vault PDA
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        token::mint = stable_coin_mint,
+        token::authority = protocol_stablecoin_vault,
         seeds = [b"protocol_stablecoin_vault"],
         bump
     )]
-    pub protocol_stablecoin_vault: AccountInfo<'info>,
+    pub protocol_stablecoin_vault: Account<'info, TokenAccount>,
 
     /// CHECK: This is the stable coin mint account
     #[account(

@@ -61,7 +61,10 @@ pub struct OpenTrove<'info> {
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        token::mint = user_collateral_account.mint,
+        token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
@@ -105,7 +108,10 @@ pub struct OpenTrove<'info> {
     pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        token::mint = stable_coin_mint,
+        token::authority = protocol_stablecoin_account,
         seeds = [b"protocol_stablecoin_vault"],
         bump
     )]

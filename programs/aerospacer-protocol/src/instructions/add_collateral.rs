@@ -51,7 +51,10 @@ pub struct AddCollateral<'info> {
     pub user_collateral_account: Account<'info, TokenAccount>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        token::mint = user_collateral_account.mint,
+        token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
@@ -102,6 +105,7 @@ pub struct AddCollateral<'info> {
     pub clock: Sysvar<'info, Clock>,
 
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 impl<'info> AddCollateral<'info> {

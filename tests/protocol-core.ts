@@ -247,17 +247,18 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
     try {
       await protocolProgram.methods
-        .initialize()
+        .initialize({
+          stable_coin_code_id: new anchor.BN(1),
+          oracle_helper_addr: oracleProgram.programId,
+          oracle_state_addr: oracleState,
+          fee_distributor_addr: feesProgram.programId,
+          fee_state_addr: feesState,
+        })
         .accounts({
           state: protocolState,
           admin: admin.publicKey,
-          oracleProgram: oracleProgram.programId,
-          oracleState: oracleState,
-          feesProgram: feesProgram.programId,
-          feesState: feesState,
           stableCoinMint: stablecoinMint,
           systemProgram: SystemProgram.programId,
-          rent: SYSVAR_RENT_PUBKEY,
         })
         .signers([admin])
         .rpc();
@@ -275,9 +276,9 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .openTrove({
-            collateralAmount: new anchor.BN(collateralAmount),
-            loanAmount: new anchor.BN(loanAmount),
-            collateralDenom: collateralDenom,
+            loan_amount: new anchor.BN(loanAmount),
+            collateral_denom: collateralDenom,
+            collateral_amount: new anchor.BN(collateralAmount),
           })
           .accounts({
             user: user1.publicKey,
@@ -321,8 +322,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .addCollateral({
-            collateralAmount: new anchor.BN(additionalCollateral),
-            collateralDenom: "SOL",
+            amount: new anchor.BN(additionalCollateral),
+            collateral_denom: "SOL",
+            prev_node_id: null,
+            next_node_id: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -357,8 +360,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .borrowLoan({
-            loanAmount: new anchor.BN(additionalLoan),
-            collateralDenom: "SOL",
+            loan_amount: new anchor.BN(additionalLoan),
+            collateral_denom: "SOL",
+            prev_node_id: null,
+            next_node_id: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -409,13 +414,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStakeAmount: user1Stake,
             state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
-            protocolStablecoinAccount: protocolStablecoinAccountPDA,
+            protocolStablecoinVault: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            feesProgram: feesProgram.programId,
-            feesState: feesState,
-            stabilityPoolTokenAccount: stabilityPoolTokenAccount,
-            feeAddress1TokenAccount: feeAddress1TokenAccount,
-            feeAddress2TokenAccount: feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
@@ -455,9 +455,9 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .openTrove({
-            collateralAmount: new anchor.BN(collateralAmount),
-            loanAmount: new anchor.BN(loanAmount),
-            collateralDenom: collateralDenom,
+            loan_amount: new anchor.BN(loanAmount),
+            collateral_denom: collateralDenom,
+            collateral_amount: new anchor.BN(collateralAmount),
           })
           .accounts({
             user: user2.publicKey,
@@ -501,8 +501,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .repayLoan({
-            repayAmount: new anchor.BN(repayAmount),
-            collateralDenom: "SOL",
+            amount: new anchor.BN(repayAmount),
+            collateral_denom: "SOL",
+            prev_node_id: null,
+            next_node_id: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -546,8 +548,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .removeCollateral({
-            collateralAmount: new anchor.BN(removeAmount),
-            collateralDenom: "SOL",
+            collateral_amount: new anchor.BN(removeAmount),
+            collateral_denom: "SOL",
+            prev_node_id: null,
+            next_node_id: null,
           })
           .accounts({
             user: user1.publicKey,

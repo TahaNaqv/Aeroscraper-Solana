@@ -75,7 +75,10 @@ pub struct BorrowLoan<'info> {
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        token::mint = user_collateral_account.mint,
+        token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
@@ -137,6 +140,7 @@ pub struct BorrowLoan<'info> {
     pub fee_address_2_token_account: AccountInfo<'info>,
     
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 
