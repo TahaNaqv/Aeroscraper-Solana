@@ -74,7 +74,7 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
   );
 
   const [node] = PublicKey.findProgramAddressSync(
-    [Buffer.from("trove_node"), user.toBuffer()],
+    [Buffer.from("node"), user.toBuffer()],
     programId
   );
 
@@ -98,10 +98,9 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
     programId
   );
 
-  const [totalLiquidationCollateralGain] = PublicKey.findProgramAddressSync(
-    [Buffer.from("total_liquidation_collateral_gain"), Buffer.from(collateralDenom)],
-    programId
-  );
+  // Note: total_liq_gain requires block_height parameter in Rust, not used in basic setup
+  // Removed to prevent "Max seed length exceeded" error
+  const totalLiquidationCollateralGain = PublicKey.default;
 
   return {
     protocolStablecoinVault,
