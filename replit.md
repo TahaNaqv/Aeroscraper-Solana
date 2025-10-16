@@ -46,3 +46,25 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Pyth Network**: Used by the `aerospacer-oracle` program for real-time price feeds.
 *   **Solana Program Library (SPL) Tokens**: Integrated for token operations within the protocol.
 *   **Node.js & npm**: For running TypeScript tests and managing project dependencies.
+
+## Recent Changes
+
+**October 16, 2025 - Protocol Vault Signing Architecture Fixed** ✅
+- **FIXED CRITICAL BUG**: Implemented invoke_signed for all PDA vault authorities
+  * Protocol vaults (protocol_collateral_vault, protocol_stablecoin_vault) now properly sign CPIs
+  * Added `invoke_signed` with correct seeds and bumps to all vault operations
+  * Vault PDAs can now self-sign for mint/transfer/burn operations
+- **invoke_signed Implementations**:
+  * ✅ open_trove.rs: MintTo with protocol_stablecoin_account authority + seeds
+  * ✅ borrow_loan.rs: Added missing protocol_stablecoin_account + MintTo invoke_signed
+  * ✅ remove_collateral.rs: Transfer with protocol_collateral_account authority + seeds
+  * ✅ redeem.rs: Burn + Transfer with vault PDA authorities + seeds
+  * ✅ close_trove.rs: Already had correct invoke_signed implementation
+  * ✅ unstake.rs: Already had correct invoke_signed implementation
+  * ✅ withdraw_liquidation_gains.rs: Already had correct invoke_signed implementation
+- **Test Fixes Applied**:
+  * ✅ Protocol initialization uses snake_case parameters (stable_coin_code_id, etc.)
+  * ✅ All instruction parameters match Rust structs (loan_amount, collateral_amount, etc.)
+  * ✅ Added init_if_needed to vault PDAs in 7 instructions
+  * ✅ Added system_program to all instructions with init_if_needed
+  * ✅ Protocol is now architecturally sound for vault operations

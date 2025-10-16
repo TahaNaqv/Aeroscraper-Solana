@@ -45,7 +45,18 @@ pub struct BorrowLoan<'info> {
     pub user_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: This is the stable coin mint account
+    #[account(mut)]
     pub stable_coin_mint: UncheckedAccount<'info>,
+    
+    #[account(
+        init_if_needed,
+        payer = user,
+        token::mint = stable_coin_mint,
+        token::authority = protocol_stablecoin_account,
+        seeds = [b"protocol_stablecoin_vault"],
+        bump
+    )]
+    pub protocol_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -234,13 +245,21 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     }
 
     // Mint total loan amount (including fee)
-    let mint_ctx = CpiContext::new(
+    // Use invoke_signed for PDA authority
+    let mint_seeds = &[
+        b"protocol_stablecoin_vault".as_ref(),
+        &[ctx.bumps.protocol_stablecoin_account],
+    ];
+    let mint_signer = &[&mint_seeds[..]];
+    
+    let mint_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         MintTo {
             mint: ctx.accounts.stable_coin_mint.to_account_info(),
             to: ctx.accounts.user_stablecoin_account.to_account_info(),
-            authority: ctx.accounts.stable_coin_mint.to_account_info(), // Mint authority
+            authority: ctx.accounts.protocol_stablecoin_account.to_account_info(),
         },
+        mint_signer,
     );
     anchor_spl::token::mint_to(mint_ctx, params.loan_amount)?;
 

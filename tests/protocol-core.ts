@@ -11,7 +11,9 @@ import {
   createAssociatedTokenAccount,
   createMint,
   mintTo,
-  transfer
+  transfer,
+  setAuthority,
+  AuthorityType
 } from "@solana/spl-token";
 import { assert } from "chai";
 
@@ -77,6 +79,24 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // Create token mints
     stablecoinMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
     collateralMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
+    
+    // Derive protocol stablecoin vault PDA (this will be the mint authority)
+    const [protocolStablecoinVaultPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_stablecoin_vault")],
+      protocolProgram.programId
+    );
+    
+    // Transfer mint authority to the protocol vault PDA
+    await setAuthority(
+      provider.connection,
+      admin,
+      stablecoinMint,
+      admin.publicKey,
+      AuthorityType.MintTokens,
+      protocolStablecoinVaultPDA
+    );
+    
+    console.log("✅ Stablecoin mint authority transferred to vault PDA:", protocolStablecoinVaultPDA.toString());
 
     // Create token accounts
     adminStablecoinAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
@@ -94,8 +114,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, user2.publicKey);
     await createAssociatedTokenAccount(provider.connection, admin, collateralMint, user2.publicKey);
 
-    // Mint initial tokens
-    await mintTo(provider.connection, admin, stablecoinMint, adminStablecoinAccount, admin, 1000000000);
+    // Mint initial collateral tokens (stablecoins are minted by protocol only)
     await mintTo(provider.connection, admin, collateralMint, adminCollateralAccount, admin, 1000000000);
 
     // Transfer tokens to users

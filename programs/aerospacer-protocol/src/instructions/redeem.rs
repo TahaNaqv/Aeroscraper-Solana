@@ -212,13 +212,21 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
     anchor_spl::token::transfer(transfer_ctx, net_redemption_amount)?;
 
     // Burn NET redemption amount (not including fee)
-    let burn_ctx = CpiContext::new(
+    // Use invoke_signed for PDA authority
+    let burn_seeds = &[
+        b"protocol_stablecoin_vault".as_ref(),
+        &[ctx.bumps.protocol_stablecoin_vault],
+    ];
+    let burn_signer = &[&burn_seeds[..]];
+    
+    let burn_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         Burn {
             mint: ctx.accounts.stable_coin_mint.to_account_info(),
             from: ctx.accounts.protocol_stablecoin_vault.to_account_info(),
             authority: ctx.accounts.protocol_stablecoin_vault.to_account_info(),
         },
+        burn_signer,
     );
     anchor_spl::token::burn(burn_ctx, net_redemption_amount)?;
 
@@ -275,13 +283,22 @@ pub fn handler(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
             
             if collateral_to_send > 0 {
                 // Transfer collateral to user
-                let collateral_transfer_ctx = CpiContext::new(
+                // Use invoke_signed for PDA authority
+                let collateral_seeds = &[
+                    b"protocol_collateral_vault".as_ref(),
+                    params.collateral_denom.as_bytes(),
+                    &[ctx.bumps.protocol_collateral_vault],
+                ];
+                let collateral_signer = &[&collateral_seeds[..]];
+                
+                let collateral_transfer_ctx = CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
                         from: ctx.accounts.protocol_collateral_vault.to_account_info(),
                         to: ctx.accounts.user_collateral_account.to_account_info(),
                         authority: ctx.accounts.protocol_collateral_vault.to_account_info(),
                     },
+                    collateral_signer,
                 );
                 anchor_spl::token::transfer(collateral_transfer_ctx, collateral_to_send)?;
                 

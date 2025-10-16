@@ -289,13 +289,21 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     )?;
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)
-    let mint_ctx = CpiContext::new(
+    // Use invoke_signed for PDA authority
+    let mint_seeds = &[
+        b"protocol_stablecoin_vault".as_ref(),
+        &[ctx.bumps.protocol_stablecoin_account],
+    ];
+    let mint_signer = &[&mint_seeds[..]];
+    
+    let mint_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         MintTo {
             mint: ctx.accounts.stable_coin_mint.to_account_info(),
             to: ctx.accounts.user_stablecoin_account.to_account_info(),
             authority: ctx.accounts.protocol_stablecoin_account.to_account_info(),
         },
+        mint_signer,
     );
     anchor_spl::token::mint_to(mint_ctx, params.loan_amount)?;
     
