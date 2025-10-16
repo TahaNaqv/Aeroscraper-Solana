@@ -6,13 +6,7 @@
     "init_oracle_devnet": "ts-node scripts/init-oracle-devnet.ts",
     "add_assets_devnet": "ts-node scripts/add-assets-devnet.ts",
     "check_price_ids": "ts-node scripts/check-price-ids.ts",
-    "fix_price_ids": "ts-node scripts/fix-price-ids.ts",
-    "test_prices_devnet": "ts-node scripts/test-prices-devnet.ts",
-    "test-protocol-local": "anchor test --skip-local-validator",
-    "test-protocol-init": "anchor test --skip-local-validator tests/protocol-initialization.ts",
-    "test-protocol-trove": "anchor test --skip-local-validator tests/protocol-trove-management.ts",
-    "test-protocol-security": "anchor test --skip-local-validator tests/protocol-cpi-security.ts tests/protocol-security.ts",
-    "test-protocol-critical": "anchor test --skip-local-validator tests/protocol-critical-instructions.ts"
+    "fix_price_ids": "ts-node scripts/fix-price-ids.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
