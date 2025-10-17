@@ -275,36 +275,3 @@ pub fn get_price_via_cpi<'info>(
     
     Ok(price_response)
 }
-
-/// Mock oracle for testing
-pub struct MockOracle;
-
-impl MockOracle {
-    /// Get mock price data
-    pub fn get_mock_price(denom: &str) -> PriceData {
-        let (price, decimal) = match denom {
-            "SOL" => (100_000_000i64, 9),
-            "USDC" => (1_000_000i64, 6),
-            "INJ" => (144015750000i64, 18),
-            "ATOM" => (6313260000i64, 6),
-            _ => (50_000_000i64, 6),
-        };
-        
-        PriceData {
-            denom: denom.to_string(),
-            price: price as i64, // Convert to i64 for oracle compatibility
-            decimal,
-            confidence: 1000,
-            timestamp: Clock::get().unwrap().unix_timestamp,
-            exponent: -8, // Mock exponent
-        }
-    }
-    
-    /// Get all mock prices
-    pub fn get_all_mock_prices() -> Vec<PriceData> {
-        let denoms = vec!["SOL", "USDC", "INJ", "ATOM"];
-        denoms.into_iter()
-            .map(|denom| Self::get_mock_price(denom))
-            .collect()
-    }
-}
