@@ -49,6 +49,23 @@ The design supports transparent and auditable on-chain interactions, with all st
 
 ## Recent Changes
 
+**October 17, 2025 - Dead Code Cleanup: Removed Unused Mock/Stub Functions** ✅
+- **PROTOCOL CODE CLEANUP**: Removed all dead code and unused mock implementations to ensure clean production codebase
+  * ✅ Removed: TroveManager::redeem() mock function from trove_management.rs (70+ lines of dead code)
+    - Real redemption implementation lives in redeem.rs instruction handler
+    - Mock was never used in production paths
+    - Removed associated RedeemResult struct (unused)
+  * ✅ Removed: query_find_sorted_troves_insert_position() stub from query/mod.rs
+    - Function returned hardcoded (None, None) - not used in production
+    - Instruction handlers use their own traversal logic with OracleContext
+    - Off-chain clients should use instruction handlers directly
+  * ✅ Verified: All programs compile successfully after cleanup
+- **CLEANUP BENEFITS**:
+  * Eliminates confusion between mock and real implementations
+  * Reduces codebase size and maintenance burden
+  * Makes production code paths crystal clear
+  * No unused structs or functions remain
+
 **October 17, 2025 - Dynamic Oracle Integration: Removed Hardcoded Collateral Denoms** ✅
 - **ORACLE STATE AS SINGLE SOURCE OF TRUTH**: Eliminated hardcoded collateral list in protocol oracle integration
   * ✅ Implemented: get_all_denoms_via_cpi() function for dynamic collateral discovery via CPI

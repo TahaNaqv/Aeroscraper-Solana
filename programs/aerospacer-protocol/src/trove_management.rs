@@ -26,14 +26,6 @@ pub struct LiquidationResult {
     pub liquidation_gains: Vec<(String, u64)>, // Changed from HashMap to Vec for Anchor compatibility
 }
 
-/// Redemption operation result
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
-pub struct RedeemResult {
-    pub collateral_sent: Vec<(String, u64)>, // Changed from HashMap to Vec for Anchor compatibility
-    pub stablecoin_burned: u64,
-    pub troves_redeemed: Vec<Pubkey>,
-}
-
 /// Trove manager for handling all trove operations
 pub struct TroveManager;
 
@@ -441,78 +433,6 @@ impl TroveManager {
             total_debt_liquidated,
             total_collateral_gained,
             liquidation_gains,
-        })
-    }
-    
-    /// Redeem stablecoin for collateral from riskiest troves
-    pub fn redeem(
-        trove_ctx: &mut TroveContext,
-        _collateral_ctx: &mut CollateralContext,
-        _oracle_ctx: &OracleContext,
-        redeem_amount: u64,
-    ) -> Result<RedeemResult> {
-        let mut collateral_sent = Vec::new();
-        let mut troves_redeemed = Vec::new();
-        let mut remaining_amount = redeem_amount;
-        
-        // Start from the riskiest trove (head of sorted list)
-        // Note: In production, this would iterate through the sorted troves list
-        let mut current_trove = None; // Simplified for now - full implementation needs sorted list access
-        
-        while let Some(trove_user) = current_trove {
-            if remaining_amount == 0 {
-                break;
-            }
-            
-            // Get trove information (mock implementation for now)
-            let trove_debt = 1000u64; // Mock debt amount
-            let trove_collateral = vec![("SOL".to_string(), 500u64)]; // Mock collateral
-            
-            // Calculate how much to redeem from this trove
-            let redeem_from_trove = remaining_amount.min(trove_debt);
-            
-            // Calculate collateral to send (proportional to debt redeemed)
-            let collateral_ratio = redeem_from_trove as f64 / trove_debt as f64;
-            
-            for (denom, amount) in &trove_collateral {
-                let collateral_to_send = ((*amount as f64) * collateral_ratio) as u64;
-                
-                // Find existing entry or add new one
-                if let Some(existing) = collateral_sent.iter_mut().find(|(d, _)| d == denom) {
-                    existing.1 += collateral_to_send;
-                } else {
-                    collateral_sent.push((denom.clone(), collateral_to_send));
-                }
-            }
-            
-            // Update trove debt
-            let new_debt = trove_debt - redeem_from_trove;
-            
-            if new_debt == 0 {
-                // Full redemption - close trove
-                // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
-                msg!("Trove fully redeemed and closed: {}", trove_user);
-            } else {
-                // Partial redemption - update ICR
-                // For now, just log - in real implementation would recalculate ICR
-                msg!("Trove partially redeemed: user={}, new_debt={}", trove_user, new_debt);
-            }
-            
-            troves_redeemed.push(trove_user);
-            remaining_amount = remaining_amount.saturating_sub(redeem_from_trove);
-            
-            // Move to next trove (mock implementation)
-            current_trove = None; // Simplified for now
-        }
-        
-        // Update global state
-        trove_ctx.state.total_debt_amount = trove_ctx.state.total_debt_amount
-            .saturating_sub(redeem_amount - remaining_amount);
-        
-        Ok(RedeemResult {
-            collateral_sent,
-            stablecoin_burned: redeem_amount - remaining_amount,
-            troves_redeemed,
         })
     }
 }

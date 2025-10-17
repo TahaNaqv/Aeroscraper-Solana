@@ -97,19 +97,3 @@ pub fn query_liquidation_gains<'a>(
 
     Ok(0)
 }
-
-pub fn query_find_sorted_troves_insert_position(
-    _state_account: &StateAccount,
-    _sorted_troves_state: &Account<SortedTrovesState>,
-    _icr: u64, // Equivalent to Decimal256
-    _prev_node_id: Option<Pubkey>,
-    _next_node_id: Option<Pubkey>,
-) -> Result<(Option<Pubkey>, Option<Pubkey>)> {
-    // NOTE: This query function requires oracle price data to calculate ICRs for sorting.
-    // Since we've removed hardcoded prices, this query should pass an OracleContext
-    // or be called from an instruction handler that has oracle access.
-    // For now, returning None values - caller must use sorted_troves::find_insert_position
-    // from within an instruction handler that has OracleContext available.
-    let (prev_id, next_id) = (None, None);
-    Ok((prev_id, next_id))
-}
