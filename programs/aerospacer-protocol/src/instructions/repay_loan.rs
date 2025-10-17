@@ -105,8 +105,8 @@ pub struct RepayLoan<'info> {
     /// CHECK: Pyth price account for collateral price feed
     pub pyth_price_account: UncheckedAccount<'info>,
     
-    /// Clock sysvar for timestamp validation
-    pub clock: Sysvar<'info, Clock>,
+    /// CHECK: Clock sysvar - validated in handler if needed
+    pub clock: UncheckedAccount<'info>,
     
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

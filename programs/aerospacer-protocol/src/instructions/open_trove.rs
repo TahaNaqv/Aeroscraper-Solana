@@ -136,8 +136,8 @@ pub struct OpenTrove<'info> {
     /// CHECK: Pyth price account for collateral price feed
     pub pyth_price_account: UncheckedAccount<'info>,
     
-    /// Clock sysvar for timestamp validation
-    pub clock: Sysvar<'info, Clock>,
+    /// CHECK: Clock sysvar - validated in handler if needed
+    pub clock: UncheckedAccount<'info>,
     
     // Fee distribution accounts - UncheckedAccount to reduce stack usage
     /// CHECK: Fees program - validated against state in handler
