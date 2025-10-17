@@ -29,37 +29,8 @@ pub struct PriceResponse {
     pub decimal: u8,
 }
 
-pub fn query_all_collateral_prices(
-    _state_account: &StateAccount,
-) -> Result<HashMap<String, PriceResponse>> {
-    // In Injective: deps.querier.query_wasm_smart(oracle_helper_addr, &OracleHelperQueryMsg::Prices {})
-    // For Solana: we would query the oracle program for all prices via CPI
-    let mut map: HashMap<String, PriceResponse> = HashMap::new();
-    
-    // Mock prices for common denoms
-    map.insert("SOL".to_string(), PriceResponse {
-        denom: "SOL".to_string(),
-        price: 100_000_000,
-        decimal: 9,
-    });
-    map.insert("USDC".to_string(), PriceResponse {
-        denom: "USDC".to_string(),
-        price: 1_000_000,
-        decimal: 6,
-    });
-    map.insert("INJ".to_string(), PriceResponse {
-        denom: "INJ".to_string(),
-        price: 144015750000,
-        decimal: 18,
-    });
-    map.insert("ATOM".to_string(), PriceResponse {
-        denom: "ATOM".to_string(),
-        price: 6313260000,
-        decimal: 6,
-    });
-    
-    Ok(map)
-}
+// NOTE: This function has been removed - use OracleContext::get_price() instead
+// All price queries should go through the oracle.rs CPI integration with Pyth Network
 
 pub fn get_liquidation_gains<'a>(
     user: Pubkey,

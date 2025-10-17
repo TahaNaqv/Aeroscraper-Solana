@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::msg::*;
 use crate::error::*;
 // find_insert_location is now in trove_management.rs
-use crate::utils::{get_liquidation_gains, query_all_collateral_prices};
+use crate::utils::get_liquidation_gains;
 
 // Exact replication of INJECTIVE query/mod.rs
 pub fn query_total_collateral_amounts<'a>(
@@ -101,22 +99,17 @@ pub fn query_liquidation_gains<'a>(
 }
 
 pub fn query_find_sorted_troves_insert_position(
-    state_account: &StateAccount,
+    _state_account: &StateAccount,
     _sorted_troves_state: &Account<SortedTrovesState>,
     _icr: u64, // Equivalent to Decimal256
     _prev_node_id: Option<Pubkey>,
     _next_node_id: Option<Pubkey>,
 ) -> Result<(Option<Pubkey>, Option<Pubkey>)> {
-    let collateral_prices = query_all_collateral_prices(state_account)?;
-    
-    // Convert PriceResponse HashMap to u64 HashMap
-    let mut price_map: HashMap<String, u64> = HashMap::new();
-    for (denom, price_response) in collateral_prices {
-        price_map.insert(denom, price_response.price);
-    }
-    
-    // For now, return mock values since find_insert_location is in trove_management
-    // In a real implementation, this would call the appropriate function from trove_management
+    // NOTE: This query function requires oracle price data to calculate ICRs for sorting.
+    // Since we've removed hardcoded prices, this query should pass an OracleContext
+    // or be called from an instruction handler that has oracle access.
+    // For now, returning None values - caller must use sorted_troves::find_insert_position
+    // from within an instruction handler that has OracleContext available.
     let (prev_id, next_id) = (None, None);
     Ok((prev_id, next_id))
 }
