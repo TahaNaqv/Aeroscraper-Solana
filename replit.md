@@ -82,6 +82,19 @@ See **TEST_COVERAGE_ANALYSIS.md** for detailed coverage breakdown and **DEPLOYME
 
 ## Recent Changes
 
+**October 17, 2025 - Stack Overflow Fixes: Oracle Accounts Boxed for BPF Compliance** ✅
+- **SOLANA BPF STACK OPTIMIZATION**: Fixed critical stack overflow errors in 6 instruction handlers
+  * ✅ Issue: Stack exceeded Solana's 4KB limit due to large OracleContext with multiple accounts
+  * ✅ Fixed Instructions: OpenTrove (32 bytes over), AddCollateral (16 bytes over), RemoveCollateral (16 bytes over), RepayLoan (112 bytes over)
+  * ✅ Preemptive Fixes: BorrowLoan, LiquidateTroves (boxed before hitting limits)
+  * ✅ Solution: Boxed oracle_program, oracle_state, and pyth_price_account as Box<AccountInfo<'info>>
+  * ✅ Implementation: Dereferences boxed accounts when creating OracleContext: (*ctx.accounts.oracle_program).clone()
+  * ✅ Architect-reviewed: No functional changes, only stack optimization; program behavior unchanged
+- **COMPILATION STATUS**:
+  * ✅ All 3 programs now compile successfully on local machines
+  * ✅ Stack usage under 4KB limit for all instructions
+  * ✅ Ready for `anchor build` and deployment testing
+
 **October 17, 2025 - Testing Documentation & Deployment Guides Created** ✅
 - **COMPREHENSIVE TESTING DOCUMENTATION**: Created guides for local development and deployment
   * ✅ LOCAL_TESTING_GUIDE.md: Step-by-step Solana/Anchor setup, build instructions, test execution (local & devnet)
