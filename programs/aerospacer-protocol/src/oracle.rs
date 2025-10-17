@@ -57,11 +57,15 @@ impl<'info> OracleContext<'info> {
     
     /// Get prices for all supported collateral denoms via CPI
     pub fn get_all_prices(&self) -> Result<Vec<PriceData>> {
-        let denoms = vec!["SOL", "USDC", "INJ", "ATOM"];
+        let denoms = get_all_denoms_via_cpi(
+            self.oracle_program.to_account_info(),
+            self.oracle_state.to_account_info(),
+        )?;
+        
         let mut prices = Vec::new();
         
         for denom in denoms {
-            let price_data = self.get_price(denom)?;
+            let price_data = self.get_price(&denom)?;
             prices.push(price_data);
         }
         
@@ -274,4 +278,63 @@ pub fn get_price_via_cpi<'info>(
     msg!("Price received: {} for {}", price_response.price, price_response.denom);
     
     Ok(price_response)
+}
+
+/// Execute CPI call to oracle contract's get_all_denoms instruction
+pub fn get_all_denoms_via_cpi<'info>(
+    oracle_program: AccountInfo<'info>,
+    oracle_state: AccountInfo<'info>,
+) -> Result<Vec<String>> {
+    // Calculate discriminator for get_all_denoms instruction
+    // Anchor uses: SHA256("global:get_all_denoms")[0..8]
+    let preimage = b"global:get_all_denoms";
+    let hash_result = hash(preimage);
+    let discriminator = &hash_result.to_bytes()[..8];
+    
+    // Build instruction data (no params, just discriminator)
+    let mut instruction_data = Vec::new();
+    instruction_data.extend_from_slice(discriminator);
+    
+    // Build account metas for CPI - only oracle_state needed
+    let account_metas = vec![
+        AccountMeta::new_readonly(oracle_state.key(), false),
+    ];
+    
+    // Build the instruction
+    let ix = Instruction {
+        program_id: oracle_program.key(),
+        accounts: account_metas,
+        data: instruction_data,
+    };
+    
+    // Execute CPI
+    anchor_lang::solana_program::program::invoke(
+        &ix,
+        &[
+            oracle_state.clone(),
+            oracle_program.clone(),
+        ],
+    )?;
+    
+    msg!("Oracle get_all_denoms CPI executed successfully");
+    
+    // Parse return data from oracle program
+    let return_data = anchor_lang::solana_program::program::get_return_data()
+        .ok_or(AerospacerProtocolError::InvalidAmount)?;
+    
+    // Verify the return data is from our oracle program
+    require!(
+        return_data.0 == oracle_program.key(),
+        AerospacerProtocolError::InvalidAmount
+    );
+    
+    // Deserialize Vec<String> response
+    let denoms: Vec<String> = Vec::<String>::deserialize(&mut &return_data.1[..])?;
+    
+    msg!("Received {} supported denoms from oracle", denoms.len());
+    for denom in &denoms {
+        msg!("  - {}", denom);
+    }
+    
+    Ok(denoms)
 }
