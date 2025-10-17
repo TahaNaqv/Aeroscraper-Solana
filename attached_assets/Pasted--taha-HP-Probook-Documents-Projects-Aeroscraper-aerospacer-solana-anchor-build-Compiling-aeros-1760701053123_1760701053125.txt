@@ -31,24 +31,24 @@ warning: unused variable: `collateral_data`
    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_collateral_data`
 
 warning: `aerospacer-oracle` (lib) generated 4 warnings
-    Finished `release` profile [optimized] target(s) in 24.56s
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+    Finished `release` profile [optimized] target(s) in 16.67s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.59s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_oracle-229a9b501a96c94f)
    Compiling aerospacer-oracle v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-oracle)
    Compiling aerospacer-fees v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-fees)
 warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::realloc`: Use AccountInfo::resize() instead
-  --> programs/aerospacer-fees/src/lib.rs:13:1
+  --> programs/aerospacer-oracle/src/lib.rs:21:1
    |
-13 | #[program]
+21 | #[program]
    | ^^^^^^^^^^
    |
    = note: `#[warn(deprecated)]` on by default
    = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::realloc`: Use AccountInfo::resize() instead
-  --> programs/aerospacer-oracle/src/lib.rs:21:1
+  --> programs/aerospacer-fees/src/lib.rs:13:1
    |
-21 | #[program]
+13 | #[program]
    | ^^^^^^^^^^
    |
    = note: `#[warn(deprecated)]` on by default
@@ -95,8 +95,8 @@ Error: Function _ZN195_$LT$aerospacer_protocol..instructions..remove_collateral.
 Error: Function _ZN167_$LT$aerospacer_protocol..instructions..repay_loan..RepayLoan$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..repay_loan..RepayLoanBumps$GT$$GT$12try_accounts17h41ac0a39044bb3d5E Stack offset of 4208 exceeded max offset of 4096 by 112 bytes, please minimize large stack variables. Estimated function frame size: 4608 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
 
 warning: `aerospacer-protocol` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 1m 28s
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.85s
+    Finished `release` profile [optimized] target(s) in 1m 23s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.19s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_protocol-889ac5130c6fb2da)
    Compiling aerospacer-fees v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-fees)
 warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::realloc`: Use AccountInfo::resize() instead
@@ -109,7 +109,7 @@ warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::real
    = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: `aerospacer-fees` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 14.18s
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.73s
+    Finished `release` profile [optimized] target(s) in 10.52s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.66s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_fees-e8568a44fae296dc)
 taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 

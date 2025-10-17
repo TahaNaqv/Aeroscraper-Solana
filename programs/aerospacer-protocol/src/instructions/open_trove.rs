@@ -235,50 +235,52 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     msg!("Opening fee: {} aUSD ({}%)", fee_amount, ctx.accounts.state.protocol_fee);
     msg!("Net loan amount: {} aUSD", net_loan_amount);
     
-    // Create context structs for clean architecture
-    let mut trove_ctx = TroveContext {
-        user: ctx.accounts.user.clone(),
-        user_debt_amount: (*ctx.accounts.user_debt_amount).clone(),
-        liquidity_threshold: (*ctx.accounts.liquidity_threshold).clone(),
-        state: (*ctx.accounts.state).clone(),
-    };
-    
-    let mut collateral_ctx = CollateralContext {
-        user: ctx.accounts.user.clone(),
-        user_collateral_amount: (*ctx.accounts.user_collateral_amount).clone(),
-        user_collateral_account: (*ctx.accounts.user_collateral_account).clone(),
-        protocol_collateral_account: (*ctx.accounts.protocol_collateral_account).clone(),
-        total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
-        token_program: ctx.accounts.token_program.clone(),
-    };
-    
-    let _sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: (*ctx.accounts.sorted_troves_state).clone(),
-        state: (*ctx.accounts.state).clone(),
-    };
-    
-    let oracle_ctx = OracleContext {
-        oracle_program: ctx.accounts.oracle_program.clone(),
-        oracle_state: ctx.accounts.oracle_state.clone(),
-        pyth_price_account: ctx.accounts.pyth_price_account.clone(),
-        clock: ctx.accounts.clock.to_account_info(),
-    };
-    
-    // Use TroveManager with NET loan amount (after fee)
-    let result = TroveManager::open_trove(
-        &mut trove_ctx,
-        &mut collateral_ctx,
-        &oracle_ctx,
-        net_loan_amount,  // Use net amount for debt recording
-        params.collateral_amount,
-        params.collateral_denom.clone(),
-    )?;
+    // Create contexts in scoped block to reduce stack usage
+    // Execute trove operations and capture results
+    let result = {
+        let mut trove_ctx = TroveContext {
+            user: ctx.accounts.user.clone(),
+            user_debt_amount: (*ctx.accounts.user_debt_amount).clone(),
+            liquidity_threshold: (*ctx.accounts.liquidity_threshold).clone(),
+            state: (*ctx.accounts.state).clone(),
+        };
+        
+        let mut collateral_ctx = CollateralContext {
+            user: ctx.accounts.user.clone(),
+            user_collateral_amount: (*ctx.accounts.user_collateral_amount).clone(),
+            user_collateral_account: (*ctx.accounts.user_collateral_account).clone(),
+            protocol_collateral_account: (*ctx.accounts.protocol_collateral_account).clone(),
+            total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
+            token_program: ctx.accounts.token_program.clone(),
+        };
+        
+        let oracle_ctx = OracleContext {
+            oracle_program: ctx.accounts.oracle_program.clone(),
+            oracle_state: ctx.accounts.oracle_state.clone(),
+            pyth_price_account: ctx.accounts.pyth_price_account.clone(),
+            clock: ctx.accounts.clock.to_account_info(),
+        };
+        
+        // Use TroveManager with NET loan amount (after fee)
+        let result = TroveManager::open_trove(
+            &mut trove_ctx,
+            &mut collateral_ctx,
+            &oracle_ctx,
+            net_loan_amount,  // Use net amount for debt recording
+            params.collateral_amount,
+            params.collateral_denom.clone(),
+        )?;
+        
+        // Update state total debt before contexts are dropped
+        ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
+        
+        Ok::<_, Error>(result)
+    }?;
     
     // Update the actual accounts with the results
     ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
-    ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
     
     // Insert trove into sorted list using the Node account from context
     // Pass remaining_accounts to update neighbor nodes (old_tail.next_id)

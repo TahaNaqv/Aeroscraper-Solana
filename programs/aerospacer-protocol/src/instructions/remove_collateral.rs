@@ -132,49 +132,49 @@ pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -
         AerospacerProtocolError::InsufficientCollateral
     );
     
-    // Create context structs for clean architecture
-    let mut trove_ctx = TroveContext {
-        user: ctx.accounts.user.clone(),
-        user_debt_amount: ctx.accounts.user_debt_amount.clone(),
-        liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
-        state: ctx.accounts.state.clone(),
-    };
-    
-    let mut collateral_ctx = CollateralContext {
-        user: ctx.accounts.user.clone(),
-        user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
-        user_collateral_account: ctx.accounts.user_collateral_account.clone(),
-        protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
-        total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
-        token_program: ctx.accounts.token_program.clone(),
-    };
-    
-    let sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
-        state: ctx.accounts.state.clone(),
-    };
-    
-    let oracle_ctx = OracleContext {
-        oracle_program: ctx.accounts.oracle_program.clone(),
-        oracle_state: ctx.accounts.oracle_state.clone(),
-        pyth_price_account: ctx.accounts.pyth_price_account.clone(),
-        clock: ctx.accounts.clock.to_account_info(),
-    };
-    
-    // Use TroveManager for clean implementation
-    let result = TroveManager::remove_collateral(
-        &mut trove_ctx,
-        &mut collateral_ctx,
-        &oracle_ctx,
-        params.collateral_amount,
-        params.collateral_denom.clone(),
-    )?;
+    // Create contexts in scoped block to reduce stack usage
+    let result = {
+        let mut trove_ctx = TroveContext {
+            user: ctx.accounts.user.clone(),
+            user_debt_amount: ctx.accounts.user_debt_amount.clone(),
+            liquidity_threshold: ctx.accounts.liquidity_threshold.clone(),
+            state: ctx.accounts.state.clone(),
+        };
+        
+        let mut collateral_ctx = CollateralContext {
+            user: ctx.accounts.user.clone(),
+            user_collateral_amount: ctx.accounts.user_collateral_amount.clone(),
+            user_collateral_account: ctx.accounts.user_collateral_account.clone(),
+            protocol_collateral_account: ctx.accounts.protocol_collateral_account.clone(),
+            total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
+            token_program: ctx.accounts.token_program.clone(),
+        };
+        
+        let oracle_ctx = OracleContext {
+            oracle_program: ctx.accounts.oracle_program.clone(),
+            oracle_state: ctx.accounts.oracle_state.clone(),
+            pyth_price_account: ctx.accounts.pyth_price_account.clone(),
+            clock: ctx.accounts.clock.to_account_info(),
+        };
+        
+        // Use TroveManager for clean implementation
+        let result = TroveManager::remove_collateral(
+            &mut trove_ctx,
+            &mut collateral_ctx,
+            &oracle_ctx,
+            params.collateral_amount,
+            params.collateral_denom.clone(),
+        )?;
+        
+        // Update state before contexts are dropped
+        ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
+        
+        Ok::<_, Error>(result)
+    }?;
     
     // Update the actual accounts with the results
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
-    ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
-    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
     
     // Reinsert trove in sorted list based on new ICR (collateral decreases = lower ICR = riskier)
     // Note: Caller must pass remaining_accounts for reinsert operation
