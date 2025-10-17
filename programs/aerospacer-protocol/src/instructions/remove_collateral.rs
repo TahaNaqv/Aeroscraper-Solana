@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token::{Token, TokenAccount, Mint, Transfer};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
@@ -47,13 +47,18 @@ pub struct RemoveCollateral<'info> {
     #[account(mut)]
     pub state: Account<'info, StateAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = user_collateral_account.mint == collateral_mint.key() @ AerospacerProtocolError::InvalidMint
+    )]
     pub user_collateral_account: Account<'info, TokenAccount>,
+
+    pub collateral_mint: Account<'info, Mint>,
 
     #[account(
         init_if_needed,
         payer = user,
-        token::mint = user_collateral_account.mint,
+        token::mint = collateral_mint,
         token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump

@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Burn};
+use anchor_spl::token::{Token, TokenAccount, Mint, Burn};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
@@ -51,21 +51,25 @@ pub struct RepayLoan<'info> {
     #[account(mut)]
     pub user_stablecoin_account: Account<'info, TokenAccount>,
     
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = user_collateral_account.mint == collateral_mint.key() @ AerospacerProtocolError::InvalidMint
+    )]
     pub user_collateral_account: Account<'info, TokenAccount>,
+
+    pub collateral_mint: Account<'info, Mint>,
     
     #[account(
         init_if_needed,
         payer = user,
-        token::mint = user_collateral_account.mint,
+        token::mint = collateral_mint,
         token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
     )]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
 
-    /// CHECK: This is the stable coin mint account
-    pub stable_coin_mint: UncheckedAccount<'info>,
+    pub stable_coin_mint: Account<'info, Mint>,
 
     /// CHECK: Per-denom collateral total PDA
     #[account(

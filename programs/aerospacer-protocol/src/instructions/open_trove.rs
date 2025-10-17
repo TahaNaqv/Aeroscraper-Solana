@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, MintTo};
+use anchor_spl::token::{Token, TokenAccount, Mint, MintTo};
 use crate::state::*;
 use crate::error::*;
 use crate::account_management::*;
@@ -56,14 +56,17 @@ pub struct OpenTrove<'info> {
     
     #[account(
         mut,
-        constraint = user_collateral_account.owner == user.key() @ AerospacerProtocolError::Unauthorized
+        constraint = user_collateral_account.owner == user.key() @ AerospacerProtocolError::Unauthorized,
+        constraint = user_collateral_account.mint == collateral_mint.key() @ AerospacerProtocolError::InvalidMint
     )]
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
+    
+    pub collateral_mint: Account<'info, Mint>,
     
     #[account(
         init_if_needed,
         payer = user,
-        token::mint = user_collateral_account.mint,
+        token::mint = collateral_mint,
         token::authority = protocol_collateral_account,
         seeds = [b"protocol_collateral_vault", params.collateral_denom.as_bytes()],
         bump
@@ -117,11 +120,10 @@ pub struct OpenTrove<'info> {
     )]
     pub protocol_stablecoin_account: Box<Account<'info, TokenAccount>>,
     
-    /// CHECK: This is the stable coin mint account
     #[account(
         constraint = stable_coin_mint.key() == state.stable_coin_addr @ AerospacerProtocolError::InvalidMint
     )]
-    pub stable_coin_mint: UncheckedAccount<'info>,
+    pub stable_coin_mint: Account<'info, Mint>,
     
     // Oracle context - integration with our aerospacer-oracle
     /// CHECK: Our oracle program - validated against state

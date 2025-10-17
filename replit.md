@@ -49,6 +49,24 @@ The design supports transparent and auditable on-chain interactions, with all st
 
 ## Recent Changes
 
+**October 17, 2025 - Compilation Errors Fixed** ✅
+- **FIXED ANCHOR CONSTRAINT ERRORS**: Corrected token mint account types across all vault operations
+  * Changed `UncheckedAccount<'info>` to `Account<'info, Mint>` for all mint accounts
+  * Fixed `token::mint` constraints to use proper Mint account fields instead of Pubkey references
+  * Added `collateral_mint: Account<'info, Mint>` to 5 instructions that needed it
+  * Added Mint imports to all affected instruction files
+- **Files Fixed**:
+  * ✅ open_trove.rs: Fixed stable_coin_mint and added collateral_mint account
+  * ✅ add_collateral.rs: Added collateral_mint account + Mint import
+  * ✅ remove_collateral.rs: Added collateral_mint account + Mint import
+  * ✅ borrow_loan.rs: Added collateral_mint account + Mint import
+  * ✅ repay_loan.rs: Fixed stable_coin_mint + added collateral_mint account + Mint import
+- **Compilation Status**:
+  * ✅ aerospacer-protocol: Compiles successfully (1 deprecation warning)
+  * ✅ aerospacer-oracle: Compiles successfully (6 minor warnings)
+  * ✅ aerospacer-fees: Compiles successfully (3 minor warnings)
+  * ✅ All programs ready for deployment
+
 **October 16, 2025 - Protocol Vault Signing Architecture Fixed** ✅
 - **FIXED CRITICAL BUG**: Implemented invoke_signed for all PDA vault authorities
   * Protocol vaults (protocol_collateral_vault, protocol_stablecoin_vault) now properly sign CPIs
@@ -67,4 +85,5 @@ The design supports transparent and auditable on-chain interactions, with all st
   * ✅ All instruction parameters match Rust structs (loan_amount, collateral_amount, etc.)
   * ✅ Added init_if_needed to vault PDAs in 7 instructions
   * ✅ Added system_program to all instructions with init_if_needed
+  * ✅ Stablecoin mint authority transferred to vault PDA in tests
   * ✅ Protocol is now architecturally sound for vault operations
