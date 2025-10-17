@@ -125,55 +125,62 @@ pub struct OpenTrove<'info> {
     )]
     pub stable_coin_mint: Account<'info, Mint>,
     
+    // Oracle context - UncheckedAccount to reduce stack usage
+    /// CHECK: Our oracle program - validated against state in handler
+    pub oracle_program: UncheckedAccount<'info>,
+    
+    /// CHECK: Oracle state account - validated against state in handler
+    #[account(mut)]
+    pub oracle_state: UncheckedAccount<'info>,
+    
+    /// CHECK: Pyth price account for collateral price feed
+    pub pyth_price_account: UncheckedAccount<'info>,
+    
+    /// Clock sysvar for timestamp validation
+    pub clock: Sysvar<'info, Clock>,
+    
+    // Fee distribution accounts - UncheckedAccount to reduce stack usage
+    /// CHECK: Fees program - validated against state in handler
+    pub fees_program: UncheckedAccount<'info>,
+    
+    /// CHECK: Fees state account - validated against state in handler
+    #[account(mut)]
+    pub fees_state: UncheckedAccount<'info>,
+    
+    /// CHECK: Stability pool token account
+    #[account(mut)]
+    pub stability_pool_token_account: UncheckedAccount<'info>,
+    
+    /// CHECK: Fee address 1 token account
+    #[account(mut)]
+    pub fee_address_1_token_account: UncheckedAccount<'info>,
+    
+    /// CHECK: Fee address 2 token account
+    #[account(mut)]
+    pub fee_address_2_token_account: UncheckedAccount<'info>,
+    
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    
-    // Oracle and fee accounts moved to remaining_accounts to reduce stack usage:
-    // remaining_accounts[0] = oracle_program
-    // remaining_accounts[1] = oracle_state
-    // remaining_accounts[2] = pyth_price_account
-    // remaining_accounts[3] = clock
-    // remaining_accounts[4] = fees_program
-    // remaining_accounts[5] = fees_state
-    // remaining_accounts[6] = stability_pool_token_account
-    // remaining_accounts[7] = fee_address_1_token_account
-    // remaining_accounts[8] = fee_address_2_token_account
 }
 
 pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
-    // Extract oracle and fee accounts from remaining_accounts to reduce stack usage
-    require!(
-        ctx.remaining_accounts.len() >= 9,
-        AerospacerProtocolError::InvalidAccountData
-    );
-    
-    let oracle_program = &ctx.remaining_accounts[0];
-    let oracle_state = &ctx.remaining_accounts[1];
-    let pyth_price_account = &ctx.remaining_accounts[2];
-    let clock = Clock::from_account_info(&ctx.remaining_accounts[3])?;
-    let fees_program = &ctx.remaining_accounts[4];
-    let fees_state = &ctx.remaining_accounts[5];
-    let stability_pool_token_account = &ctx.remaining_accounts[6];
-    let fee_address_1_token_account = &ctx.remaining_accounts[7];
-    let fee_address_2_token_account = &ctx.remaining_accounts[8];
-    
     // Validate oracle accounts
     require!(
-        oracle_program.key() == ctx.accounts.state.oracle_helper_addr,
+        ctx.accounts.oracle_program.key() == ctx.accounts.state.oracle_helper_addr,
         AerospacerProtocolError::Unauthorized
     );
     require!(
-        oracle_state.key() == ctx.accounts.state.oracle_state_addr,
+        ctx.accounts.oracle_state.key() == ctx.accounts.state.oracle_state_addr,
         AerospacerProtocolError::Unauthorized
     );
     
     // Validate fee accounts
     require!(
-        fees_program.key() == ctx.accounts.state.fee_distributor_addr,
+        ctx.accounts.fees_program.key() == ctx.accounts.state.fee_distributor_addr,
         AerospacerProtocolError::Unauthorized
     );
     require!(
-        fees_state.key() == ctx.accounts.state.fee_state_addr,
+        ctx.accounts.fees_state.key() == ctx.accounts.state.fee_state_addr,
         AerospacerProtocolError::Unauthorized
     );
     
@@ -255,10 +262,10 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
         };
         
         let oracle_ctx = OracleContext {
-            oracle_program: oracle_program.clone(),
-            oracle_state: oracle_state.clone(),
-            pyth_price_account: pyth_price_account.clone(),
-            clock: ctx.remaining_accounts[3].clone(),
+            oracle_program: ctx.accounts.oracle_program.to_account_info(),
+            oracle_state: ctx.accounts.oracle_state.to_account_info(),
+            pyth_price_account: ctx.accounts.pyth_price_account.to_account_info(),
+            clock: ctx.accounts.clock.to_account_info(),
         };
         
         // Use TroveManager with NET loan amount (after fee)
@@ -283,13 +290,13 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
     
     // Insert trove into sorted list using the Node account from context
-    // Pass remaining_accounts[9..] for sorted troves operations (first 9 are oracle/fee accounts)
+    // Pass remaining_accounts to update neighbor nodes (old_tail.next_id)
     sorted_troves::insert_trove(
         &mut *ctx.accounts.sorted_troves_state,
         &mut *ctx.accounts.node,
         ctx.accounts.user.key(),
         result.new_icr,
-        &ctx.remaining_accounts[9..],
+        ctx.remaining_accounts,
     )?;
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)
@@ -316,13 +323,13 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
         let _net_amount = process_protocol_fee(
             params.loan_amount,
             ctx.accounts.state.protocol_fee,
-            fees_program.to_account_info(),
+            ctx.accounts.fees_program.to_account_info(),
             ctx.accounts.user.to_account_info(),
-            fees_state.to_account_info(),
+            ctx.accounts.fees_state.to_account_info(),
             ctx.accounts.user_stablecoin_account.to_account_info(),
-            stability_pool_token_account.to_account_info(),
-            fee_address_1_token_account.to_account_info(),
-            fee_address_2_token_account.to_account_info(),
+            ctx.accounts.stability_pool_token_account.to_account_info(),
+            ctx.accounts.fee_address_1_token_account.to_account_info(),
+            ctx.accounts.fee_address_2_token_account.to_account_info(),
             ctx.accounts.token_program.to_account_info(),
         )?;
         

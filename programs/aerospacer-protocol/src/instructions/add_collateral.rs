@@ -88,23 +88,16 @@ pub struct AddCollateral<'info> {
     )]
     pub node: Account<'info, Node>,
 
-    // Oracle context - integration with our aerospacer-oracle
-    /// CHECK: Our oracle program - validated against state
-    #[account(
-        mut,
-        constraint = oracle_program.key() == state.oracle_helper_addr @ AerospacerProtocolError::Unauthorized
-    )]
-    pub oracle_program: AccountInfo<'info>,
+    // Oracle context - UncheckedAccount to reduce stack usage
+    /// CHECK: Our oracle program - validated against state in handler
+    pub oracle_program: UncheckedAccount<'info>,
     
-    /// CHECK: Oracle state account - validated against state
-    #[account(
-        mut,
-        constraint = oracle_state.key() == state.oracle_state_addr @ AerospacerProtocolError::Unauthorized
-    )]
-    pub oracle_state: AccountInfo<'info>,
+    /// CHECK: Oracle state account - validated against state in handler
+    #[account(mut)]
+    pub oracle_state: UncheckedAccount<'info>,
     
     /// CHECK: Pyth price account for collateral price feed
-    pub pyth_price_account: AccountInfo<'info>,
+    pub pyth_price_account: UncheckedAccount<'info>,
     
     /// Clock sysvar for timestamp validation
     pub clock: Sysvar<'info, Clock>,
@@ -120,6 +113,16 @@ impl<'info> AddCollateral<'info> {
 }
 
 pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Result<()> {
+    // Validate oracle accounts
+    require!(
+        ctx.accounts.oracle_program.key() == ctx.accounts.state.oracle_helper_addr,
+        AerospacerProtocolError::Unauthorized
+    );
+    require!(
+        ctx.accounts.oracle_state.key() == ctx.accounts.state.oracle_state_addr,
+        AerospacerProtocolError::Unauthorized
+    );
+    
     // Validate input parameters
     require!(
         params.amount > 0,
@@ -155,9 +158,9 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
         };
         
         let oracle_ctx = OracleContext {
-            oracle_program: ctx.accounts.oracle_program.clone(),
-            oracle_state: ctx.accounts.oracle_state.clone(),
-            pyth_price_account: ctx.accounts.pyth_price_account.clone(),
+            oracle_program: ctx.accounts.oracle_program.to_account_info(),
+            oracle_state: ctx.accounts.oracle_state.to_account_info(),
+            pyth_price_account: ctx.accounts.pyth_price_account.to_account_info(),
             clock: ctx.accounts.clock.to_account_info(),
         };
         
