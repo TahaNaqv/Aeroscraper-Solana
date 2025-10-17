@@ -49,6 +49,23 @@ The design supports transparent and auditable on-chain interactions, with all st
 
 ## Recent Changes
 
+**October 17, 2025 - Dynamic Oracle Integration: Removed Hardcoded Collateral Denoms** ✅
+- **ORACLE STATE AS SINGLE SOURCE OF TRUTH**: Eliminated hardcoded collateral list in protocol oracle integration
+  * ✅ Implemented: get_all_denoms_via_cpi() function for dynamic collateral discovery via CPI
+  * ✅ Updated: get_all_prices() now queries oracle state instead of using hardcoded ["SOL", "USDC", "INJ", "ATOM"]
+  * ✅ Architecture: Protocol automatically supports new collaterals when added to oracle state
+  * ✅ Verified: Compilation successful, follows existing CPI patterns
+  * ✅ Architect-reviewed: No security issues, adheres to Anchor conventions
+- **BENEFITS**:
+  * Zero protocol code changes needed when adding new collateral types
+  * Oracle state (collateral_data Vec) is authoritative for supported assets
+  * Cleaner separation of concerns: oracle manages collateral config, protocol consumes it
+- **IMPLEMENTATION DETAILS**:
+  * CPI discriminator: SHA256("global:get_all_denoms")[0..8]
+  * Account requirements: Only oracle_state (read-only)
+  * Return data: Vec<String> via Borsh deserialization
+  * Pattern: Mirrors existing get_price_via_cpi() implementation
+
 **October 17, 2025 - Oracle Cleanup: Removed All Mock/Hardcoded Prices** ✅
 - **ELIMINATED MOCK ORACLE CODE**: Removed all hardcoded price implementations to establish OracleContext as single source of truth
   * ✅ Removed: MockOracle struct with get_mock_price() and get_all_mock_prices() methods from oracle.rs
