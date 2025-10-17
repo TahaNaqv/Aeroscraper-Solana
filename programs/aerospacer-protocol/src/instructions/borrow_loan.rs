@@ -108,23 +108,23 @@ pub struct BorrowLoan<'info> {
     )]
     pub total_collateral_amount: AccountInfo<'info>,
 
-    // Oracle context - integration with our aerospacer-oracle
+    // Oracle context - integration with our aerospacer-oracle (Boxed to reduce stack usage)
     /// CHECK: Our oracle program - validated against state
     #[account(
         mut,
         constraint = oracle_program.key() == state.oracle_helper_addr @ AerospacerProtocolError::Unauthorized
     )]
-    pub oracle_program: AccountInfo<'info>,
+    pub oracle_program: Box<AccountInfo<'info>>,
     
     /// CHECK: Oracle state account - validated against state
     #[account(
         mut,
         constraint = oracle_state.key() == state.oracle_state_addr @ AerospacerProtocolError::Unauthorized
     )]
-    pub oracle_state: AccountInfo<'info>,
+    pub oracle_state: Box<AccountInfo<'info>>,
     
     /// CHECK: Pyth price account for collateral price feed
-    pub pyth_price_account: AccountInfo<'info>,
+    pub pyth_price_account: Box<AccountInfo<'info>>,
     
     /// Clock sysvar for timestamp validation
     pub clock: Sysvar<'info, Clock>,
@@ -207,9 +207,9 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     };
     
     let oracle_ctx = OracleContext {
-        oracle_program: ctx.accounts.oracle_program.clone(),
-        oracle_state: ctx.accounts.oracle_state.clone(),
-        pyth_price_account: ctx.accounts.pyth_price_account.clone(),
+        oracle_program: (*ctx.accounts.oracle_program).clone(),
+        oracle_state: (*ctx.accounts.oracle_state).clone(),
+        pyth_price_account: (*ctx.accounts.pyth_price_account).clone(),
         clock: ctx.accounts.clock.to_account_info(),
     };
     
