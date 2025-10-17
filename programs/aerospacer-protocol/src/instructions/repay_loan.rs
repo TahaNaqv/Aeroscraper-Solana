@@ -69,7 +69,8 @@ pub struct RepayLoan<'info> {
     )]
     pub protocol_collateral_account: Account<'info, TokenAccount>,
 
-    pub stable_coin_mint: Account<'info, Mint>,
+    /// CHECK: Stable coin mint - no constraints needed, used only for reference
+    pub stable_coin_mint: UncheckedAccount<'info>,
 
     /// CHECK: Per-denom collateral total PDA
     #[account(
