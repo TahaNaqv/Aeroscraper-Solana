@@ -31,8 +31,8 @@ warning: unused variable: `collateral_data`
    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_collateral_data`
 
 warning: `aerospacer-oracle` (lib) generated 4 warnings
-    Finished `release` profile [optimized] target(s) in 20.36s
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.61s
+    Finished `release` profile [optimized] target(s) in 19.90s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.77s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_oracle-229a9b501a96c94f)
    Compiling aerospacer-oracle v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-oracle)
    Compiling aerospacer-fees v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-fees)
@@ -86,18 +86,12 @@ warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::real
    = note: `#[warn(deprecated)]` on by default
    = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-Error: Function _ZN167_$LT$aerospacer_protocol..instructions..open_trove..OpenTrove$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..open_trove..OpenTroveBumps$GT$$GT$12try_accounts17h14b497daf6f0ab04E Stack offset of 4128 exceeded max offset of 4096 by 32 bytes, please minimize large stack variables. Estimated function frame size: 4224 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
-
-Error: Function _ZN183_$LT$aerospacer_protocol..instructions..add_collateral..AddCollateral$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..add_collateral..AddCollateralBumps$GT$$GT$12try_accounts17h65b8dff86561783bE Stack offset of 4112 exceeded max offset of 4096 by 16 bytes, please minimize large stack variables. Estimated function frame size: 4288 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
-
-Error: Function _ZN195_$LT$aerospacer_protocol..instructions..remove_collateral..RemoveCollateral$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..remove_collateral..RemoveCollateralBumps$GT$$GT$12try_accounts17h8af0e365f0dbee87E Stack offset of 4112 exceeded max offset of 4096 by 16 bytes, please minimize large stack variables. Estimated function frame size: 4288 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
-
-Error: Function _ZN167_$LT$aerospacer_protocol..instructions..repay_loan..RepayLoan$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..repay_loan..RepayLoanBumps$GT$$GT$12try_accounts17h41ac0a39044bb3d5E Stack offset of 4208 exceeded max offset of 4096 by 112 bytes, please minimize large stack variables. Estimated function frame size: 4608 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+Error: Function _ZN167_$LT$aerospacer_protocol..instructions..repay_loan..RepayLoan$u20$as$u20$anchor_lang..Accounts$LT$aerospacer_protocol..instructions..repay_loan..RepayLoanBumps$GT$$GT$12try_accounts17h41ac0a39044bb3d5E Stack offset of 4120 exceeded max offset of 4096 by 24 bytes, please minimize large stack variables. Estimated function frame size: 4160 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
 
 warning: `aerospacer-protocol` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 1m 35s
+    Finished `release` profile [optimized] target(s) in 1m 36s
    Compiling aerospacer-protocol v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-protocol)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 31.71s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 35.72s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_protocol-889ac5130c6fb2da)
    Compiling aerospacer-fees v0.1.0 (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/programs/aerospacer-fees)
 warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::realloc`: Use AccountInfo::resize() instead
@@ -110,7 +104,7 @@ warning: use of deprecated method `anchor_lang::prelude::AccountInfo::<'a>::real
    = note: this warning originates in the attribute macro `program` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: `aerospacer-fees` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 14.89s
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.59s
+    Finished `release` profile [optimized] target(s) in 13.45s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.81s
      Running unittests src/lib.rs (/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/target/debug/deps/aerospacer_fees-e8568a44fae296dc)
 taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 
