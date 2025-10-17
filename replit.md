@@ -22,9 +22,9 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Stablecoin (aUSD) Minting**: Supports the minting of its native stablecoin, aUSD.
 *   **Dynamic Collateral Management**: Mechanisms for adding and removing collateral.
 *   **Automated Liquidation System**: Ensures protocol solvency by liquidating undercollateralized positions.
-*   **Stability Pool with Snapshot-Based Distribution**: Implements Liquity's Product-Sum algorithm for fair and exploit-resistant reward distribution, using P factor for pool depletion and S factors for collateral gains.
-*   **Fee Distribution Mechanism**: A dual-mode system that distributes fees to either the stability pool or 50/50 to specified fee addresses, with comprehensive security validation.
-*   **Oracle Integration**: Utilizes Pyth Network for real-time price feeds for all collateral assets.
+*   **Stability Pool with Snapshot-Based Distribution**: Implements Liquity's Product-Sum algorithm for fair and exploit-resistant reward distribution.
+*   **Fee Distribution Mechanism**: A dual-mode system that distributes fees to either the stability pool or 50/50 to specified fee addresses.
+*   **Oracle Integration**: Utilizes Pyth Network for real-time price feeds for all collateral assets, with dynamic collateral discovery via CPI.
 *   **Cross-Program Communication (CPI)**: Extensive use of CPI for secure and atomic interactions between sub-programs.
 *   **SPL Token Integration**: Full support for Solana Program Library (SPL) tokens for collateral and stablecoin operations.
 *   **Sorted Troves**: Implemented as a doubly-linked list for efficient management of CDPs, supporting ICR-based positioning and auto-discovery of liquidatable troves.
@@ -34,10 +34,10 @@ The design supports transparent and auditable on-chain interactions, with all st
 **System Design Choices:**
 *   **Anchor Framework**: Used for Solana smart contract development.
 *   **Rust & TypeScript**: Rust for on-chain programs and TypeScript for off-chain tests and interactions.
-*   **Comprehensive Testing**: Extensive TypeScript-based test suite covering functional, structural, and architectural aspects.
-*   **Security Features**: Includes safe math operations, access control, input validation, atomic state consistency, and PDA validation to prevent forged account injections.
 *   **Modular Architecture**: Separation of concerns into distinct programs (`protocol`, `oracle`, `fees`).
-*   **Two-Instruction Architecture for Liquidation**: Separates data traversal from execution to optimize account ordering and adhere to Solana best practices.
+*   **Security Features**: Includes safe math operations, access control, input validation, atomic state consistency, PDA validation, and optimized for Solana BPF stack limits.
+*   **Two-Instruction Architecture for Liquidation**: Separates data traversal from execution to optimize account ordering.
+*   **Vault Signing Architecture**: All PDA vault authorities correctly sign CPIs using `invoke_signed`.
 
 ## External Dependencies
 
@@ -46,155 +46,3 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Pyth Network**: Used by the `aerospacer-oracle` program for real-time price feeds.
 *   **Solana Program Library (SPL) Tokens**: Integrated for token operations within the protocol.
 *   **Node.js & npm**: For running TypeScript tests and managing project dependencies.
-
-## Testing & Deployment Workflow
-
-### ⚠️ Important: Replit Environment Limitation
-**This Replit environment is NOT configured for building Solana BPF programs.** Building Solana programs requires platform-specific tools (BPF toolchain, LLVM) that are not available in this Replit workspace. 
-
-**What works in Replit:**
-- ✅ Code review and analysis
-- ✅ Documentation review
-- ✅ Test file structure review
-- ✅ Architecture analysis
-
-**What requires local environment:**
-- ❌ Building programs (`anchor build`)
-- ❌ Running tests (`anchor test`)
-- ❌ Deploying to clusters (`anchor deploy`)
-
-### Local Development Setup
-To build and test the protocol, developers must set up a standard Solana development environment on their local machine. See **LOCAL_TESTING_GUIDE.md** for detailed setup instructions.
-
-**Compilation Status (Verified in Standard Solana Environment):**
-- ✅ aerospacer-protocol: Compiles successfully (1 deprecation warning)
-- ✅ aerospacer-oracle: Compiles successfully (6 minor warnings)
-- ✅ aerospacer-fees: Compiles successfully (3 minor warnings)
-
-### Test Suite Overview
-**Total Test Files**: 46 (Protocol: 18, Oracle: 8, Fees: 7, Integration: 13)  
-**Test Coverage**: 87% (40 complete, 6 partial placeholder tests)  
-**Critical Gaps**: Liquidation P/S distribution, redemption traversal, sorted troves operations
-
-See **TEST_COVERAGE_ANALYSIS.md** for detailed coverage breakdown and **DEPLOYMENT_CHECKLIST.md** for pre-deployment validation steps.
-
----
-
-## Recent Changes
-
-**October 17, 2025 - Stack Overflow Fixes: Oracle Accounts Boxed for BPF Compliance** ✅
-- **SOLANA BPF STACK OPTIMIZATION**: Fixed critical stack overflow errors in 6 instruction handlers
-  * ✅ Issue: Stack exceeded Solana's 4KB limit due to large OracleContext with multiple accounts
-  * ✅ Fixed Instructions: OpenTrove (32 bytes over), AddCollateral (16 bytes over), RemoveCollateral (16 bytes over), RepayLoan (112 bytes over)
-  * ✅ Preemptive Fixes: BorrowLoan, LiquidateTroves (boxed before hitting limits)
-  * ✅ Solution: Boxed oracle_program, oracle_state, and pyth_price_account as Box<AccountInfo<'info>>
-  * ✅ Implementation: Dereferences boxed accounts when creating OracleContext: (*ctx.accounts.oracle_program).clone()
-  * ✅ Architect-reviewed: No functional changes, only stack optimization; program behavior unchanged
-- **COMPILATION STATUS**:
-  * ✅ All 3 programs now compile successfully on local machines
-  * ✅ Stack usage under 4KB limit for all instructions
-  * ✅ Ready for `anchor build` and deployment testing
-
-**October 17, 2025 - Testing Documentation & Deployment Guides Created** ✅
-- **COMPREHENSIVE TESTING DOCUMENTATION**: Created guides for local development and deployment
-  * ✅ LOCAL_TESTING_GUIDE.md: Step-by-step Solana/Anchor setup, build instructions, test execution (local & devnet)
-  * ✅ TEST_COVERAGE_ANALYSIS.md: Detailed analysis of 46 test files, 87% coverage metrics, critical gap identification
-  * ✅ DEPLOYMENT_CHECKLIST.md: 7-phase deployment plan from local setup to mainnet launch with success criteria
-  * ✅ Documented Replit limitation: Cannot build Solana BPF programs (requires local dev environment)
-- **TEST COVERAGE FINDINGS**:
-  * ✅ Complete: Oracle integration (8 files), Fee distribution (7 files), Trove management (full execution)
-  * ⚠️ Partial: Liquidation P/S distribution (placeholders), Redemption traversal (structural only), Sorted troves (needs execution)
-  * ✅ Overall: 40/46 tests complete with execution, 6 need actual implementation vs. placeholders
-- **DEPLOYMENT READINESS**:
-  * Ready: Programs compile, oracle CPI working, vault architecture secure, fee distribution functional
-  * Action Needed: Complete 6 placeholder tests, run full suite on local validator, devnet validation
-  * Timeline: 2-3 days for test completion, 2-3 weeks for security audit, 1 week for mainnet prep
-
-**October 17, 2025 - Dead Code Cleanup: Removed Unused Mock/Stub Functions** ✅
-- **PROTOCOL CODE CLEANUP**: Removed all dead code and unused mock implementations to ensure clean production codebase
-  * ✅ Removed: TroveManager::redeem() mock function from trove_management.rs (70+ lines of dead code)
-    - Real redemption implementation lives in redeem.rs instruction handler
-    - Mock was never used in production paths
-    - Removed associated RedeemResult struct (unused)
-  * ✅ Removed: query_find_sorted_troves_insert_position() stub from query/mod.rs
-    - Function returned hardcoded (None, None) - not used in production
-    - Instruction handlers use their own traversal logic with OracleContext
-    - Off-chain clients should use instruction handlers directly
-  * ✅ Verified: All programs compile successfully after cleanup
-- **CLEANUP BENEFITS**:
-  * Eliminates confusion between mock and real implementations
-  * Reduces codebase size and maintenance burden
-  * Makes production code paths crystal clear
-  * No unused structs or functions remain
-
-**October 17, 2025 - Dynamic Oracle Integration: Removed Hardcoded Collateral Denoms** ✅
-- **ORACLE STATE AS SINGLE SOURCE OF TRUTH**: Eliminated hardcoded collateral list in protocol oracle integration
-  * ✅ Implemented: get_all_denoms_via_cpi() function for dynamic collateral discovery via CPI
-  * ✅ Updated: get_all_prices() now queries oracle state instead of using hardcoded ["SOL", "USDC", "INJ", "ATOM"]
-  * ✅ Architecture: Protocol automatically supports new collaterals when added to oracle state
-  * ✅ Verified: Compilation successful, follows existing CPI patterns
-  * ✅ Architect-reviewed: No security issues, adheres to Anchor conventions
-- **BENEFITS**:
-  * Zero protocol code changes needed when adding new collateral types
-  * Oracle state (collateral_data Vec) is authoritative for supported assets
-  * Cleaner separation of concerns: oracle manages collateral config, protocol consumes it
-- **IMPLEMENTATION DETAILS**:
-  * CPI discriminator: SHA256("global:get_all_denoms")[0..8]
-  * Account requirements: Only oracle_state (read-only)
-  * Return data: Vec<String> via Borsh deserialization
-  * Pattern: Mirrors existing get_price_via_cpi() implementation
-
-**October 17, 2025 - Oracle Cleanup: Removed All Mock/Hardcoded Prices** ✅
-- **ELIMINATED MOCK ORACLE CODE**: Removed all hardcoded price implementations to establish OracleContext as single source of truth
-  * ✅ Removed: MockOracle struct with get_mock_price() and get_all_mock_prices() methods from oracle.rs
-  * ✅ Removed: query_all_collateral_prices() function with hardcoded price HashMap from utils/mod.rs
-  * ✅ Updated: query/mod.rs to remove mock price dependencies and clarify OracleContext requirement
-  * ✅ Verified: All programs compile successfully (protocol, oracle, fees)
-- **ORACLE ARCHITECTURE NOW PURE**:
-  * ✅ oracle.rs::OracleContext is the only path for price feeds
-  * ✅ All prices come via CPI to aerospacer-oracle → Pyth Network
-  * ✅ No mock fallbacks or hardcoded values remain
-  * ✅ Architect-reviewed and confirmed clean
-- **NEXT STEPS**:
-  * Update integration tests to cover real oracle CPI flows
-  * Ensure all ICR/sorted-trove instructions thread OracleContext properly
-  * Document OracleContext as sole price source in testing guides
-
-**October 17, 2025 - Production Readiness Assessment Completed** ✅
-- **COMPREHENSIVE PROTOCOL REVIEW**: Analyzed all 13 instruction handlers, 8 core modules, and integration architecture
-  * ✅ Reviewed: initialize, open_trove, add_collateral, remove_collateral, borrow_loan, repay_loan, close_trove, liquidate_troves, query_liquidatable_troves, stake, unstake, withdraw_liquidation_gains, redeem
-  * ✅ Validated: Liquity Product-Sum algorithm (P/S factor calculations correct)
-  * ✅ Confirmed: Vault signing architecture (invoke_signed patterns correct)
-  * ✅ Verified: Safe math operations, access control, state consistency
-- **DOCUMENTATION CREATED**:
-  * ✅ PRODUCTION_READINESS_REPORT.md: Comprehensive 400+ line assessment with specific code examples, blocker analysis, and 2-4 week roadmap to production
-  * ✅ Transparent evaluation: Separates "What Works" vs "What's Missing"
-  * ✅ Actionable next steps: Oracle CPI implementation, redemption system completion, integration testing
-
-**October 17, 2025 - Compilation Errors Fixed** ✅
-- **FIXED ANCHOR CONSTRAINT ERRORS**: Corrected token mint account types across all vault operations
-- **Compilation Status**:
-  * ✅ aerospacer-protocol: Compiles successfully (1 deprecation warning)
-  * ✅ aerospacer-oracle: Compiles successfully (6 minor warnings)
-  * ✅ aerospacer-fees: Compiles successfully (3 minor warnings)
-
-**October 16, 2025 - Protocol Vault Signing Architecture Fixed** ✅
-- **FIXED CRITICAL BUG**: Implemented invoke_signed for all PDA vault authorities
-  * Protocol vaults (protocol_collateral_vault, protocol_stablecoin_vault) now properly sign CPIs
-  * Added `invoke_signed` with correct seeds and bumps to all vault operations
-  * Vault PDAs can now self-sign for mint/transfer/burn operations
-- **invoke_signed Implementations**:
-  * ✅ open_trove.rs: MintTo with protocol_stablecoin_account authority + seeds
-  * ✅ borrow_loan.rs: Added missing protocol_stablecoin_account + MintTo invoke_signed
-  * ✅ remove_collateral.rs: Transfer with protocol_collateral_account authority + seeds
-  * ✅ redeem.rs: Burn + Transfer with vault PDA authorities + seeds
-  * ✅ close_trove.rs: Already had correct invoke_signed implementation
-  * ✅ unstake.rs: Already had correct invoke_signed implementation
-  * ✅ withdraw_liquidation_gains.rs: Already had correct invoke_signed implementation
-- **Test Fixes Applied**:
-  * ✅ Protocol initialization uses snake_case parameters (stable_coin_code_id, etc.)
-  * ✅ All instruction parameters match Rust structs (loan_amount, collateral_amount, etc.)
-  * ✅ Added init_if_needed to vault PDAs in 7 instructions
-  * ✅ Added system_program to all instructions with init_if_needed
-  * ✅ Stablecoin mint authority transferred to vault PDA in tests
-  * ✅ Protocol is now architecturally sound for vault operations
