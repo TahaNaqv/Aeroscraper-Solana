@@ -278,6 +278,7 @@ describe("Aerospacer Protocol Tests", () => {
             state: protocolState,
             stableCoinMint: stablecoinMint,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             userStablecoinAccount: user1StablecoinAccount,
             protocolCollateralAccount: protocolCollateralAccount,
             protocolStablecoinAccount: protocolStablecoinAccount,
@@ -320,6 +321,7 @@ describe("Aerospacer Protocol Tests", () => {
             trove: troveAccount,
             state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
           })

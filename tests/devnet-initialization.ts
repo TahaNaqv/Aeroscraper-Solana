@@ -325,6 +325,7 @@ describe("Devnet Initialization and Core Testing", () => {
             state: protocolState,
             stableCoinMint: stablecoinMint,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             userStablecoinAccount: user1StablecoinAccount,
             protocolCollateralAccount: adminCollateralAccount,
             protocolStablecoinAccount: adminStablecoinAccount,
@@ -365,6 +366,7 @@ describe("Devnet Initialization and Core Testing", () => {
             trove: user1Trove,
             state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: adminCollateralAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
           })

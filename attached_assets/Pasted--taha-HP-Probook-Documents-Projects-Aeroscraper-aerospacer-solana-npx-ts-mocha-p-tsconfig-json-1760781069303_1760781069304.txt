@@ -1,0 +1,79 @@
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/protocol-simple-test.ts'
+(node:496010) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/tests/protocol-simple-test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+  Aerospacer Protocol - Simple Test
+
+🚀 Setting up Simple Protocol Test...
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+✅ All programs initialized successfully
+  Protocol State: Gu2uPeLxrSiisAi2U2i78MdqmXMyJYokaTXEzoABYK3K
+  Oracle State: 3Qi9aYukqj18ktTBEY3fGCW9sbXdWYmbjLJVQrRWNg73
+  Fee State: 62qfNkweRJzFpBQJPYpAPX3QE9S4EaYkEY6kHcxT4SXC
+  Stablecoin Mint: 5j7VYeSFYSgYUYPYoJKdPfhjLFwFUsbxTZyrNFqBVqGj
+    Basic Protocol Tests
+📋 Verifying protocol state...
+✅ Protocol state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Stable Coin: 5j7VYeSFYSgYUYPYoJKdPfhjLFwFUsbxTZyrNFqBVqGj
+  Oracle Helper: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
+  Fee Distributor: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+  MCR: 115
+  Protocol Fee: 5
+      ✔ Should verify protocol state after initialization
+📋 Verifying oracle state...
+  Oracle Address: gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s
+  Expected: gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s
+  Note: Oracle address is set to default initially (this is expected)
+✅ Oracle state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Oracle Address: gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s
+      ✔ Should verify oracle state after initialization
+📋 Verifying fees state...
+✅ Fees state verification passed
+  Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
+  Is Stake Enabled: false
+  Total Fees Collected: 0
+      ✔ Should verify fees state after initialization
+📋 Verifying stablecoin mint...
+✅ Stablecoin mint verification passed
+  Mint Address: 5j7VYeSFYSgYUYPYoJKdPfhjLFwFUsbxTZyrNFqBVqGj
+      ✔ Should verify stablecoin mint
+📋 Verifying program IDs...
+  Protocol Program ID: 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2
+  Oracle Program ID: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
+  Fees Program ID: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+✅ Program ID verification passed
+      ✔ Should verify program IDs are correct
+    Integration Tests
+📋 Testing program communication...
+  Protocol accounts: 47
+  Oracle accounts: 101
+  Fees accounts: 55
+✅ Program communication verification passed
+      ✔ Should verify programs can communicate (443ms)
+📋 Testing account ownership...
+✅ Account ownership verification passed
+      ✔ Should verify account ownership
+    Summary
+
+============================================================
+📊 **SIMPLE PROTOCOL TEST SUMMARY**
+============================================================
+✅ Protocol initialization: PASSED
+✅ Oracle initialization: PASSED
+✅ Fees initialization: PASSED
+✅ State verification: PASSED
+✅ Program communication: PASSED
+✅ Account ownership: PASSED
+
+🎉 All basic protocol tests PASSED!
+============================================================
+      ✔ Should display test summary
+
+
+  8 passing (2s)
