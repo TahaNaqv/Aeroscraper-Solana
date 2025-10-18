@@ -20,7 +20,7 @@ aerospacer_fees = "h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
