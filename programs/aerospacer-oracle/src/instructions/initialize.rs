@@ -10,7 +10,13 @@ pub struct InitializeParams {
 #[derive(Accounts)]
 #[instruction(params: InitializeParams)]
 pub struct Initialize<'info> {
-    #[account(init, payer = admin, space = 8 + OracleStateAccount::LEN)]
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + OracleStateAccount::LEN,
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
     
     #[account(mut)]

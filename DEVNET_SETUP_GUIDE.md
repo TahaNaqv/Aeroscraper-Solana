@@ -52,7 +52,7 @@ anchor build
 anchor deploy --provider.cluster devnet
 
 # Expected output:
-# Program Id: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ (oracle)
+# Program Id: 2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9 (oracle)
 # Deploy success
 ```
 

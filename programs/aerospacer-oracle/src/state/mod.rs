@@ -24,6 +24,10 @@ impl OracleStateAccount {
     /// last_update: 8 bytes (i64)
     /// Total: 8 + 32 + 32 + 4000 + 8 = 4080 bytes
     pub const LEN: usize = 8 + 32 + 32 + 4000 + 8;
+    
+    pub fn seeds() -> [&'static [u8]; 1] {
+        [b"state"]
+    }
 }
 
 /// Collateral asset data structure for oracle integration

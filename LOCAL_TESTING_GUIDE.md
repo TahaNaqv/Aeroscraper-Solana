@@ -101,9 +101,9 @@ anchor build
 ```
 Building programs...
 Build successful. Program IDs:
-  - aerospacer-protocol: 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2
-  - aerospacer-oracle: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
-  - aerospacer-fees: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+  - aerospacer-protocol: eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe
+  - aerospacer-oracle: 2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9
+  - aerospacer-fees: 6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco
 ```
 
 **Build Artifacts Location:**

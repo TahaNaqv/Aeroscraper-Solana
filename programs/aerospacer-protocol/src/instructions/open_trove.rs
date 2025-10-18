@@ -83,7 +83,9 @@ pub struct OpenTrove<'info> {
     
     // Sorted troves context accounts - Box<> to reduce stack usage
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        space = 8 + SortedTrovesState::LEN,
         seeds = [b"sorted_troves_state"],
         bump
     )]

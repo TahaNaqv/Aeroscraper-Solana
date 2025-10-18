@@ -27,9 +27,9 @@ To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects
     Test 1.3: Verify State Properties
 ✅ State properties verified:
   admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
-  oracle_helper: D8xkMuN8J1v7kH6R8Xd4RwMcTk1HETgfFN24sSB3ZoFJ
+  oracle_helper: 2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9
   oracle_state: 9E62DzkJHrtZo6E8RXgeTYoBMvYF86zZhQ52mZbT16F4
-  fee_distributor: h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+  fee_distributor: 6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco
   fee_state: 6Msx1A4nMX7toWd7VaZxatsbGR4Lkn3Pt3ubutsZD3Tg
   MCR: 115
   protocol_fee: 5

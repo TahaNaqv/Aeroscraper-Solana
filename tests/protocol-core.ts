@@ -80,9 +80,37 @@ describe("Aeroscraper Protocol Core Operations", () => {
     const user2Sig = await provider.connection.requestAirdrop(user2.publicKey, 10 * LAMPORTS_PER_SOL);
     await provider.connection.confirmTransaction(user2Sig);
 
+    // Derive state PDAs first
+    const [protocolStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      protocolProgram.programId
+    );
+    const [oracleStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      oracleProgram.programId
+    );
+    const [feesStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      feesProgram.programId
+    );
+
+    protocolState = protocolStatePda;
+    oracleState = oracleStatePda;
+    feesState = feesStatePda;
+
     // Create token mints
-    stablecoinMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
-    collateralMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
+    collateralMint = await createMint(provider.connection, admin, admin.publicKey, null, 9); // 9 decimals for SOL
+    
+    // Get the existing stablecoin mint from the state account
+    const existingState = await provider.connection.getAccountInfo(protocolState);
+    if (existingState) {
+      const stateAccount = await protocolProgram.account.stateAccount.fetch(protocolState);
+      stablecoinMint = stateAccount.stableCoinAddr;
+      console.log("Using existing stablecoin mint:", stablecoinMint.toString());
+    } else {
+      stablecoinMint = await createMint(provider.connection, admin, admin.publicKey, null, 18); // 18 decimals for aUSD
+      console.log("Created new stablecoin mint:", stablecoinMint.toString());
+    }
 
     // Create token accounts
     adminStablecoinAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
@@ -100,31 +128,17 @@ describe("Aeroscraper Protocol Core Operations", () => {
     await createAssociatedTokenAccount(provider.connection, admin, stablecoinMint, user2.publicKey);
     await createAssociatedTokenAccount(provider.connection, admin, collateralMint, user2.publicKey);
 
-    // Mint initial tokens
-    await mintTo(provider.connection, admin, stablecoinMint, adminStablecoinAccount, admin, 1000000000);
-    await mintTo(provider.connection, admin, collateralMint, adminCollateralAccount, admin, 1000000000);
+    // Mint initial tokens (using correct decimal places)
+    try {
+      await mintTo(provider.connection, admin, stablecoinMint, adminStablecoinAccount, admin, 1000000000000000000000); // 1000 aUSD with 18 decimals
+    } catch (e) {
+      console.log("Could not mint stablecoins (using existing supply):", e.message);
+    }
+    await mintTo(provider.connection, admin, collateralMint, adminCollateralAccount, admin, 100000000000); // 100 SOL with 9 decimals
 
     // Transfer tokens to users
-    await transfer(provider.connection, admin, adminCollateralAccount, user1CollateralAccount, admin, 100000000);
-    await transfer(provider.connection, admin, adminCollateralAccount, user2CollateralAccount, admin, 100000000);
-
-    // Derive state PDAs
-    const [protocolStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
-      protocolProgram.programId
-    );
-    const [oracleStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
-      oracleProgram.programId
-    );
-    const [feesStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
-      feesProgram.programId
-    );
-
-    protocolState = protocolStatePda;
-    oracleState = oracleStatePda;
-    feesState = feesStatePda;
+    await transfer(provider.connection, admin, adminCollateralAccount, user1CollateralAccount, admin, 10000000000); // 10 SOL with 9 decimals
+    await transfer(provider.connection, admin, adminCollateralAccount, user2CollateralAccount, admin, 10000000000); // 10 SOL with 9 decimals
 
     // Derive user trove PDAs
     const [user1TrovePda] = PublicKey.findProgramAddressSync(
@@ -220,20 +234,29 @@ describe("Aeroscraper Protocol Core Operations", () => {
       feeAddress2.publicKey
     );
 
-    // Initialize programs
-    try {
-      await oracleProgram.methods
-        .initialize()
-        .accounts({
-          state: oracleState,
-          admin: admin.publicKey,
-          systemProgram: SystemProgram.programId,
-          rent: SYSVAR_RENT_PUBKEY,
-        })
-        .signers([admin])
-        .rpc();
-    } catch (e) {
+    // Check if oracle state already exists
+    const existingOracleState = await provider.connection.getAccountInfo(oracleState);
+    if (existingOracleState) {
       console.log("Oracle already initialized");
+    } else {
+      try {
+        await oracleProgram.methods
+          .initialize({
+            oracleAddress: PYTH_ORACLE_ADDRESS,
+          })
+          .accounts({
+            state: oracleState,
+            admin: admin.publicKey,
+            systemProgram: SystemProgram.programId,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          })
+          .signers([admin])
+          .rpc();
+        console.log("Oracle initialized successfully");
+      } catch (e) {
+        console.log("Oracle initialization failed:", e);
+        throw e;
+      }
     }
 
     try {
@@ -251,25 +274,32 @@ describe("Aeroscraper Protocol Core Operations", () => {
       console.log("Fees already initialized");
     }
 
-    try {
-      await protocolProgram.methods
-        .initialize({
-          stableCoinCodeId: new anchor.BN(1),
-          oracleHelperAddr: oracleProgram.programId,
-          oracleStateAddr: oracleState,
-          feeDistributorAddr: feesProgram.programId,
-          feeStateAddr: feesState,
-        })
-        .accounts({
-          state: protocolState,
-          admin: admin.publicKey,
-          stableCoinMint: stablecoinMint,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([admin])
-        .rpc();
-    } catch (e) {
+    // Check if protocol state already exists
+    if (existingState) {
       console.log("Protocol already initialized");
+    } else {
+      try {
+        await protocolProgram.methods
+          .initialize({
+            stableCoinCodeId: new anchor.BN(1),
+            oracleHelperAddr: oracleProgram.programId,
+            oracleStateAddr: oracleState,
+            feeDistributorAddr: feesProgram.programId,
+            feeStateAddr: feesState,
+          })
+          .accounts({
+            state: protocolState,
+            admin: admin.publicKey,
+            stableCoinMint: stablecoinMint,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([admin])
+          .rpc();
+        console.log("Protocol initialized successfully");
+      } catch (e) {
+        console.log("Protocol initialization failed:", e);
+        throw e;
+      }
     }
 
     // Create protocol vault token accounts
@@ -302,20 +332,23 @@ describe("Aeroscraper Protocol Core Operations", () => {
     } catch (e) {
       console.log("Protocol stablecoin vault already exists");
     }
+
+        // Sorted troves state will be created automatically by the protocol program
+        // when the first trove is opened (init_if_needed constraint)
   });
 
   describe("Core Protocol Operations", () => {
     it("Should open a trove successfully", async () => {
-      const collateralAmount = 10000000; // 10 tokens
-      const loanAmount = 5000000; // 5 stablecoins
+      const collateralAmount = 5000000000; // 5 SOL with 9 decimals (MINIMUM_COLLATERAL_AMOUNT)
+      const loanAmount = "2000000000000000000"; // 2 aUSD with 18 decimals (above minimum + fee)
       const collateralDenom = "SOL";
 
       try {
         await protocolProgram.methods
           .openTrove({
-            loan_amount: new anchor.BN(loanAmount),
-            collateral_denom: collateralDenom,
-            collateral_amount: new anchor.BN(collateralAmount),
+            loanAmount: new anchor.BN(loanAmount),
+            collateralDenom: collateralDenom,
+            collateralAmount: new anchor.BN(collateralAmount),
           })
           .accounts({
             user: user1.publicKey,
@@ -361,9 +394,9 @@ describe("Aeroscraper Protocol Core Operations", () => {
         await protocolProgram.methods
           .addCollateral({
             amount: new anchor.BN(additionalCollateral),
-            collateral_denom: "SOL",
-            prev_node_id: null,
-            next_node_id: null,
+            collateralDenom: "SOL",
+            prevNodeId: null,
+            nextNodeId: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -399,10 +432,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .borrowLoan({
-            loan_amount: new anchor.BN(additionalLoan),
-            collateral_denom: "SOL",
-            prev_node_id: null,
-            next_node_id: null,
+            loanAmount: new anchor.BN(additionalLoan),
+            collateralDenom: "SOL",
+            prevNodeId: null,
+            nextNodeId: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -454,7 +487,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStakeAmount: user1Stake,
             state: protocolState,
             userStablecoinAccount: user1StablecoinAccount,
-            protocolStablecoinVault: protocolStablecoinAccountPDA,
+            protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
@@ -495,9 +528,9 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .openTrove({
-            loan_amount: new anchor.BN(loanAmount),
-            collateral_denom: collateralDenom,
-            collateral_amount: new anchor.BN(collateralAmount),
+            loanAmount: new anchor.BN(loanAmount),
+            collateralDenom: collateralDenom,
+            collateralAmount: new anchor.BN(collateralAmount),
           })
           .accounts({
             user: user2.publicKey,
@@ -543,9 +576,9 @@ describe("Aeroscraper Protocol Core Operations", () => {
         await protocolProgram.methods
           .repayLoan({
             amount: new anchor.BN(repayAmount),
-            collateral_denom: "SOL",
-            prev_node_id: null,
-            next_node_id: null,
+            collateralDenom: "SOL",
+            prevNodeId: null,
+            nextNodeId: null,
           })
           .accounts({
             user: user1.publicKey,
@@ -590,10 +623,10 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         await protocolProgram.methods
           .removeCollateral({
-            collateral_amount: new anchor.BN(removeAmount),
-            collateral_denom: "SOL",
-            prev_node_id: null,
-            next_node_id: null,
+            collateralAmount: new anchor.BN(removeAmount),
+            collateralDenom: "SOL",
+            prevNodeId: null,
+            nextNodeId: null,
           })
           .accounts({
             user: user1.publicKey,

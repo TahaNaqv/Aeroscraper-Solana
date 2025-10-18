@@ -13,7 +13,7 @@ The `aerospacer-fees` contract is a production-ready Solana program that manages
 
 ### Program ID
 ```
-h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t
+6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco
 ```
 
 ### Core Components

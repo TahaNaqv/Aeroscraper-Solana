@@ -8,7 +8,7 @@ use instructions::*;
 use crate::state::ConfigResponse;
 use crate::instructions::distribute_fee::DistributeFeeParams;
 
-declare_id!("h4ka5hAgZ5Ez7x4bjMiAqQHnuwnfry3aBiWNzUw3F7t");
+declare_id!("6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco");
 
 #[program]
 pub mod aerospacer_fees {

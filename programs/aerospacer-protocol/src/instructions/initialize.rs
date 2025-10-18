@@ -13,7 +13,13 @@ pub struct InitializeParams {
 #[derive(Accounts)]
 #[instruction(params: InitializeParams)]
 pub struct Initialize<'info> {
-    #[account(init, payer = admin, space = 8 + StateAccount::LEN)]
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + StateAccount::LEN,
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, StateAccount>,
     
     #[account(mut)]

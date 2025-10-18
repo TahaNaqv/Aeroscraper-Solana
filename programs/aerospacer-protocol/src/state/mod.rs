@@ -25,6 +25,10 @@ impl StateAccount {
     
     // Scale factor for precision in P/S calculations (10^18, same as Liquity)
     pub const SCALE_FACTOR: u128 = 1_000_000_000_000_000_000;
+    
+    pub fn seeds() -> [&'static [u8]; 1] {
+        [b"state"]
+    }
 }
 
 // User debt amount (equivalent to INJECTIVE's USER_DEBT_AMOUNT: Map<Addr, Uint256>)

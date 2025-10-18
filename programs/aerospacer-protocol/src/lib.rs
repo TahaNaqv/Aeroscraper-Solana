@@ -21,7 +21,7 @@ pub mod utils;
 
 use instructions::*;
 
-declare_id!("6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2");
+declare_id!("eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe");
 
 #[program]
 pub mod aerospacer_protocol {

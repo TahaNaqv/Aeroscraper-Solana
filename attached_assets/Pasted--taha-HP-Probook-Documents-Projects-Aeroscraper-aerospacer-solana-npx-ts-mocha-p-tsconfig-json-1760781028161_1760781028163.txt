@@ -49,11 +49,11 @@ Protocol stablecoin vault already exists
     'Program log: AnchorError caused by account: state. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.'
   ],
   logs: [
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 invoke [1]',
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe invoke [1]',
     'Program log: Instruction: Stake',
     'Program log: AnchorError caused by account: state. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.',
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 consumed 4253 of 200000 compute units',
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 failed: custom program error: 0xbc4'
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe consumed 4253 of 200000 compute units',
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe failed: custom program error: 0xbc4'
   ],
   error: {
     errorCode: { code: 'AccountNotInitialized', number: 3012 },
@@ -63,7 +63,7 @@ Protocol stablecoin vault already exists
   },
   _programErrorStack: ProgramErrorStack {
     stack: [
-      [PublicKey [PublicKey(6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2)]]
+      [PublicKey [PublicKey(eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe)]]
     ]
   }
 }
@@ -104,11 +104,11 @@ Protocol stablecoin vault already exists
     'Program log: AnchorError caused by account: user_stake_amount. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.'
   ],
   logs: [
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 invoke [1]',
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe invoke [1]',
     'Program log: Instruction: Unstake',
     'Program log: AnchorError caused by account: user_stake_amount. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.',
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 consumed 3996 of 200000 compute units',
-    'Program 6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2 failed: custom program error: 0xbc4'
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe consumed 3996 of 200000 compute units',
+    'Program eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe failed: custom program error: 0xbc4'
   ],
   error: {
     errorCode: { code: 'AccountNotInitialized', number: 3012 },
@@ -118,7 +118,7 @@ Protocol stablecoin vault already exists
   },
   _programErrorStack: ProgramErrorStack {
     stack: [
-      [PublicKey [PublicKey(6qjCWo3diZmBwTHVn1CfegbNQxBMy1q2MqPHUEN5xja2)]]
+      [PublicKey [PublicKey(eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe)]]
     ]
   }
 }
