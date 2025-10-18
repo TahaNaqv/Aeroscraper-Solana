@@ -70,9 +70,15 @@ describe("Aeroscraper Protocol Core Operations", () => {
   let feeAddress2TokenAccount: PublicKey;
 
   before(async () => {
-    // Airdrop SOL to admin
-    const signature = await provider.connection.requestAirdrop(admin.publicKey, 1000000000);
+    // Airdrop SOL to admin and users for transaction fees
+    const signature = await provider.connection.requestAirdrop(admin.publicKey, 10 * LAMPORTS_PER_SOL);
     await provider.connection.confirmTransaction(signature);
+
+    const user1Sig = await provider.connection.requestAirdrop(user1.publicKey, 10 * LAMPORTS_PER_SOL);
+    await provider.connection.confirmTransaction(user1Sig);
+
+    const user2Sig = await provider.connection.requestAirdrop(user2.publicKey, 10 * LAMPORTS_PER_SOL);
+    await provider.connection.confirmTransaction(user2Sig);
 
     // Create token mints
     stablecoinMint = await createMint(provider.connection, admin, admin.publicKey, null, 6);
@@ -317,6 +323,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user1LiquidityThresholdPDA,
             userCollateralAmount: user1CollateralAmountPDA,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
@@ -365,6 +372,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user1LiquidityThresholdPDA,
             state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
@@ -402,6 +410,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user1LiquidityThresholdPDA,
             userCollateralAmount: user1CollateralAmountPDA,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
@@ -496,6 +505,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user2LiquidityThresholdPda,
             userCollateralAmount: user2CollateralAmountPda,
             userCollateralAccount: user2CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
@@ -543,6 +553,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user1LiquidityThresholdPDA,
             userCollateralAmount: user1CollateralAmountPDA,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
@@ -591,6 +602,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             liquidityThreshold: user1LiquidityThresholdPDA,
             state: protocolState,
             userCollateralAccount: user1CollateralAccount,
+            collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
