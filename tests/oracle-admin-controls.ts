@@ -13,28 +13,36 @@ describe("Oracle Contract - Admin Controls Tests", () => {
   const nonAdmin = Keypair.generate();
   const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
   
-  let stateAccount: Keypair;
+  // Derive the state PDA
+  const [stateAccountPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
   before(async () => {
     console.log("\n🚀 Setting up Oracle Admin Controls Tests...");
 
-    stateAccount = Keypair.generate();
-
-    await oracleProgram.methods
-      .initialize({
-        oracleAddress: PYTH_ORACLE_ADDRESS,
-      })
-      .accounts({
-        state: stateAccount.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([stateAccount])
-      .rpc();
+    // Check if already initialized
+    const existingState = await provider.connection.getAccountInfo(stateAccountPda);
+    if (existingState) {
+      console.log("✅ Oracle already initialized, skipping...");
+    } else {
+      await oracleProgram.methods
+        .initialize({
+          oracleAddress: PYTH_ORACLE_ADDRESS,
+        })
+        .accounts({
+          state: stateAccountPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([]) // No signers needed - state is a PDA
+        .rpc();
+    }
 
     console.log("✅ Setup complete");
-    console.log("  State:", stateAccount.publicKey.toString());
+    console.log("  State:", stateAccountPda.toString());
   });
 
   describe("Test 2.1: Admin Can Set Collateral Data", () => {
@@ -50,7 +58,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -60,7 +68,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -84,7 +92,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -92,7 +100,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
       const priceId = await oracleProgram.methods
         .getPriceId({ denom: "SOL" })
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -128,7 +136,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -136,7 +144,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -156,7 +164,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -164,7 +172,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -185,7 +193,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -193,7 +201,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
       const config = await oracleProgram.methods
         .getConfig({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -216,7 +224,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
           })
           .accounts({
             admin: nonAdmin.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .signers([nonAdmin])
@@ -241,7 +249,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
           })
           .accounts({
             admin: nonAdmin.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .signers([nonAdmin])
@@ -266,7 +274,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
           })
           .accounts({
             admin: nonAdmin.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .signers([nonAdmin])
@@ -291,7 +299,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -318,7 +326,7 @@ describe("Oracle Contract - Admin Controls Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();

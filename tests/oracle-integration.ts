@@ -58,13 +58,17 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
   const ETH_PRICE_FEED = new PublicKey("EdVCmQ9FSPcVe5YySXDPCRmc8aDQLKJ9xvYBMZPie1Vw");
   const BTC_PRICE_FEED = new PublicKey("HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J");
   
-  let stateAccount: Keypair;
+  // Derive the state PDA
+  const [stateAccountPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
   async function queryPrice(denom: string, pythAccount: PublicKey): Promise<PriceData> {
     const ix = await oracleProgram.methods
       .getPrice({ denom })
       .accounts({
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         pythPriceAccount: pythAccount,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
@@ -94,7 +98,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     const ix = await oracleProgram.methods
       .getAllPrices({})
       .accounts({
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
       .remainingAccounts(
@@ -138,24 +142,66 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
     return prices;
   }
 
+  // Cleanup function to reset oracle state
+  async function cleanupOracleState() {
+    try {
+      // Get current state to see what assets exist
+      const state = await oracleProgram.account.oracleStateAccount.fetch(stateAccountPda);
+      
+      // Remove all existing assets
+      for (const asset of state.collateralData) {
+        try {
+          await oracleProgram.methods
+            .removeData({ collateralDenom: asset.denom })
+            .accounts({
+              admin: provider.wallet.publicKey,
+              state: stateAccountPda,
+              clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            })
+            .rpc();
+        } catch (e) {
+          // Ignore errors if asset doesn't exist
+        }
+      }
+      
+      // Reset oracle address to original
+      await oracleProgram.methods
+        .updateOracleAddress({ oracleAddress: PYTH_ORACLE_ADDRESS })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+        
+      console.log("🧹 Oracle state cleaned up");
+    } catch (e) {
+      console.log("⚠️ Cleanup failed (expected if state is empty):", e.message);
+    }
+  }
+
   before(async () => {
     console.log("\n🚀 Setting up Oracle CPI Integration Tests...");
     console.log("  Simulating protocol contract interactions");
 
-    stateAccount = Keypair.generate();
-
-    await oracleProgram.methods
-      .initialize({
-        oracleAddress: PYTH_ORACLE_ADDRESS,
-      })
-      .accounts({
-        state: stateAccount.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([stateAccount])
-      .rpc();
+    // Check if already initialized
+    const existingState = await provider.connection.getAccountInfo(stateAccountPda);
+    if (existingState) {
+      console.log("✅ Oracle already initialized, skipping...");
+    } else {
+      await oracleProgram.methods
+        .initialize({
+          oracleAddress: PYTH_ORACLE_ADDRESS,
+        })
+        .accounts({
+          state: stateAccountPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([]) // No signers needed - state is a PDA
+        .rpc();
+    }
 
     const batchData = [
       {
@@ -185,7 +231,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
       .setDataBatch({ data: batchData })
       .accounts({
         admin: provider.wallet.publicKey,
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
       .rpc();
@@ -241,7 +287,7 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
         const exists = await oracleProgram.methods
           .checkDenom({ denom: asset })
           .accounts({
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
           })
           .view();
 
@@ -254,12 +300,79 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
 
   describe("Test 7.4: Protocol Retrieves Supported Assets List", () => {
     it("Should allow protocol to get all supported denoms", async () => {
+      // Clean up before test
+      await cleanupOracleState();
+      
+      // Add only the 3 assets this test expects
+      console.log("  Adding SOL asset...");
+      try {
+        await oracleProgram.methods
+          .setData({
+            denom: "SOL",
+            decimal: 9,
+            priceId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+            pythPriceAccount: SOL_PRICE_FEED,
+          })
+          .accounts({
+            admin: provider.wallet.publicKey,
+            state: stateAccountPda,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          })
+          .rpc();
+        console.log("  ✅ SOL asset added successfully");
+      } catch (e) {
+        console.log("  ❌ Failed to add SOL asset:", e.message);
+        throw e;
+      }
+
+      console.log("  Adding ETH asset...");
+      try {
+        await oracleProgram.methods
+          .setData({
+            denom: "ETH",
+            decimal: 18,
+            priceId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+            pythPriceAccount: ETH_PRICE_FEED,
+          })
+          .accounts({
+            admin: provider.wallet.publicKey,
+            state: stateAccountPda,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          })
+          .rpc();
+        console.log("  ✅ ETH asset added successfully");
+      } catch (e) {
+        console.log("  ❌ Failed to add ETH asset:", e.message);
+        throw e;
+      }
+
+      console.log("  Adding BTC asset...");
+      try {
+        await oracleProgram.methods
+          .setData({
+            denom: "BTC",
+            decimal: 8,
+            priceId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+            pythPriceAccount: BTC_PRICE_FEED,
+          })
+          .accounts({
+            admin: provider.wallet.publicKey,
+            state: stateAccountPda,
+            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          })
+          .rpc();
+        console.log("  ✅ BTC asset added successfully");
+      } catch (e) {
+        console.log("  ❌ Failed to add BTC asset:", e.message);
+        throw e;
+      }
+      
       console.log("📡 Simulating protocol CPI: get_all_denoms()...");
 
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -275,12 +388,58 @@ describe("Oracle Contract - Protocol CPI Integration Tests", () => {
 
   describe("Test 7.5: Protocol Gets Oracle Configuration", () => {
     it("Should allow protocol to query oracle config", async () => {
+      // Clean up before test
+      await cleanupOracleState();
+      
+      // Add only the 3 assets this test expects
+      await oracleProgram.methods
+        .setData({
+          denom: "SOL",
+          decimal: 9,
+          priceId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+          pythPriceAccount: SOL_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+
+      await oracleProgram.methods
+        .setData({
+          denom: "ETH",
+          decimal: 18,
+          priceId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+          pythPriceAccount: ETH_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+
+      await oracleProgram.methods
+        .setData({
+          denom: "BTC",
+          decimal: 8,
+          priceId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+          pythPriceAccount: BTC_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+      
       console.log("📡 Simulating protocol CPI: get_config()...");
 
       const config = await oracleProgram.methods
         .getConfig({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 

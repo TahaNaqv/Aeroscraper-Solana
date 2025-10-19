@@ -15,25 +15,33 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
 
   const SOL_PRICE_FEED = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
 
-  let stateAccount: Keypair;
+  // Derive the state PDA
+  const [stateAccountPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
   before(async () => {
     console.log("\n🚀 Setting up Oracle Security Tests...");
 
-    stateAccount = Keypair.generate();
-
-    await oracleProgram.methods
-      .initialize({
-        oracleAddress: PYTH_ORACLE_ADDRESS,
-      })
-      .accounts({
-        state: stateAccount.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([stateAccount])
-      .rpc();
+    // Check if already initialized
+    const existingState = await provider.connection.getAccountInfo(stateAccountPda);
+    if (existingState) {
+      console.log("✅ Oracle already initialized, skipping...");
+    } else {
+      await oracleProgram.methods
+        .initialize({
+          oracleAddress: PYTH_ORACLE_ADDRESS,
+        })
+        .accounts({
+          state: stateAccountPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([]) // No signers needed - state is a PDA
+        .rpc();
+    }
 
     await oracleProgram.methods
       .setData({
@@ -44,7 +52,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       })
       .accounts({
         admin: provider.wallet.publicKey,
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
       .rpc();
@@ -68,7 +76,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             })
             .accounts({
               admin: attacker.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .signers([attacker])
@@ -82,7 +90,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             })
             .accounts({
               admin: attacker.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .signers([attacker])
@@ -96,7 +104,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             })
             .accounts({
               admin: attacker.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .signers([attacker])
@@ -139,7 +147,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             })
             .accounts({
               admin: provider.wallet.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .rpc();
@@ -169,7 +177,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -196,7 +204,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -227,7 +235,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
             })
             .accounts({
               admin: provider.wallet.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .rpc();
@@ -253,7 +261,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -273,7 +281,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const priceResponse = await oracleProgram.methods
         .getPrice({ denom: "SOL" })
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           pythPriceAccount: SOL_PRICE_FEED,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
@@ -285,7 +293,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const config = await oracleProgram.methods
         .getConfig({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -295,7 +303,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -305,7 +313,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const exists = await oracleProgram.methods
         .checkDenom({ denom: "SOL" })
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -344,7 +352,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -362,7 +370,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const denomsBefore = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -378,7 +386,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -389,7 +397,7 @@ describe("Oracle Contract - Security & Authorization Tests", () => {
       const denomsAfter = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 

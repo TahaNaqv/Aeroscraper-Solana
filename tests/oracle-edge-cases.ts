@@ -14,25 +14,33 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
 
   const SOL_PRICE_FEED = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
 
-  let stateAccount: Keypair;
+  // Derive the state PDA
+  const [stateAccountPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
   before(async () => {
     console.log("\n🚀 Setting up Oracle Edge Cases Tests...");
 
-    stateAccount = Keypair.generate();
-
-    await oracleProgram.methods
-      .initialize({
-        oracleAddress: PYTH_ORACLE_ADDRESS,
-      })
-      .accounts({
-        state: stateAccount.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([stateAccount])
-      .rpc();
+    // Check if already initialized
+    const existingState = await provider.connection.getAccountInfo(stateAccountPda);
+    if (existingState) {
+      console.log("✅ Oracle already initialized, skipping...");
+    } else {
+      await oracleProgram.methods
+        .initialize({
+          oracleAddress: PYTH_ORACLE_ADDRESS,
+        })
+        .accounts({
+          state: stateAccountPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([]) // No signers needed - state is a PDA
+        .rpc();
+    }
 
     console.log("✅ Setup complete");
   });
@@ -52,7 +60,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -60,7 +68,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -91,7 +99,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -99,7 +107,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -131,7 +139,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -158,7 +166,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -184,7 +192,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -195,7 +203,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -220,7 +228,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -246,7 +254,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
             })
             .accounts({
               admin: provider.wallet.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .rpc();
@@ -258,7 +266,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
               })
               .accounts({
                 admin: provider.wallet.publicKey,
-                state: stateAccount.publicKey,
+                state: stateAccountPda,
                 clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
               })
               .rpc();
@@ -272,7 +280,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
             })
             .accounts({
               admin: provider.wallet.publicKey,
-              state: stateAccount.publicKey,
+              state: stateAccountPda,
               clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             })
             .rpc();
@@ -288,7 +296,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
       const config = await oracleProgram.methods
         .getConfig({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -323,7 +331,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
@@ -348,7 +356,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -362,7 +370,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: provider.wallet.publicKey,
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .rpc();
@@ -370,7 +378,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
       const denoms = await oracleProgram.methods
         .getAllDenoms({})
         .accounts({
-          state: stateAccount.publicKey,
+          state: stateAccountPda,
         })
         .view();
 
@@ -397,7 +405,7 @@ describe("Oracle Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: provider.wallet.publicKey,
-            state: stateAccount.publicKey,
+            state: stateAccountPda,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           })
           .rpc();
