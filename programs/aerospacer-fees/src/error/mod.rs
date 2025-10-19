@@ -29,10 +29,10 @@ pub enum AerospacerFeesError {
     #[msg("Invalid stability pool account - owner must match stake_contract_address")]
     InvalidStabilityPoolAccount,
     
-    #[msg("Invalid fee address 1 - owner must match FEE_ADDR_1")]
+    #[msg("Invalid fee address 1 - owner must match configured fee_address_1")]
     InvalidFeeAddress1,
     
-    #[msg("Invalid fee address 2 - owner must match FEE_ADDR_2")]
+    #[msg("Invalid fee address 2 - owner must match configured fee_address_2")]
     InvalidFeeAddress2,
     
     #[msg("Unauthorized token account - payer must own the payer_token_account")]

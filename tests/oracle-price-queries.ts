@@ -77,13 +77,17 @@ describe("Oracle Contract - Price Queries with Real Pyth Integration", () => {
   const ETH_PRICE_FEED = new PublicKey("EdVCmQ9FSPcVe5YySXDPCRmc8aDQLKJ9xvYBMZPie1Vw");
   const BTC_PRICE_FEED = new PublicKey("HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J");
   
-  let stateAccount: Keypair;
+  // Derive the state PDA
+  const [stateAccountPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
   async function queryPrice(denom: string, pythAccount: PublicKey): Promise<PriceData> {
     const ix = await oracleProgram.methods
       .getPrice({ denom })
       .accounts({
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         pythPriceAccount: pythAccount,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
@@ -113,7 +117,7 @@ describe("Oracle Contract - Price Queries with Real Pyth Integration", () => {
     const ix = await oracleProgram.methods
       .getAllPrices({})
       .accounts({
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
       .remainingAccounts(
@@ -141,23 +145,65 @@ describe("Oracle Contract - Price Queries with Real Pyth Integration", () => {
     return prices;
   }
 
+  // Cleanup function to reset oracle state
+  async function cleanupOracleState() {
+    try {
+      // Get current state to see what assets exist
+      const state = await oracleProgram.account.oracleStateAccount.fetch(stateAccountPda);
+      
+      // Remove all existing assets
+      for (const asset of state.collateralData) {
+        try {
+          await oracleProgram.methods
+            .removeData({ collateralDenom: asset.denom })
+            .accounts({
+              admin: provider.wallet.publicKey,
+              state: stateAccountPda,
+              clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            })
+            .rpc();
+        } catch (e) {
+          // Ignore errors if asset doesn't exist
+        }
+      }
+      
+      // Reset oracle address to original
+      await oracleProgram.methods
+        .updateOracleAddress({ oracleAddress: PYTH_ORACLE_ADDRESS })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+        
+      console.log("🧹 Oracle state cleaned up");
+    } catch (e) {
+      console.log("⚠️ Cleanup failed (expected if state is empty):", e.message);
+    }
+  }
+
   before(async () => {
     console.log("\n🚀 Setting up Oracle Price Queries Tests (Pyth Integration)...");
 
-    stateAccount = Keypair.generate();
-
-    await oracleProgram.methods
-      .initialize({
-        oracleAddress: PYTH_ORACLE_ADDRESS,
-      })
-      .accounts({
-        state: stateAccount.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([stateAccount])
-      .rpc();
+    // Check if already initialized
+    const existingState = await provider.connection.getAccountInfo(stateAccountPda);
+    if (existingState) {
+      console.log("✅ Oracle already initialized, skipping...");
+    } else {
+      await oracleProgram.methods
+        .initialize({
+          oracleAddress: PYTH_ORACLE_ADDRESS,
+        })
+        .accounts({
+          state: stateAccountPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([]) // No signers needed - state is a PDA
+        .rpc();
+    }
 
     const batchData = [
       {
@@ -189,7 +235,7 @@ describe("Oracle Contract - Price Queries with Real Pyth Integration", () => {
       })
       .accounts({
         admin: provider.wallet.publicKey,
-        state: stateAccount.publicKey,
+        state: stateAccountPda,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       })
       .rpc();
@@ -254,6 +300,52 @@ describe("Oracle Contract - Price Queries with Real Pyth Integration", () => {
 
   describe("Test 3.4: Query All Prices in Batch", () => {
     it("Should fetch all prices in a single get_all_prices call", async () => {
+      // Clean up before test
+      await cleanupOracleState();
+      
+      // Add only the 3 assets this test expects
+      await oracleProgram.methods
+        .setData({
+          denom: "SOL",
+          decimal: 9,
+          priceId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+          pythPriceAccount: SOL_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+
+      await oracleProgram.methods
+        .setData({
+          denom: "ETH",
+          decimal: 18,
+          priceId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+          pythPriceAccount: ETH_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+
+      await oracleProgram.methods
+        .setData({
+          denom: "BTC",
+          decimal: 8,
+          priceId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+          pythPriceAccount: BTC_PRICE_FEED,
+        })
+        .accounts({
+          admin: provider.wallet.publicKey,
+          state: stateAccountPda,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .rpc();
+      
       console.log("🔍 Querying all prices in batch...");
 
       const allPrices = await queryAllPrices([SOL_PRICE_FEED, ETH_PRICE_FEED, BTC_PRICE_FEED]);

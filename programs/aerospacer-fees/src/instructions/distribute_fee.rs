@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, transfer, Transfer};
-use std::str::FromStr;
-use crate::state::{FeeStateAccount, FEE_ADDR_1, FEE_ADDR_2};
+use crate::state::FeeStateAccount;
 use crate::error::AerospacerFeesError;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
@@ -98,16 +97,13 @@ pub fn handler(ctx: Context<DistributeFee>, params: DistributeFeeParams) -> Resu
         
         msg!("Fees distributed to stability pool successfully: {}", fee_amount);
     } else {
-        // Validate fee address token account owners
-        let fee_addr_1 = Pubkey::from_str(FEE_ADDR_1).unwrap();
-        let fee_addr_2 = Pubkey::from_str(FEE_ADDR_2).unwrap();
-        
+        // Validate fee address token account owners using state values
         require!(
-            ctx.accounts.fee_address_1_token_account.owner == fee_addr_1,
+            ctx.accounts.fee_address_1_token_account.owner == state.fee_address_1,
             AerospacerFeesError::InvalidFeeAddress1
         );
         require!(
-            ctx.accounts.fee_address_2_token_account.owner == fee_addr_2,
+            ctx.accounts.fee_address_2_token_account.owner == state.fee_address_2,
             AerospacerFeesError::InvalidFeeAddress2
         );
         

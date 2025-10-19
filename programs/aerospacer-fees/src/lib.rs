@@ -7,6 +7,7 @@ pub mod state;
 use instructions::*;
 use crate::state::ConfigResponse;
 use crate::instructions::distribute_fee::DistributeFeeParams;
+use crate::instructions::set_fee_addresses::SetFeeAddressesParams;
 
 declare_id!("6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco");
 
@@ -24,6 +25,10 @@ pub mod aerospacer_fees {
 
     pub fn set_stake_contract_address(ctx: Context<SetStakeContractAddress>, params: SetStakeContractAddressParams) -> Result<()> {
         instructions::set_stake_contract_address::handler(ctx, params)
+    }
+
+    pub fn set_fee_addresses(ctx: Context<SetFeeAddresses>, params: SetFeeAddressesParams) -> Result<()> {
+        instructions::set_fee_addresses::handler(ctx, params)
     }
 
     pub fn distribute_fee(ctx: Context<DistributeFee>, params: DistributeFeeParams) -> Result<()> {

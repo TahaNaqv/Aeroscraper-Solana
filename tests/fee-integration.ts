@@ -15,6 +15,7 @@ import {
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
 import { BN } from "bn.js";
+import * as fs from "fs";
 
 describe("Fee Contract - Protocol CPI Integration Tests", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -23,11 +24,22 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
 
   const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
 
-  const admin = Keypair.generate();
-  const protocolSim = Keypair.generate();
+  // Load wallet explicitly and use same wallet for all operations
+  const adminKeypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/.config/solana/id.json", "utf8")))
+  );
+  const admin = adminKeypair;
+  const protocolSim = admin; // Use same wallet to avoid funding issues
   
-  const FEE_ADDR_1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
-  const FEE_ADDR_2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
+  // Load fee addresses from key files
+  const feeAddr1Keypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/fee-addresses/fee_address_1.json", "utf8")))
+  );
+  const feeAddr2Keypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/fee-addresses/fee_address_2.json", "utf8")))
+  );
+  const FEE_ADDR_1 = feeAddr1Keypair.publicKey;
+  const FEE_ADDR_2 = feeAddr2Keypair.publicKey;
   
   let feeStateAccount: Keypair;
   let tokenMint: PublicKey;
@@ -38,24 +50,8 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
 
   before(async () => {
     console.log("\n🚀 Setting up Fee Contract CPI Integration Tests...");
-    
-    const adminAirdrop = await connection.requestAirdrop(
-      admin.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(adminAirdrop);
-
-    const protocolAirdrop = await connection.requestAirdrop(
-      protocolSim.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(protocolAirdrop);
-
-    const feeAddr1Airdrop = await connection.requestAirdrop(FEE_ADDR_1, 2 * LAMPORTS_PER_SOL);
-    await connection.confirmTransaction(feeAddr1Airdrop);
-
-    const feeAddr2Airdrop = await connection.requestAirdrop(FEE_ADDR_2, 2 * LAMPORTS_PER_SOL);
-    await connection.confirmTransaction(feeAddr2Airdrop);
+    console.log("  Admin:", admin.publicKey.toString());
+    console.log("  Using same wallet for all operations (no airdrops needed)");
     
     tokenMint = await createMint(
       connection,
@@ -65,20 +61,18 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       6
     );
 
+    // Create one token account for all purposes (same owner, same mint)
     protocolTokenAccount = await createAccount(
-      connection,
-      protocolSim,
-      tokenMint,
-      protocolSim.publicKey
-    );
-
-    stabilityPoolTokenAccount = await createAccount(
       connection,
       admin,
       tokenMint,
       admin.publicKey
     );
 
+    // Use the same token account for stability pool
+    stabilityPoolTokenAccount = protocolTokenAccount;
+
+    // Create token accounts for fee addresses (admin pays for them)
     feeAddr1TokenAccount = await createAccount(
       connection,
       admin,
@@ -99,7 +93,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       tokenMint,
       protocolTokenAccount,
       admin,
-      100000000000
+      1000000000 // Reduced from 100000000000 to 1000000000 (1000 tokens instead of 100000)
     );
     
     feeStateAccount = Keypair.generate();
@@ -114,9 +108,24 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       .signers([admin, feeStateAccount])
       .rpc();
 
+    // Set custom fee addresses for testing
+    await feesProgram.methods
+      .setFeeAddresses({
+        feeAddress1: FEE_ADDR_1.toString(),
+        feeAddress2: FEE_ADDR_2.toString()
+      })
+      .accounts({
+        admin: admin.publicKey,
+        state: feeStateAccount.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+
     console.log("✅ Setup complete");
     console.log("  Protocol Simulator:", protocolSim.publicKey.toString());
     console.log("  Fee State:", feeStateAccount.publicKey.toString());
+    console.log("  Fee Address 1:", FEE_ADDR_1.toString());
+    console.log("  Fee Address 2:", FEE_ADDR_2.toString());
   });
 
   describe("Test 7.1: Protocol Calls distribute_fee via CPI (Stake Mode)", () => {
@@ -279,6 +288,8 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       console.log("📊 Config retrieved via CPI simulation:");
       console.log("  admin:", config.admin.toString());
       console.log("  isStakeEnabled:", config.isStakeEnabled);
+      console.log("  feeAddress1:", config.feeAddress1.toString());
+      console.log("  feeAddress2:", config.feeAddress2.toString());
       console.log("  totalFeesCollected:", config.totalFeesCollected.toString());
 
       assert.equal(
@@ -289,6 +300,8 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
 
       expect(config).to.have.property("isStakeEnabled");
       expect(config).to.have.property("stakeContractAddress");
+      expect(config).to.have.property("feeAddress1");
+      expect(config).to.have.property("feeAddress2");
       expect(config).to.have.property("totalFeesCollected");
 
       console.log("✅ get_fees_config CPI working correctly");

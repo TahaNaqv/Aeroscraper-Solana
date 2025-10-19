@@ -74,7 +74,20 @@ src/
 
 **Description**: Admin-only function to configure the stability pool address for fee distribution.
 
-### 4. Distribute Fee
+### 4. Set Fee Addresses
+**Purpose**: Update the fee distribution addresses
+
+**Parameters**:
+- `fee_address_1`: String - First fee address (Protocol Treasury)
+- `fee_address_2`: String - Second fee address (Validator Rewards)
+
+**Accounts**:
+- `admin`: Signer (must be contract admin)
+- `state`: FeeStateAccount (mut)
+
+**Description**: Admin-only function to configure the fee distribution addresses. Both addresses must be valid Solana public keys and must be different from each other.
+
+### 5. Distribute Fee
 **Purpose**: Distribute protocol fees based on current mode
 
 **Parameters**:
@@ -91,7 +104,7 @@ src/
 
 **Description**: Core fee distribution logic with comprehensive security validations.
 
-### 5. Get Config
+### 6. Get Config
 **Purpose**: Query contract configuration
 
 **Accounts**:
@@ -127,14 +140,18 @@ pub struct FeeStateAccount {
     pub admin: Pubkey,                    // 32 bytes
     pub is_stake_enabled: bool,           // 1 byte
     pub stake_contract_address: Pubkey,   // 32 bytes
+    pub fee_address_1: Pubkey,            // 32 bytes - NEW
+    pub fee_address_2: Pubkey,            // 32 bytes - NEW
     pub total_fees_collected: u64,        // 8 bytes
 }
-// Total: 73 bytes + 8 (discriminator) = 81 bytes
+// Total: 137 bytes + 8 (discriminator) = 145 bytes
 ```
 
-### Hardcoded Fee Addresses
-- **FEE_ADDR_1**: `8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR` (Protocol Treasury)
-- **FEE_ADDR_2**: `GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX` (Validator Rewards)
+### Default Fee Addresses (Updateable by Admin)
+- **DEFAULT_FEE_ADDR_1**: `8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR` (Protocol Treasury)
+- **DEFAULT_FEE_ADDR_2**: `GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX` (Validator Rewards)
+
+**Note**: These are the default values set during initialization. The admin can update them using the `set_fee_addresses` instruction.
 
 ## 🚀 Usage Examples
 
@@ -155,6 +172,21 @@ await program.methods
 ```typescript
 await program.methods
   .toggleStakeContract()
+  .accounts({
+    admin: adminKeypair.publicKey,
+    state: feeStatePDA,
+  })
+  .signers([adminKeypair])
+  .rpc();
+```
+
+### Set Fee Addresses
+```typescript
+await program.methods
+  .setFeeAddresses({
+    feeAddress1: "NewTreasuryAddress...",
+    feeAddress2: "NewValidatorAddress..."
+  })
   .accounts({
     admin: adminKeypair.publicKey,
     state: feeStatePDA,

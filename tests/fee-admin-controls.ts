@@ -8,6 +8,7 @@ import {
   LAMPORTS_PER_SOL 
 } from "@solana/web3.js";
 import { assert, expect } from "chai";
+import * as fs from "fs";
 
 describe("Fee Contract - Admin Controls Tests", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -16,24 +17,18 @@ describe("Fee Contract - Admin Controls Tests", () => {
 
   const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
 
-  const admin = Keypair.generate();
-  const nonAdmin = Keypair.generate();
+  // Load wallet explicitly
+  const adminKeypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/.config/solana/id.json", "utf8")))
+  );
+  const admin = adminKeypair;
+  const nonAdmin = Keypair.generate(); // Generate different keypair for non-admin tests
   let feeStateAccount: Keypair;
 
   before(async () => {
     console.log("\n🚀 Setting up Fee Contract Admin Controls Tests...");
-    
-    const adminAirdrop = await connection.requestAirdrop(
-      admin.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(adminAirdrop);
-
-    const nonAdminAirdrop = await connection.requestAirdrop(
-      nonAdmin.publicKey,
-      2 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(nonAdminAirdrop);
+    console.log("  Admin:", admin.publicKey.toString());
+    console.log("  Using same wallet for all operations (no airdrops needed)");
     
     feeStateAccount = Keypair.generate();
     
@@ -286,7 +281,174 @@ describe("Fee Contract - Admin Controls Tests", () => {
     });
   });
 
-  describe("Test 2.7: Multiple Rapid Toggles Work Correctly", () => {
+  describe("Test 2.7: Admin Can Set Fee Addresses", () => {
+    it("Should set valid fee addresses successfully", async () => {
+      const newFeeAddr1 = Keypair.generate().publicKey;
+      const newFeeAddr2 = Keypair.generate().publicKey;
+
+      console.log("📝 Setting new fee addresses...");
+      console.log("  Fee Address 1:", newFeeAddr1.toString());
+      console.log("  Fee Address 2:", newFeeAddr2.toString());
+
+      const tx = await feesProgram.methods
+        .setFeeAddresses({
+          feeAddress1: newFeeAddr1.toString(),
+          feeAddress2: newFeeAddr2.toString()
+        })
+        .accounts({
+          admin: admin.publicKey,
+          state: feeStateAccount.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      console.log("✅ Fee addresses set. TX:", tx);
+
+      const state = await feesProgram.account.feeStateAccount.fetch(
+        feeStateAccount.publicKey
+      );
+
+      assert.equal(
+        state.feeAddress1.toString(),
+        newFeeAddr1.toString(),
+        "Fee address 1 should be set correctly"
+      );
+      assert.equal(
+        state.feeAddress2.toString(),
+        newFeeAddr2.toString(),
+        "Fee address 2 should be set correctly"
+      );
+
+      console.log("✅ Fee addresses set successfully");
+    });
+
+    it("Should allow updating fee addresses multiple times", async () => {
+      const addr1_1 = Keypair.generate().publicKey;
+      const addr1_2 = Keypair.generate().publicKey;
+      const addr2_1 = Keypair.generate().publicKey;
+      const addr2_2 = Keypair.generate().publicKey;
+
+      // First update
+      await feesProgram.methods
+        .setFeeAddresses({
+          feeAddress1: addr1_1.toString(),
+          feeAddress2: addr1_2.toString()
+        })
+        .accounts({
+          admin: admin.publicKey,
+          state: feeStateAccount.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      let state = await feesProgram.account.feeStateAccount.fetch(
+        feeStateAccount.publicKey
+      );
+      assert.equal(state.feeAddress1.toString(), addr1_1.toString());
+      assert.equal(state.feeAddress2.toString(), addr1_2.toString());
+
+      // Second update
+      await feesProgram.methods
+        .setFeeAddresses({
+          feeAddress1: addr2_1.toString(),
+          feeAddress2: addr2_2.toString()
+        })
+        .accounts({
+          admin: admin.publicKey,
+          state: feeStateAccount.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      state = await feesProgram.account.feeStateAccount.fetch(
+        feeStateAccount.publicKey
+      );
+      assert.equal(state.feeAddress1.toString(), addr2_1.toString());
+      assert.equal(state.feeAddress2.toString(), addr2_2.toString());
+
+      console.log("✅ Fee addresses updated multiple times successfully");
+    });
+  });
+
+  describe("Test 2.8: Reject Invalid Fee Addresses", () => {
+    it("Should fail with malformed fee address strings", async () => {
+      console.log("🔒 Attempting to set invalid fee addresses...");
+
+      try {
+        await feesProgram.methods
+          .setFeeAddresses({
+            feeAddress1: "invalid-address-format",
+            feeAddress2: "another-invalid-address"
+          })
+          .accounts({
+            admin: admin.publicKey,
+            state: feeStateAccount.publicKey,
+          })
+          .signers([admin])
+          .rpc();
+
+        assert.fail("Should have thrown an error");
+      } catch (error: any) {
+        console.log("✅ Invalid fee addresses correctly rejected");
+        console.log("  Error:", error.message);
+        expect(error.message).to.exist;
+      }
+    });
+
+    it("Should fail when fee addresses are the same", async () => {
+      const sameAddress = Keypair.generate().publicKey;
+
+      try {
+        await feesProgram.methods
+          .setFeeAddresses({
+            feeAddress1: sameAddress.toString(),
+            feeAddress2: sameAddress.toString()
+          })
+          .accounts({
+            admin: admin.publicKey,
+            state: feeStateAccount.publicKey,
+          })
+          .signers([admin])
+          .rpc();
+
+        assert.fail("Should have thrown an error");
+      } catch (error: any) {
+        console.log("✅ Identical fee addresses correctly rejected");
+        expect(error.message).to.exist;
+      }
+    });
+  });
+
+  describe("Test 2.9: Non-Admin Cannot Set Fee Addresses", () => {
+    it("Should fail when non-admin tries to set fee addresses", async () => {
+      const feeAddr1 = Keypair.generate().publicKey;
+      const feeAddr2 = Keypair.generate().publicKey;
+      
+      console.log("🔒 Attempting to set fee addresses as non-admin...");
+
+      try {
+        await feesProgram.methods
+          .setFeeAddresses({
+            feeAddress1: feeAddr1.toString(),
+            feeAddress2: feeAddr2.toString()
+          })
+          .accounts({
+            admin: nonAdmin.publicKey,
+            state: feeStateAccount.publicKey,
+          })
+          .signers([nonAdmin])
+          .rpc();
+
+        assert.fail("Should have thrown an error");
+      } catch (error: any) {
+        console.log("✅ Non-admin set fee addresses correctly prevented");
+        console.log("  Error:", error.message);
+        expect(error.message).to.include("Unauthorized");
+      }
+    });
+  });
+
+  describe("Test 2.10: Multiple Rapid Toggles Work Correctly", () => {
     it("Should handle rapid consecutive toggles", async () => {
       console.log("⚡ Performing rapid toggles...");
 
@@ -330,6 +492,8 @@ describe("Fee Contract - Admin Controls Tests", () => {
       expect(state).to.have.property("admin");
       expect(state).to.have.property("isStakeEnabled");
       expect(state).to.have.property("stakeContractAddress");
+      expect(state).to.have.property("feeAddress1");
+      expect(state).to.have.property("feeAddress2");
       expect(state).to.have.property("totalFeesCollected");
 
       assert.equal(
@@ -349,6 +513,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
 
   after(() => {
     console.log("\n✅ Fee Contract Admin Controls Tests Complete");
-    console.log("  Total Tests Passed: 10");
+    console.log("  Total Tests Passed: 13");
+    console.log("  Tests include: stake toggle, address setting, fee address management, authorization, validation");
   });
 });

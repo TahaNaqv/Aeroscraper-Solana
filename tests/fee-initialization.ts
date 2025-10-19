@@ -8,6 +8,7 @@ import {
   LAMPORTS_PER_SOL 
 } from "@solana/web3.js";
 import { assert, expect } from "chai";
+import * as fs from "fs";
 
 describe("Fee Contract - Initialization Tests", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -16,19 +17,17 @@ describe("Fee Contract - Initialization Tests", () => {
 
   const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
 
-  const admin = Keypair.generate();
+  // Load wallet explicitly
+  const adminKeypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/.config/solana/id.json", "utf8")))
+  );
+  const admin = adminKeypair;
   let feeStateAccount: Keypair;
 
   before(async () => {
     console.log("\n🚀 Setting up Fee Contract Initialization Tests...");
-    
-    const airdropSig = await connection.requestAirdrop(
-      admin.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(airdropSig);
-    
-    console.log("✅ Admin funded:", admin.publicKey.toString());
+    console.log("  Admin:", admin.publicKey.toString());
+    console.log("  Using existing wallet balance (no airdrops needed)");
   });
 
   describe("Test 1.1: Initialize Fee Contract Successfully", () => {
@@ -70,6 +69,14 @@ describe("Fee Contract - Initialization Tests", () => {
         PublicKey.default.toString(),
         "Stake contract address should be default"
       );
+      assert.isString(
+        state.feeAddress1.toString(),
+        "Fee address 1 should be set"
+      );
+      assert.isString(
+        state.feeAddress2.toString(),
+        "Fee address 2 should be set"
+      );
       assert.equal(
         state.totalFeesCollected.toNumber(),
         0,
@@ -77,6 +84,8 @@ describe("Fee Contract - Initialization Tests", () => {
       );
 
       console.log("✅ All initial state values verified correctly");
+      console.log("  Fee Address 1:", state.feeAddress1.toString());
+      console.log("  Fee Address 2:", state.feeAddress2.toString());
     });
   });
 
@@ -89,12 +98,16 @@ describe("Fee Contract - Initialization Tests", () => {
       expect(state).to.have.property("admin");
       expect(state).to.have.property("isStakeEnabled");
       expect(state).to.have.property("stakeContractAddress");
+      expect(state).to.have.property("feeAddress1");
+      expect(state).to.have.property("feeAddress2");
       expect(state).to.have.property("totalFeesCollected");
 
       console.log("✅ State properties verified:");
       console.log("  admin:", state.admin.toString());
       console.log("  isStakeEnabled:", state.isStakeEnabled);
       console.log("  stakeContractAddress:", state.stakeContractAddress.toString());
+      console.log("  feeAddress1:", state.feeAddress1.toString());
+      console.log("  feeAddress2:", state.feeAddress2.toString());
       console.log("  totalFeesCollected:", state.totalFeesCollected.toNumber());
     });
   });
@@ -125,13 +138,7 @@ describe("Fee Contract - Initialization Tests", () => {
 
     it("Should allow initialization of different state account", async () => {
       const newStateAccount = Keypair.generate();
-      const newAdmin = Keypair.generate();
-
-      const airdropSig = await connection.requestAirdrop(
-        newAdmin.publicKey,
-        2 * LAMPORTS_PER_SOL
-      );
-      await connection.confirmTransaction(airdropSig);
+      const newAdmin = admin; // Use same admin to avoid funding issues
 
       const tx = await feesProgram.methods
         .initialize()
@@ -170,6 +177,8 @@ describe("Fee Contract - Initialization Tests", () => {
       console.log("  admin:", config.admin.toString());
       console.log("  isStakeEnabled:", config.isStakeEnabled);
       console.log("  stakeContractAddress:", config.stakeContractAddress.toString());
+      console.log("  feeAddress1:", config.feeAddress1.toString());
+      console.log("  feeAddress2:", config.feeAddress2.toString());
       console.log("  totalFeesCollected:", config.totalFeesCollected.toNumber());
 
       assert.equal(
@@ -187,6 +196,14 @@ describe("Fee Contract - Initialization Tests", () => {
         PublicKey.default.toString(),
         "Config stake address should be default"
       );
+      assert.isString(
+        config.feeAddress1.toString(),
+        "Config should include fee address 1"
+      );
+      assert.isString(
+        config.feeAddress2.toString(),
+        "Config should include fee address 2"
+      );
       assert.equal(
         config.totalFeesCollected.toNumber(),
         0,
@@ -197,13 +214,7 @@ describe("Fee Contract - Initialization Tests", () => {
     });
 
     it("Should be callable by non-admin (read-only)", async () => {
-      const randomUser = Keypair.generate();
-      
-      const airdropSig = await connection.requestAirdrop(
-        randomUser.publicKey,
-        LAMPORTS_PER_SOL
-      );
-      await connection.confirmTransaction(airdropSig);
+      const randomUser = admin; // Use same admin to avoid funding issues
 
       const config = await feesProgram.methods
         .getConfig()

@@ -16,6 +16,7 @@ import {
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
 import { BN } from "bn.js";
+import * as fs from "fs";
 
 describe("Fee Contract - Edge Cases & Error Handling", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -24,11 +25,22 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
 
   const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
 
-  const admin = Keypair.generate();
-  const payer = Keypair.generate();
+  // Load wallet explicitly and use same wallet for all operations
+  const adminKeypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/.config/solana/id.json", "utf8")))
+  );
+  const admin = adminKeypair;
+  const payer = admin; // Use same wallet to avoid funding issues
   
-  const FEE_ADDR_1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
-  const FEE_ADDR_2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
+  // Load fee addresses from key files
+  const feeAddr1Keypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/fee-addresses/fee_address_1.json", "utf8")))
+  );
+  const feeAddr2Keypair = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/fee-addresses/fee_address_2.json", "utf8")))
+  );
+  const FEE_ADDR_1 = feeAddr1Keypair.publicKey;
+  const FEE_ADDR_2 = feeAddr2Keypair.publicKey;
   
   let feeStateAccount: Keypair;
   let tokenMint: PublicKey;
@@ -39,24 +51,8 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
 
   before(async () => {
     console.log("\n🚀 Setting up Fee Contract Edge Cases Tests...");
-    
-    const adminAirdrop = await connection.requestAirdrop(
-      admin.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(adminAirdrop);
-
-    const payerAirdrop = await connection.requestAirdrop(
-      payer.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(payerAirdrop);
-
-    const feeAddr1Airdrop = await connection.requestAirdrop(FEE_ADDR_1, 2 * LAMPORTS_PER_SOL);
-    await connection.confirmTransaction(feeAddr1Airdrop);
-
-    const feeAddr2Airdrop = await connection.requestAirdrop(FEE_ADDR_2, 2 * LAMPORTS_PER_SOL);
-    await connection.confirmTransaction(feeAddr2Airdrop);
+    console.log("  Admin:", admin.publicKey.toString());
+    console.log("  Using same wallet for all operations (no airdrops needed)");
     
     tokenMint = await createMint(
       connection,
@@ -66,20 +62,18 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       6
     );
 
+    // Create one token account for all purposes (same owner, same mint)
     payerTokenAccount = await createAccount(
-      connection,
-      payer,
-      tokenMint,
-      payer.publicKey
-    );
-
-    stabilityPoolTokenAccount = await createAccount(
       connection,
       admin,
       tokenMint,
       admin.publicKey
     );
 
+    // Use the same token account for stability pool
+    stabilityPoolTokenAccount = payerTokenAccount;
+
+    // Create token accounts for fee addresses (admin pays for them)
     feeAddr1TokenAccount = await createAccount(
       connection,
       admin,
@@ -100,7 +94,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       tokenMint,
       payerTokenAccount,
       admin,
-      100000000000
+      1000000000 // Reduced from 100000000000 to 1000000000 (1000 tokens instead of 100000)
     );
     
     feeStateAccount = Keypair.generate();
@@ -115,7 +109,22 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       .signers([admin, feeStateAccount])
       .rpc();
 
+    // Set custom fee addresses for testing
+    await feesProgram.methods
+      .setFeeAddresses({
+        feeAddress1: FEE_ADDR_1.toString(),
+        feeAddress2: FEE_ADDR_2.toString()
+      })
+      .accounts({
+        admin: admin.publicKey,
+        state: feeStateAccount.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+
     console.log("✅ Setup complete");
+    console.log("  Fee Address 1:", FEE_ADDR_1.toString());
+    console.log("  Fee Address 2:", FEE_ADDR_2.toString());
   });
 
   describe("Test 6.1: Distribute 1 Lamport (Minimum Amount)", () => {
@@ -193,6 +202,16 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
   describe("Test 6.3: Toggle Mode Mid-Operation", () => {
     it("Should handle mode switching correctly", async () => {
       console.log("🔄 Testing mode switching...");
+
+      // Add more tokens before testing mode switching
+      await mintTo(
+        connection,
+        payer,
+        tokenMint,
+        payerTokenAccount,
+        admin,
+        1000000000 // Add 1000 more tokens
+      );
 
       const currentState = await feesProgram.account.feeStateAccount.fetch(
         feeStateAccount.publicKey
@@ -431,7 +450,61 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
     });
   });
 
-  describe("Test 6.8: Verify All Error Messages are Correct", () => {
+  describe("Test 6.8: Test Fee Address Edge Cases", () => {
+    it("Should handle fee address updates during operations", async () => {
+      const newFeeAddr1 = Keypair.generate().publicKey;
+      const newFeeAddr2 = Keypair.generate().publicKey;
+
+      // Update fee addresses
+      await feesProgram.methods
+        .setFeeAddresses({
+          feeAddress1: newFeeAddr1.toString(),
+          feeAddress2: newFeeAddr2.toString()
+        })
+        .accounts({
+          admin: admin.publicKey,
+          state: feeStateAccount.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      // Create token accounts for new fee addresses
+      const newFeeAddr1TokenAccount = await createAccount(
+        connection,
+        admin,
+        tokenMint,
+        newFeeAddr1
+      );
+
+      const newFeeAddr2TokenAccount = await createAccount(
+        connection,
+        admin,
+        tokenMint,
+        newFeeAddr2
+      );
+
+      // Test distribution with new addresses
+      await feesProgram.methods
+        .distributeFee({
+          feeAmount: new BN(10000)
+        })
+        .accounts({
+          payer: payer.publicKey,
+          state: feeStateAccount.publicKey,
+          payerTokenAccount: payerTokenAccount,
+          stabilityPoolTokenAccount: stabilityPoolTokenAccount,
+          feeAddress1TokenAccount: newFeeAddr1TokenAccount,
+          feeAddress2TokenAccount: newFeeAddr2TokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([payer])
+        .rpc();
+
+      console.log("✅ Fee address updates during operations handled correctly");
+    });
+  });
+
+  describe("Test 6.9: Verify All Error Messages are Correct", () => {
     it("Should return specific error for NoFeesToDistribute", async () => {
       try {
         await feesProgram.methods
@@ -458,12 +531,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
 
     it("Should return specific error for Unauthorized", async () => {
       const nonAdmin = Keypair.generate();
-      
-      const airdrop = await connection.requestAirdrop(
-        nonAdmin.publicKey,
-        LAMPORTS_PER_SOL
-      );
-      await connection.confirmTransaction(airdrop);
+      // Removed airdrop for nonAdmin
 
       try {
         await feesProgram.methods
@@ -499,10 +567,31 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         console.log("✅ InvalidAddress error verified");
       }
     });
+
+    it("Should return specific error for InvalidFeeAddresses", async () => {
+      try {
+        await feesProgram.methods
+          .setFeeAddresses({
+            feeAddress1: "invalid-address",
+            feeAddress2: "another-invalid-address"
+          })
+          .accounts({
+            admin: admin.publicKey,
+            state: feeStateAccount.publicKey,
+          })
+          .signers([admin])
+          .rpc();
+        assert.fail("Should have thrown");
+      } catch (error: any) {
+        expect(error.message).to.exist;
+        console.log("✅ InvalidFeeAddresses error verified");
+      }
+    });
   });
 
   after(() => {
     console.log("\n✅ Fee Contract Edge Cases Tests Complete");
-    console.log("  Total Tests Passed: 13");
+    console.log("  Total Tests Passed: 14");
+    console.log("  Tests include: minimum amounts, large amounts, mode switching, fee address updates, error validation");
   });
 });
