@@ -38,10 +38,26 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   before(async () => {
     console.log("\n🚀 Setting up Stability Pool Tests...");
 
-    // Airdrop SOL
-    await provider.connection.requestAirdrop(staker1.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    await provider.connection.requestAirdrop(staker2.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Transfer SOL for transaction fees and account creation
+    const transferAmount = 10000000; // 0.01 SOL in lamports
+    
+    const staker1Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: staker1.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await provider.sendAndConfirm(staker1Tx, [admin.payer]);
+
+    const staker2Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: staker2.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await provider.sendAndConfirm(staker2Tx, [admin.payer]);
 
     // Create mints
     stablecoinMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 18);
@@ -153,9 +169,10 @@ describe("Protocol Contract - Stability Pool Tests", () => {
         .stake({ stakeAmount })
         .accounts({
           state: protocolState,
-          userStake: userStakePda,
+          userStakeAmount: userStakePda,
           user: staker1.publicKey,
           userStablecoinAccount: staker1StablecoinAccount,
+          protocolStablecoinAccount: protocolState, // Use protocol state for now
           stableCoinMint: stablecoinMint,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
@@ -181,8 +198,15 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   describe("Test 3.2: Unstake aUSD from Stability Pool", () => {
     it("Should successfully unstake aUSD", async () => {
       const testStaker = Keypair.generate();
-      await provider.connection.requestAirdrop(testStaker.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testStakerTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testStaker.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testStakerTx, [admin.payer]);
 
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -316,8 +340,15 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   describe("Test 3.6: Compounded Stake Calculation", () => {
     it("Should calculate compounded stake based on P factor changes", async () => {
       const testStaker = Keypair.generate();
-      await provider.connection.requestAirdrop(testStaker.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testStakerTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testStaker.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testStakerTx, [admin.payer]);
 
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -375,8 +406,15 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   describe("Test 3.7: Collateral Gain Calculation", () => {
     it("Should track potential collateral gains for stakers", async () => {
       const testStaker = Keypair.generate();
-      await provider.connection.requestAirdrop(testStaker.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testStakerTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testStaker.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testStakerTx, [admin.payer]);
 
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -446,8 +484,15 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   describe("Test 3.8: User Snapshots (P and S)", () => {
     it("Should capture P and S snapshots on stake", async () => {
       const testStaker = Keypair.generate();
-      await provider.connection.requestAirdrop(testStaker.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testStakerTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testStaker.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testStakerTx, [admin.payer]);
 
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -505,8 +550,15 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   describe("Test 3.9: Withdraw Liquidation Gains", () => {
     it("Should allow withdrawing accumulated collateral gains", async () => {
       const testStaker = Keypair.generate();
-      await provider.connection.requestAirdrop(testStaker.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testStakerTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testStaker.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testStakerTx, [admin.payer]);
 
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,

@@ -144,8 +144,15 @@ describe("Protocol Contract - Redemption Tests", () => {
       );
 
       const userKeypair = Keypair.generate();
-      await provider.connection.requestAirdrop(userKeypair.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const userTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: userKeypair.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(userTx, [admin.payer]);
 
       const userStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,

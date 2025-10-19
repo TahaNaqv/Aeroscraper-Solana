@@ -102,6 +102,22 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
   // Removed to prevent "Max seed length exceeded" error
   const totalLiquidationCollateralGain = PublicKey.default;
 
+  // Fee-related PDAs
+  const [stabilityPoolTokenAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("stability_pool_token_account")],
+    programId
+  );
+
+  const [feeAddress1TokenAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("fee_address_1_token_account")],
+    programId
+  );
+
+  const [feeAddress2TokenAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("fee_address_2_token_account")],
+    programId
+  );
+
   return {
     protocolStablecoinVault,
     protocolCollateralVault,
@@ -115,6 +131,9 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
     stabilityPoolSnapshot,
     userCollateralSnapshot,
     totalLiquidationCollateralGain,
+    stabilityPoolTokenAccount,
+    feeAddress1TokenAccount,
+    feeAddress2TokenAccount,
   };
 }
 
@@ -215,14 +234,22 @@ export async function createTestUser(
 ): Promise<{ user: Keypair; collateralAccount: PublicKey }> {
   const user = Keypair.generate();
 
-  // Airdrop SOL
-  await provider.connection.requestAirdrop(user.publicKey, 5 * LAMPORTS_PER_SOL);
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Transfer SOL for transaction fees and account creation (0.01 SOL)
+  const transferAmount = 10000000; // 0.01 SOL in lamports
+  const transferTx = new anchor.web3.Transaction().add(
+    anchor.web3.SystemProgram.transfer({
+      fromPubkey: provider.wallet.publicKey,
+      toPubkey: user.publicKey,
+      lamports: transferAmount,
+    })
+  );
+  
+  await provider.sendAndConfirm(transferTx, [provider.wallet.payer]);
 
   // Create token account and fund it
   const collateralAccount = await createAssociatedTokenAccount(
     provider.connection,
-    user,
+    provider.wallet.payer,
     collateralMint,
     user.publicKey
   );
@@ -287,6 +314,11 @@ export async function openTroveForUser(
       oracleState: ctx.oracleState,
       pythPriceAccount: PYTH_ORACLE_ADDRESS,
       clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+      feesProgram: ctx.feesProgram.programId,
+      feesState: ctx.feeState,
+      stabilityPoolTokenAccount: pdas.stabilityPoolTokenAccount,
+      feeAddress1TokenAccount: pdas.feeAddress1TokenAccount,
+      feeAddress2TokenAccount: pdas.feeAddress2TokenAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })

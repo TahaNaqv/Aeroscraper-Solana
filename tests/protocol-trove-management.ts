@@ -40,10 +40,26 @@ describe("Protocol Contract - Trove Management Tests", () => {
   before(async () => {
     console.log("\n🚀 Setting up Trove Management Tests...");
 
-    // Airdrop SOL to users
-    await provider.connection.requestAirdrop(user1.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    await provider.connection.requestAirdrop(user2.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Transfer SOL for transaction fees and account creation
+    const transferAmount = 10000000; // 0.01 SOL in lamports
+    
+    const user1Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: user1.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await provider.sendAndConfirm(user1Tx, [admin.payer]);
+
+    const user2Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: user2.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await provider.sendAndConfirm(user2Tx, [admin.payer]);
 
     // Create mints
     stablecoinMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 18);
@@ -186,15 +202,28 @@ describe("Protocol Contract - Trove Management Tests", () => {
         })
         .accounts({
           state: protocolState,
-          userDebt: userDebtPda,
-          userCollateral: userCollateralPda,
-          totalCollateral: totalCollateralPda,
+          userDebtAmount: userDebtPda,
+          userCollateralAmount: userCollateralPda,
+          totalCollateralAmount: totalCollateralPda,
           user: user1.publicKey,
           userCollateralAccount: user1CollateralAccount,
-          protocolVault: protocolVault,
+          protocolCollateralAccount: protocolVault,
           userStablecoinAccount: user1StablecoinAccount,
+          protocolStablecoinAccount: protocolVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
+          liquidityThreshold: userDebtPda, // Use same PDA for now
+          node: userDebtPda, // Use same PDA for now
+          sortedTrovesState: userDebtPda, // Use same PDA for now
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: feesProgram.programId,
+          feesState: feeState,
+          stabilityPoolTokenAccount: user1StablecoinAccount, // Use user account for now
+          feeAddress1TokenAccount: user1StablecoinAccount, // Use user account for now
+          feeAddress2TokenAccount: user1StablecoinAccount, // Use user account for now
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -304,8 +333,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.3: Add Collateral to Existing Trove", () => {
     it("Should successfully add collateral", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -416,8 +452,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.4: Borrow Loan from Trove", () => {
     it("Should successfully borrow additional loan", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -522,8 +565,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.5: Repay Loan Partially", () => {
     it("Should successfully repay part of the loan", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -627,8 +677,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.6: Repay Loan Fully", () => {
     it("Should successfully repay all debt", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -726,8 +783,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.7: Close Trove", () => {
     it("Should successfully close trove after full repayment", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -836,8 +900,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.8: Remove Collateral (Maintaining MCR)", () => {
     it("Should successfully remove collateral while maintaining MCR", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -949,8 +1020,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.9: Reject Collateral Removal Below MCR", () => {
     it("Should fail when removing collateral would violate MCR", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -1052,8 +1130,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.10: Reject Borrow Below Minimum Loan Amount", () => {
     it("Should fail when borrowing below minimum loan amount", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -1134,8 +1219,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.11: Reject Close Trove with Outstanding Debt", () => {
     it("Should fail when trying to close trove with debt", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,
@@ -1238,8 +1330,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.12: Open Trove with Multiple Collateral Types", () => {
     it("Should support multiple collateral denominations", async () => {
       const testUser = Keypair.generate();
-      await provider.connection.requestAirdrop(testUser.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const testUserTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: testUser.publicKey,
+          lamports: transferAmount,
+        })
+      );
+      await provider.sendAndConfirm(testUserTx, [admin.payer]);
 
       const testCollateralAccount = await createAssociatedTokenAccount(
         provider.connection,

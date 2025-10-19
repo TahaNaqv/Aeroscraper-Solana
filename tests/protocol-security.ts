@@ -23,8 +23,15 @@ describe("Protocol Contract - Security Tests", () => {
   before(async () => {
     console.log("\n🔒 Setting up Security Tests...");
     ctx = await setupTestEnvironment();
-    await ctx.provider.connection.requestAirdrop(nonAdmin.publicKey, 5 * LAMPORTS_PER_SOL);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const transferAmount = 10000000; // 0.01 SOL in lamports
+    const nonAdminTx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: ctx.admin.publicKey,
+        toPubkey: nonAdmin.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await ctx.provider.sendAndConfirm(nonAdminTx, [ctx.admin.payer]);
     console.log("✅ Setup complete");
   });
 

@@ -34,8 +34,15 @@ describe("Protocol Contract - Liquidation Tests", () => {
   before(async () => {
     console.log("\n🚀 Setting up Liquidation Tests...");
 
-    await provider.connection.requestAirdrop(liquidator.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const transferAmount = 10000000; // 0.01 SOL in lamports
+    const liquidatorTx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: liquidator.publicKey,
+        lamports: transferAmount,
+      })
+    );
+    await provider.sendAndConfirm(liquidatorTx, [admin.payer]);
 
     stablecoinMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 18);
     collateralMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 9);
