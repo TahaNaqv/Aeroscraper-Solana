@@ -3,6 +3,10 @@ use crate::state::*;
 
 #[derive(Accounts)]
 pub struct GetConfig<'info> {
+    #[account(
+        seeds = [b"fee_state"],
+        bump
+    )]
     pub state: Account<'info, FeeStateAccount>,
 }
 

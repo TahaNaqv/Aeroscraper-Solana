@@ -18,6 +18,16 @@ pub struct FeeStateAccount {
 
 impl FeeStateAccount {
     pub const LEN: usize = 32 + 1 + 32 + 32 + 32 + 8; // Updated to include fee addresses
+    
+    /// Get the seeds for the fee state PDA
+    pub fn seeds() -> [&'static [u8]; 1] {
+        [b"fee_state"]
+    }
+    
+    /// Derive the fee state PDA
+    pub fn get_pda(program_id: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&Self::seeds(), program_id)
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]

@@ -5,7 +5,7 @@ pub mod instructions;
 pub mod state;
 
 use instructions::*;
-use crate::state::ConfigResponse;
+use crate::state::{ConfigResponse, FeeStateAccount};
 use crate::instructions::distribute_fee::DistributeFeeParams;
 use crate::instructions::set_fee_addresses::SetFeeAddressesParams;
 
@@ -37,5 +37,20 @@ pub mod aerospacer_fees {
 
     pub fn get_config(ctx: Context<GetConfig>) -> Result<ConfigResponse> {
         instructions::get_config::handler(ctx)
+    }
+}
+
+/// Helper functions for PDA derivation
+pub mod utils {
+    use super::*;
+    
+    /// Get the fee state PDA
+    pub fn get_fee_state_pda() -> (Pubkey, u8) {
+        FeeStateAccount::get_pda(&crate::ID)
+    }
+    
+    /// Get the fee state PDA seeds
+    pub fn get_fee_state_seeds() -> [&'static [u8]; 1] {
+        FeeStateAccount::seeds()
     }
 } 

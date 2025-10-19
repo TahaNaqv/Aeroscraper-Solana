@@ -6,7 +6,7 @@ pub mod state;
 pub mod msg;
 
 use instructions::*;
-use crate::state::{PriceResponse, ConfigResponse};
+use crate::state::{PriceResponse, ConfigResponse, OracleStateAccount};
 
 declare_id!("2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9");
 
@@ -80,5 +80,20 @@ pub mod aerospacer_oracle {
     /// Update Pyth price feed for a specific asset (admin only)
     pub fn update_pyth_price(ctx: Context<UpdatePythPrice>, params: UpdatePythPriceParams) -> Result<()> {
         instructions::update_pyth_price::handler(ctx, params)
+    }
+}
+
+/// Helper functions for PDA derivation
+pub mod utils {
+    use super::*;
+    
+    /// Get the oracle state PDA
+    pub fn get_oracle_state_pda() -> (Pubkey, u8) {
+        OracleStateAccount::get_pda(&crate::ID)
+    }
+    
+    /// Get the oracle state PDA seeds
+    pub fn get_oracle_state_seeds() -> [&'static [u8]; 1] {
+        OracleStateAccount::seeds()
     }
 }

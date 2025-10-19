@@ -11,7 +11,10 @@ pub struct GetPriceIdParams {
 #[derive(Accounts)]
 #[instruction(params: GetPriceIdParams)]
 pub struct GetPriceId<'info> {
-    /// CHECK: This account contains the oracle state
+    #[account(
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
 }
 

@@ -42,7 +42,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
   const FEE_ADDR_1 = feeAddr1Keypair.publicKey;
   const FEE_ADDR_2 = feeAddr2Keypair.publicKey;
   
-  let feeStateAccount: Keypair;
+  let feeStateAccount: PublicKey;
   let tokenMint: PublicKey;
   let payerTokenAccount: PublicKey;
   let stabilityPoolTokenAccount: PublicKey;
@@ -97,17 +97,28 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       1000000000 // Reduced from 100000000000 to 1000000000 (1000 tokens instead of 100000)
     );
     
-    feeStateAccount = Keypair.generate();
+    // Derive the fee state PDA
+    [feeStateAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
     
-    await feesProgram.methods
-      .initialize()
-      .accounts({
-        state: feeStateAccount.publicKey,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([admin, feeStateAccount])
-      .rpc();
+    // Check if state already exists
+    try {
+      const existingState = await feesProgram.account.feeStateAccount.fetch(feeStateAccount);
+      console.log("✅ Fee state already exists, skipping initialization");
+    } catch (error) {
+      console.log("📋 Initializing new fee state...");
+      await feesProgram.methods
+        .initialize()
+        .accounts({
+          state: feeStateAccount,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+    }
 
     // Set custom fee addresses for testing
     await feesProgram.methods
@@ -117,7 +128,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       })
       .accounts({
         admin: admin.publicKey,
-        state: feeStateAccount.publicKey,
+        state: feeStateAccount,
       })
       .signers([admin])
       .rpc();
@@ -134,7 +145,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       console.log("⚡ Distributing minimum amount (1)...");
 
       const stateBefore = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
 
       const tx = await feesProgram.methods
@@ -143,7 +154,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -156,7 +167,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       console.log("✅ Minimum amount handled. TX:", tx);
 
       const stateAfter = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
 
       assert.equal(
@@ -182,7 +193,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -214,7 +225,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
       );
 
       const currentState = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
       const initialMode = currentState.isStakeEnabled;
 
@@ -224,7 +235,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -238,13 +249,13 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         .toggleStakeContract()
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
 
       const afterToggleState = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
       assert.equal(afterToggleState.isStakeEnabled, !initialMode);
 
@@ -255,7 +266,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: admin.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
           })
           .signers([admin])
           .rpc();
@@ -267,7 +278,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -292,7 +303,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         .toggleStakeContract()
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -303,13 +314,13 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
 
       let state = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
       assert.equal(state.stakeContractAddress.toString(), address1.toString());
 
@@ -319,13 +330,13 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
 
       state = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
       assert.equal(state.stakeContractAddress.toString(), address2.toString());
 
@@ -346,7 +357,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: uninitializedAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -381,7 +392,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           .toggleStakeContract()
           .accounts({
             admin: admin.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
           })
           .signers([admin])
           .rpc();
@@ -390,7 +401,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         
         try {
           const state = await feesProgram.account.feeStateAccount.fetch(
-            feeStateAccount.publicKey
+            feeStateAccount
           );
 
           if (state.isStakeEnabled) {
@@ -400,7 +411,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
               })
               .accounts({
                 admin: admin.publicKey,
-                state: feeStateAccount.publicKey,
+                state: feeStateAccount,
               })
               .signers([admin])
               .rpc();
@@ -412,7 +423,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
             })
             .accounts({
               payer: payer.publicKey,
-              state: feeStateAccount.publicKey,
+              state: feeStateAccount,
               payerTokenAccount: payerTokenAccount,
               stabilityPoolTokenAccount: stabilityPoolTokenAccount,
               feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -431,7 +442,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
 
     it("Should maintain state consistency after stress test", async () => {
       const state = await feesProgram.account.feeStateAccount.fetch(
-        feeStateAccount.publicKey
+        feeStateAccount
       );
 
       expect(state).to.have.property("admin");
@@ -463,7 +474,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -490,7 +501,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: newFeeAddr1TokenAccount,
@@ -513,7 +524,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -538,7 +549,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           .toggleStakeContract()
           .accounts({
             admin: nonAdmin.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
           })
           .signers([nonAdmin])
           .rpc();
@@ -557,7 +568,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: admin.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
           })
           .signers([admin])
           .rpc();
@@ -577,7 +588,7 @@ describe("Fee Contract - Edge Cases & Error Handling", () => {
           })
           .accounts({
             admin: admin.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
           })
           .signers([admin])
           .rpc();

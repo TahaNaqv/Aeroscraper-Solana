@@ -9,6 +9,8 @@ pub struct ToggleStakeContract<'info> {
     
     #[account(
         mut,
+        seeds = [b"fee_state"],
+        bump,
         constraint = state.admin == admin.key() @ AerospacerFeesError::Unauthorized
     )]
     pub state: Account<'info, FeeStateAccount>,

@@ -28,6 +28,11 @@ impl OracleStateAccount {
     pub fn seeds() -> [&'static [u8]; 1] {
         [b"state"]
     }
+    
+    /// Derive the oracle state PDA
+    pub fn get_pda(program_id: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&Self::seeds(), program_id)
+    }
 }
 
 /// Collateral asset data structure for oracle integration

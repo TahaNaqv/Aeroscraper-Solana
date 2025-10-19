@@ -14,7 +14,11 @@ pub struct DistributeFee<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"fee_state"],
+        bump
+    )]
     pub state: Account<'info, FeeStateAccount>,
     
     #[account(mut)]

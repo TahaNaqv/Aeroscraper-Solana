@@ -18,7 +18,8 @@ The `aerospacer-fees` contract is a production-ready Solana program that manages
 
 ### Core Components
 
-- **State Management**: `FeeStateAccount` stores contract configuration
+- **State Management**: `FeeStateAccount` stores contract configuration as a PDA
+- **PDA Architecture**: Uses Program Derived Addresses for deterministic state management
 - **Error Handling**: Comprehensive error types for all scenarios
 - **Security**: Multiple validation layers and authorization checks
 - **Flexibility**: Toggle between distribution modes
@@ -47,18 +48,18 @@ src/
 **Purpose**: Initialize the fee distributor contract
 
 **Accounts**:
-- `state`: FeeStateAccount (init)
+- `state`: FeeStateAccount (init, PDA with seed "fee_state")
 - `admin`: Signer (payer)
 - `system_program`: System Program
 
-**Description**: Creates the initial state with admin as the initializer, stake disabled by default, and zero fees collected.
+**Description**: Creates the initial state PDA with admin as the initializer, stake disabled by default, and zero fees collected.
 
 ### 2. Toggle Stake Contract
 **Purpose**: Toggle between stability pool and fee address distribution modes
 
 **Accounts**:
 - `admin`: Signer (must be contract admin)
-- `state`: FeeStateAccount (mut)
+- `state`: FeeStateAccount (mut, PDA with seed "fee_state")
 
 **Description**: Admin-only function that switches between the two distribution modes.
 
@@ -70,7 +71,7 @@ src/
 
 **Accounts**:
 - `admin`: Signer (must be contract admin)
-- `state`: FeeStateAccount (mut)
+- `state`: FeeStateAccount (mut, PDA with seed "fee_state")
 
 **Description**: Admin-only function to configure the stability pool address for fee distribution.
 
@@ -83,7 +84,7 @@ src/
 
 **Accounts**:
 - `admin`: Signer (must be contract admin)
-- `state`: FeeStateAccount (mut)
+- `state`: FeeStateAccount (mut, PDA with seed "fee_state")
 
 **Description**: Admin-only function to configure the fee distribution addresses. Both addresses must be valid Solana public keys and must be different from each other.
 
@@ -95,7 +96,7 @@ src/
 
 **Accounts**:
 - `payer`: Signer
-- `state`: FeeStateAccount (mut)
+- `state`: FeeStateAccount (mut, PDA with seed "fee_state")
 - `payer_token_account`: TokenAccount (mut)
 - `stability_pool_token_account`: TokenAccount (mut)
 - `fee_address_1_token_account`: TokenAccount (mut)
@@ -108,13 +109,19 @@ src/
 **Purpose**: Query contract configuration
 
 **Accounts**:
-- `state`: FeeStateAccount
+- `state`: FeeStateAccount (PDA with seed "fee_state")
 
 **Returns**: `ConfigResponse` with current contract state
 
 **Description**: Read-only function to retrieve current contract configuration.
 
 ## 🔒 Security Features
+
+### PDA Architecture
+- **Deterministic Addresses**: State account uses PDA with seed "fee_state"
+- **Program Ownership**: Only the program can create/modify the state PDA
+- **Integration Ready**: Other programs can easily find and reference the state
+- **Security**: Prevents unauthorized state account creation
 
 ### Authorization
 - All admin functions require proper authorization
@@ -154,6 +161,15 @@ pub struct FeeStateAccount {
 **Note**: These are the default values set during initialization. The admin can update them using the `set_fee_addresses` instruction.
 
 ## 🚀 Usage Examples
+
+### PDA Derivation
+```typescript
+// Derive the fee state PDA
+const [feeStatePDA] = PublicKey.findProgramAddressSync(
+  [Buffer.from("fee_state")],
+  program.programId
+);
+```
 
 ### Initialize Contract
 ```typescript

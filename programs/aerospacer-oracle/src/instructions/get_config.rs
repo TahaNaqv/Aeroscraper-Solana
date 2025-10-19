@@ -9,7 +9,10 @@ pub struct GetConfigParams {
 #[derive(Accounts)]
 #[instruction(params: GetConfigParams)]
 pub struct GetConfig<'info> {
-    /// CHECK: This account contains the oracle state
+    #[account(
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
 }
 

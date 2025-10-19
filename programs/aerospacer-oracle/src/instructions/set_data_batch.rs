@@ -16,6 +16,8 @@ pub struct SetDataBatch<'info> {
     
     #[account(
         mut,
+        seeds = [b"state"],
+        bump,
         constraint = state.admin == admin.key() @ AerospacerOracleError::Unauthorized
     )]
     pub state: Account<'info, OracleStateAccount>,

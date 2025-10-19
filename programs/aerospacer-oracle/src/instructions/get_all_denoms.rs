@@ -9,7 +9,10 @@ pub struct GetAllDenomsParams {
 #[derive(Accounts)]
 #[instruction(params: GetAllDenomsParams)]
 pub struct GetAllDenoms<'info> {
-    /// CHECK: This account contains the oracle state
+    #[account(
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
 }
 

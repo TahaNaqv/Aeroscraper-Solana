@@ -4,7 +4,13 @@ use std::str::FromStr;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = admin, space = 8 + FeeStateAccount::LEN)]
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + FeeStateAccount::LEN,
+        seeds = [b"fee_state"],
+        bump
+    )]
     pub state: Account<'info, FeeStateAccount>,
     
     #[account(mut)]

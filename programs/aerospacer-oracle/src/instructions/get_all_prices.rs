@@ -11,7 +11,10 @@ pub struct GetAllPricesParams {
 #[derive(Accounts)]
 #[instruction(params: GetAllPricesParams)]
 pub struct GetAllPrices<'info> {
-    /// CHECK: This account contains the oracle state
+    #[account(
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
     
     /// CHECK: Clock sysvar for timestamp validation

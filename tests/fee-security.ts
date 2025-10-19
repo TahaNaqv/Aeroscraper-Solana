@@ -42,7 +42,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
   const FEE_ADDR_1 = feeAddr1Keypair.publicKey;
   const FEE_ADDR_2 = feeAddr2Keypair.publicKey;
   
-  let feeStateAccount: Keypair;
+  let feeStateAccount: PublicKey;
   let tokenMint: PublicKey;
   let payerTokenAccount: PublicKey;
   let attackerTokenAccount: PublicKey;
@@ -110,17 +110,28 @@ describe("Fee Contract - Security & Attack Prevention", () => {
       500000000 // Reduced from 50000000000 to 500000000 (500 tokens instead of 50000)
     );
     
-    feeStateAccount = Keypair.generate();
+    // Derive the fee state PDA
+    [feeStateAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
     
-    await feesProgram.methods
-      .initialize()
-      .accounts({
-        state: feeStateAccount.publicKey,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([admin, feeStateAccount])
-      .rpc();
+    // Check if state already exists
+    try {
+      const existingState = await feesProgram.account.feeStateAccount.fetch(feeStateAccount);
+      console.log("✅ Fee state already exists, skipping initialization");
+    } catch (error) {
+      console.log("📋 Initializing new fee state...");
+      await feesProgram.methods
+        .initialize()
+        .accounts({
+          state: feeStateAccount,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+    }
 
     // Set fee addresses to the ones we're using
     await feesProgram.methods
@@ -130,7 +141,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
       })
       .accounts({
         admin: admin.publicKey,
-        state: feeStateAccount.publicKey,
+        state: feeStateAccount,
       })
       .signers([admin])
       .rpc();
@@ -150,7 +161,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: attacker.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount, // Use payer's account as attacker
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -176,7 +187,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -211,7 +222,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         .toggleStakeContract()
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -222,7 +233,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         })
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -236,7 +247,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: wrongPoolAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -256,7 +267,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         .toggleStakeContract()
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -287,7 +298,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: wrongFeeAddr1Account,
@@ -318,7 +329,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -329,7 +340,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           .rpc();
 
         const state = await feesProgram.account.feeStateAccount.fetch(
-          feeStateAccount.publicKey
+          feeStateAccount
         );
 
         console.log("  Total fees collected:", state.totalFeesCollected.toString());
@@ -341,7 +352,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
             })
             .accounts({
               payer: payer.publicKey,
-              state: feeStateAccount.publicKey,
+              state: feeStateAccount,
               payerTokenAccount: payerTokenAccount,
               stabilityPoolTokenAccount: stabilityPoolTokenAccount,
               feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -373,7 +384,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -403,7 +414,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount, // Use payer's account
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -433,7 +444,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         })
         .accounts({
           payer: payer.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
           payerTokenAccount: payerTokenAccount,
           stabilityPoolTokenAccount: stabilityPoolTokenAccount,
           feeAddress1TokenAccount: feeAddr1TokenAccount,
@@ -462,7 +473,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
         })
         .accounts({
           admin: admin.publicKey,
-          state: feeStateAccount.publicKey,
+          state: feeStateAccount,
         })
         .signers([admin])
         .rpc();
@@ -490,7 +501,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: newFeeAddr1TokenAccount,
@@ -514,7 +525,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
           })
           .accounts({
             payer: payer.publicKey,
-            state: feeStateAccount.publicKey,
+            state: feeStateAccount,
             payerTokenAccount: payerTokenAccount,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddr1TokenAccount, // Wrong owner
@@ -586,7 +597,7 @@ describe("Fee Contract - Security & Attack Prevention", () => {
             })
             .accounts({
               payer: scenario.payerKey,
-              state: feeStateAccount.publicKey,
+              state: feeStateAccount,
               payerTokenAccount: testTokenAccount,
               stabilityPoolTokenAccount: stabilityPoolTokenAccount,
               feeAddress1TokenAccount: feeAddr1TokenAccount,

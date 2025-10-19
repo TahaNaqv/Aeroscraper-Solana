@@ -10,7 +10,10 @@ pub struct CheckDenomParams {
 #[derive(Accounts)]
 #[instruction(params: CheckDenomParams)]
 pub struct CheckDenom<'info> {
-    /// CHECK: This account contains the oracle state
+    #[account(
+        seeds = [b"state"],
+        bump
+    )]
     pub state: Account<'info, OracleStateAccount>,
 }
 
