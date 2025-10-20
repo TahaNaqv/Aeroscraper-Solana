@@ -43,12 +43,12 @@ export interface TestContext {
 
 // Helper to derive PDA addresses
 export function derivePDAs(collateralDenom: string, user: PublicKey, programId: PublicKey) {
-  const [protocolStablecoinVault] = PublicKey.findProgramAddressSync(
+  const [protocolStablecoinAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("protocol_stablecoin_vault")],
     programId
   );
 
-  const [protocolCollateralVault] = PublicKey.findProgramAddressSync(
+  const [protocolCollateralAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("protocol_collateral_vault"), Buffer.from(collateralDenom)],
     programId
   );
@@ -119,8 +119,8 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
   );
 
   return {
-    protocolStablecoinVault,
-    protocolCollateralVault,
+    protocolStablecoinAccount,
+    protocolCollateralAccount,
     totalCollateralAmount,
     userDebtAmount,
     userCollateralAmount,
@@ -139,6 +139,8 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
 
 // Setup test environment
 export async function setupTestEnvironment(): Promise<TestContext> {
+  console.log("🚀 Setting up test environment for devnet...");
+  
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
@@ -165,51 +167,84 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     9
   );
 
-  // Initialize oracle
-  const oracleStateKeypair = Keypair.generate();
-  await oracleProgram.methods
-    .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
-    .accounts({
-      state: oracleStateKeypair.publicKey,
-      admin: admin.publicKey,
-      systemProgram: SystemProgram.programId,
-      clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-    })
-    .signers([oracleStateKeypair])
-    .rpc();
+  // Initialize oracle using PDA
+  const [oracleStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
 
-  // Initialize fees
-  const feeStateKeypair = Keypair.generate();
-  await feesProgram.methods
-    .initialize()
-    .accounts({
-      state: feeStateKeypair.publicKey,
-      admin: admin.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
-    .signers([feeStateKeypair])
-    .rpc();
+  try {
+    const existingState = await oracleProgram.account.oracleStateAccount.fetch(oracleStatePDA);
+    console.log("✅ Oracle already initialized on devnet");
+  } catch (error) {
+    console.log("Initializing oracle...");
+    await oracleProgram.methods
+      .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
+      .accounts({
+        state: oracleStatePDA,
+        admin: admin.publicKey,
+        systemProgram: SystemProgram.programId,
+        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+      })
+      .signers([admin.payer])
+      .rpc();
+    console.log("✅ Oracle initialized");
+  }
 
-  // Initialize protocol
-  const protocolStateKeypair = Keypair.generate();
+  // Initialize fees using PDA
+  const [feesStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("fee_state")],
+    feesProgram.programId
+  );
+
+  try {
+    const existingState = await feesProgram.account.feeStateAccount.fetch(feesStatePDA);
+    console.log("✅ Fees already initialized on devnet");
+  } catch (error) {
+    console.log("Initializing fees...");
+    await feesProgram.methods
+      .initialize()
+      .accounts({
+        state: feesStatePDA,
+        admin: admin.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([admin.payer])
+      .rpc();
+    console.log("✅ Fees initialized");
+  }
+
+  // Initialize protocol using PDA
+  const [protocolStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    protocolProgram.programId
+  );
+
+  try {
+    const existingState = await protocolProgram.account.stateAccount.fetch(protocolStatePDA);
+    console.log("✅ Protocol already initialized on devnet");
+  } catch (error) {
+    console.log("Initializing protocol...");
+    await protocolProgram.methods
+      .initialize({
+        stableCoinCodeId: new anchor.BN(1),
+        oracleHelperAddr: oracleProgram.programId,
+        oracleStateAddr: oracleStatePDA,
+        feeDistributorAddr: feesProgram.programId,
+        feeStateAddr: feesStatePDA,
+      })
+      .accounts({
+        state: protocolStatePDA,
+        admin: admin.publicKey,
+        stableCoinMint: stablecoinMint,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([admin.payer])
+      .rpc();
+    console.log("✅ Protocol initialized");
+  }
+
   const sortedTrovesState = derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState;
-
-  await protocolProgram.methods
-    .initialize({
-      stableCoinCodeId: new anchor.BN(1),
-      oracleHelperAddr: oracleProgram.programId,
-      oracleStateAddr: oracleStateKeypair.publicKey,
-      feeDistributorAddr: feesProgram.programId,
-      feeStateAddr: feeStateKeypair.publicKey,
-    })
-    .accounts({
-      state: protocolStateKeypair.publicKey,
-      admin: admin.publicKey,
-      stableCoinMint: stablecoinMint,
-      systemProgram: SystemProgram.programId,
-    })
-    .signers([protocolStateKeypair])
-    .rpc();
 
   return {
     provider,
@@ -219,9 +254,9 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     admin,
     stablecoinMint,
     collateralMint,
-    protocolState: protocolStateKeypair.publicKey,
-    oracleState: oracleStateKeypair.publicKey,
-    feeState: feeStateKeypair.publicKey,
+    protocolState: protocolStatePDA,
+    oracleState: oracleStatePDA,
+    feeState: feesStatePDA,
     sortedTrovesState,
   };
 }
@@ -234,8 +269,8 @@ export async function createTestUser(
 ): Promise<{ user: Keypair; collateralAccount: PublicKey }> {
   const user = Keypair.generate();
 
-  // Transfer SOL for transaction fees and account creation (0.01 SOL)
-  const transferAmount = 10000000; // 0.01 SOL in lamports
+  // Transfer minimal SOL for transaction fees and account creation (0.001 SOL)
+  const transferAmount = 1000000; // 0.001 SOL in lamports
   const transferTx = new anchor.web3.Transaction().add(
     anchor.web3.SystemProgram.transfer({
       fromPubkey: provider.wallet.publicKey,
@@ -282,34 +317,44 @@ export async function openTroveForUser(
     user.publicKey
   );
 
-  const userStablecoinAccount = await createAssociatedTokenAccount(
-    ctx.provider.connection,
-    user,
+  const userStablecoinAccount = await getAssociatedTokenAddress(
     ctx.stablecoinMint,
     user.publicKey
   );
 
+  // Create token accounts if they don't exist
+  try {
+    await createAssociatedTokenAccount(
+      ctx.provider.connection,
+      ctx.admin.payer,
+      ctx.stablecoinMint,
+      user.publicKey
+    );
+  } catch (error) {
+    // Account might already exist
+  }
+
   await ctx.protocolProgram.methods
     .openTrove({
-      collateralAmount,
       loanAmount,
       collateralDenom,
+      collateralAmount,
     })
     .accounts({
       user: user.publicKey,
-      state: ctx.protocolState,
       userDebtAmount: pdas.userDebtAmount,
-      userCollateralAmount: pdas.userCollateralAmount,
       liquidityThreshold: pdas.liquidityThreshold,
-      node: pdas.node,
-      sortedTrovesState: pdas.sortedTrovesState,
-      totalCollateralAmount: pdas.totalCollateralAmount,
-      stableCoinMint: ctx.stablecoinMint,
-      collateralMint: ctx.collateralMint,
+      userCollateralAmount: pdas.userCollateralAmount,
       userCollateralAccount,
+      collateralMint: ctx.collateralMint,
+      protocolCollateralAccount: pdas.protocolCollateralAccount,
+      totalCollateralAmount: pdas.totalCollateralAmount,
+      sortedTrovesState: pdas.sortedTrovesState,
+      node: pdas.node,
+      state: ctx.protocolState,
       userStablecoinAccount,
-      protocolStablecoinVault: pdas.protocolStablecoinVault,
-      protocolCollateralVault: pdas.protocolCollateralVault,
+      protocolStablecoinAccount: pdas.protocolStablecoinAccount,
+      stableCoinMint: ctx.stablecoinMint,
       oracleProgram: ctx.oracleProgram.programId,
       oracleState: ctx.oracleState,
       pythPriceAccount: PYTH_ORACLE_ADDRESS,
@@ -376,15 +421,27 @@ export async function stakeInStabilityPool(
     user.publicKey
   );
 
+  // Create token account if it doesn't exist
+  try {
+    await createAssociatedTokenAccount(
+      ctx.provider.connection,
+      ctx.admin.payer,
+      ctx.stablecoinMint,
+      user.publicKey
+    );
+  } catch (error) {
+    // Account might already exist
+  }
+
   await ctx.protocolProgram.methods
     .stake({ amount: ausdAmount })
     .accounts({
       user: user.publicKey,
-      state: ctx.protocolState,
       userStakeAmount: pdas.userStakeAmount,
-      stableCoinMint: ctx.stablecoinMint,
+      state: ctx.protocolState,
       userStablecoinAccount,
-      protocolStablecoinVault: pdas.protocolStablecoinVault,
+      protocolStablecoinAccount: pdas.protocolStablecoinAccount,
+      stableCoinMint: ctx.stablecoinMint,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })

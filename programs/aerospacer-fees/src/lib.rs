@@ -9,7 +9,7 @@ use crate::state::{ConfigResponse, FeeStateAccount};
 use crate::instructions::distribute_fee::DistributeFeeParams;
 use crate::instructions::set_fee_addresses::SetFeeAddressesParams;
 
-declare_id!("6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco");
+declare_id!("AHmGKukQky3mDHLmFyJYcEaFub69vp2QqeSW7EbVpJjZ");
 
 #[program]
 pub mod aerospacer_fees {

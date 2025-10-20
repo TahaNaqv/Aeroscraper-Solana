@@ -142,10 +142,10 @@ fn distribute_fee_via_cpi<'info>(
     let account_metas = vec![
         anchor_lang::solana_program::instruction::AccountMeta::new(*payer.key, true),
         anchor_lang::solana_program::instruction::AccountMeta::new(*fees_state.key, false),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*payer_token_account.key, false),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*stability_pool_token_account.key, false),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_1_token_account.key, false),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_2_token_account.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*payer_token_account.key, true),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*stability_pool_token_account.key, true),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_1_token_account.key, true),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_2_token_account.key, true),
         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*token_program.key, false),
     ];
     

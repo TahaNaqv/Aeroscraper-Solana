@@ -21,7 +21,7 @@ pub mod utils;
 
 use instructions::*;
 
-declare_id!("eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe");
+declare_id!("9sk8X11GWtZjzXWfkcLMRD6tmuhmiBKgMXsmx9bEh5YQ");
 
 #[program]
 pub mod aerospacer_protocol {
@@ -30,6 +30,16 @@ pub mod aerospacer_protocol {
     // Initialize the protocol (equivalent to INJECTIVE's instantiate)
     pub fn initialize(ctx: Context<Initialize>, params: InitializeParams) -> Result<()> {
         instructions::initialize::handler(ctx, params)
+    }
+
+    // Update protocol addresses (admin only)
+    pub fn update_protocol_addresses(ctx: Context<UpdateProtocolAddresses>, params: UpdateProtocolAddressesParams) -> Result<()> {
+        instructions::update_protocol_addresses::handler(ctx, params)
+    }
+
+    // Transfer stablecoins between accounts
+    pub fn transfer_stablecoin(ctx: Context<TransferStablecoin>, params: TransferStablecoinParams) -> Result<()> {
+        instructions::transfer_stablecoin::handler(ctx, params)
     }
 
     // Open a trove by depositing collateral (equivalent to INJECTIVE's open_trove)

@@ -16,7 +16,7 @@ import {
 import { assert } from "chai";
 
 // Constants
-const PYTH_ORACLE_ADDRESS = new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG");
+const PYTH_ORACLE_ADDRESS = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
 
 describe("Aeroscraper Protocol Core Operations", () => {
   const provider = anchor.AnchorProvider.env();
@@ -57,9 +57,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
   let user1Stake: PublicKey;
   let user2Stake: PublicKey;
 
-  // State flags for default addresses
-  let useDefaultOracle: boolean = false;
-  let useDefaultFees: boolean = false;
+  // Protocol state has correct addresses after update
 
   // PDA accounts
   let user1DebtAmountPDA: PublicKey;
@@ -106,7 +104,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
       oracleProgram.programId
     );
     const [feesStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
+      [Buffer.from("fee_state")],
       feesProgram.programId
     );
 
@@ -319,16 +317,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // Check if protocol state already exists
     if (existingState) {
       console.log("Protocol already initialized");
-      // Get the actual state to check if we need to use default addresses
-      const stateAccount = await protocolProgram.account.stateAccount.fetch(protocolState);
-      const isDefaultOracle = stateAccount.oracleHelperAddr.toString() === "11111111111111111111111111111111";
-      const isDefaultFees = stateAccount.feeDistributorAddr.toString() === "11111111111111111111111111111111";
-      
-      if (isDefaultOracle || isDefaultFees) {
-        console.log("⚠️  Protocol state has default addresses - using default addresses for testing");
-        useDefaultOracle = isDefaultOracle;
-        useDefaultFees = isDefaultFees;
-      }
+      console.log("✅ Protocol state has correct addresses");
     } else {
       try {
         await protocolProgram.methods
@@ -364,11 +353,17 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
   describe("Core Protocol Operations", () => {
     it("Should open a trove successfully", async () => {
-      const collateralAmount = 5000000000; // 5 SOL with 9 decimals (MINIMUM_COLLATERAL_AMOUNT)
-      const loanAmount = "2000000000000000000"; // 2 aUSD with 18 decimals (above minimum + fee)
+      const collateralAmount = 10000000000; // 10 SOL with 9 decimals (meet minimum requirement)
+      const loanAmount = "1100000000000000"; // 0.0011 aUSD with 18 decimals (above minimum after 5% fee)
       const collateralDenom = "SOL";
 
       try {
+        console.log("🔍 Debug - Account addresses being passed:");
+        console.log("- oracleProgram:", oracleProgram.programId.toString());
+        console.log("- oracleState:", oracleState.toString());
+        console.log("- feesProgram:", feesProgram.programId.toString());
+        console.log("- feesState:", feesState.toString());
+        
         await protocolProgram.methods
           .openTrove({
             loanAmount: new anchor.BN(loanAmount),
@@ -390,12 +385,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStablecoinAccount: user1StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            oracleProgram: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleProgram.programId,
-            oracleState: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleState,
+            oracleProgram: oracleProgram.programId,
+            oracleState: oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-            feesProgram: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesProgram.programId,
-            feesState: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesState,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddress1TokenAccount,
             feeAddress2TokenAccount: feeAddress2TokenAccount,
@@ -408,12 +403,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Trove opened successfully");
       } catch (error) {
         console.log("❌ Trove opening failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          console.log("   The protocol state needs to be updated with correct program addresses");
-          console.log("   Skipping trove operations that require authorization");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -453,10 +442,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Collateral added successfully");
       } catch (error) {
         console.log("❌ Adding collateral failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -487,12 +472,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStablecoinAccount: user1StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            oracleProgram: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleProgram.programId,
-            oracleState: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleState,
+            oracleProgram: oracleProgram.programId,
+            oracleState: oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-            feesProgram: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesProgram.programId,
-            feesState: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesState,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddress1TokenAccount,
             feeAddress2TokenAccount: feeAddress2TokenAccount,
@@ -505,10 +490,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Additional loan borrowed successfully");
       } catch (error) {
         console.log("❌ Borrowing additional loan failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -522,13 +503,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
         
         console.log("Transferring stablecoins to user1 for staking...");
         const transferTx = await protocolProgram.methods
-          .transferStablecoin(transferAmount)
+          .transferStablecoin({ amount: transferAmount })
           .accounts({
             from: admin.publicKey,
-            to: user1.publicKey,
+            state: protocolState,
             fromAccount: adminStablecoinAccount,
             toAccount: user1StablecoinAccount,
-            mint: stablecoinMint,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([adminKeypair])
@@ -556,17 +536,13 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Stablecoins staked successfully");
       } catch (error) {
         console.log("❌ Staking failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
 
     it("Should open a second trove for user2", async () => {
-      const collateralAmount = 8000000; // 8 tokens
-      const loanAmount = 3000000; // 3 stablecoins
+      const collateralAmount = 1000000; // 0.001 SOL with 9 decimals (minimum for devnet)
+      const loanAmount = "2000000000000000"; // 0.002 aUSD with 18 decimals (above minimum after fee)
       const collateralDenom = "SOL";
 
       // Derive user2 PDAs
@@ -609,12 +585,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStablecoinAccount: user2StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            oracleProgram: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleProgram.programId,
-            oracleState: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleState,
+            oracleProgram: oracleProgram.programId,
+            oracleState: oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-            feesProgram: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesProgram.programId,
-            feesState: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesState,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddress1TokenAccount,
             feeAddress2TokenAccount: feeAddress2TokenAccount,
@@ -627,10 +603,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Second trove opened successfully");
       } catch (error) {
         console.log("❌ Second trove opening failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -661,12 +633,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStablecoinAccount: user1StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            oracleProgram: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleProgram.programId,
-            oracleState: useDefaultOracle ? new PublicKey("11111111111111111111111111111111") : oracleState,
+            oracleProgram: oracleProgram.programId,
+            oracleState: oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-            feesProgram: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesProgram.programId,
-            feesState: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesState,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddress1TokenAccount,
             feeAddress2TokenAccount: feeAddress2TokenAccount,
@@ -679,10 +651,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Loan partially repaid successfully");
       } catch (error) {
         console.log("❌ Loan repayment failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -722,10 +690,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Collateral removed successfully");
       } catch (error) {
         console.log("❌ Removing collateral failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -745,8 +709,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
             userStablecoinAccount: user1StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
-            feesProgram: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesProgram.programId,
-            feesState: useDefaultFees ? new PublicKey("11111111111111111111111111111111") : feesState,
+            feesProgram: feesProgram.programId,
+            feesState: feesState,
             stabilityPoolTokenAccount: stabilityPoolTokenAccount,
             feeAddress1TokenAccount: feeAddress1TokenAccount,
             feeAddress2TokenAccount: feeAddress2TokenAccount,
@@ -759,10 +723,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("✅ Stablecoins unstaked successfully");
       } catch (error) {
         console.log("❌ Unstaking failed:", error);
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  This is expected due to default addresses in protocol state");
-          return; // Skip this test gracefully
-        }
         throw error;
       }
     });
@@ -779,21 +739,13 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- Minimum Collateral Ratio:", stateAccount.minimumCollateralRatio.toString());
         console.log("- Protocol Fee:", stateAccount.protocolFee.toString());
 
-        // If we have default addresses, operations were skipped, so we can't verify debt/collateral
-        if (useDefaultOracle || useDefaultFees) {
-          console.log("⚠️  Operations were skipped due to default addresses - verifying basic state only");
-          assert(stateAccount.minimumCollateralRatio > 0, "Minimum collateral ratio should be set");
-          assert(stateAccount.protocolFee > 0, "Protocol fee should be set");
-          console.log("✅ Basic protocol state verification passed (operations skipped)");
-        } else {
-          // Normal verification when operations were performed
-          assert(stateAccount.totalDebtAmount.gt(new anchor.BN(0)), "Total debt should be greater than 0");
-          if (stateAccount.totalCollateralAmount) {
-            assert(stateAccount.totalCollateralAmount.gt(new anchor.BN(0)), "Total collateral should be greater than 0");
-          }
-          assert(stateAccount.totalStakeAmount.gt(new anchor.BN(0)), "Total stake should be greater than 0");
-          console.log("✅ Protocol state verification passed");
+        // Normal verification when operations were performed
+        assert(stateAccount.totalDebtAmount.gt(new anchor.BN(0)), "Total debt should be greater than 0");
+        if (stateAccount.totalCollateralAmount) {
+          assert(stateAccount.totalCollateralAmount.gt(new anchor.BN(0)), "Total collateral should be greater than 0");
         }
+        assert(stateAccount.totalStakeAmount.gt(new anchor.BN(0)), "Total stake should be greater than 0");
+        console.log("✅ Protocol state verification passed");
       } catch (error) {
         console.log("❌ Protocol state verification failed:", error);
         throw error;
@@ -802,25 +754,27 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
     it("Should verify user trove state", async () => {
       try {
-        // Check if trove account exists first
-        const troveAccountInfo = await provider.connection.getAccountInfo(user1Trove);
-        if (!troveAccountInfo) {
-          console.log("⚠️  User trove account does not exist - skipping verification");
+        // Check if user debt amount account exists first
+        const debtAccountInfo = await provider.connection.getAccountInfo(user1DebtAmountPDA);
+        if (!debtAccountInfo) {
+          console.log("⚠️  User debt account does not exist - skipping verification");
           return;
         }
 
-        const troveAccount = await protocolProgram.account.troveAccount.fetch(user1Trove);
+        // Fetch user debt and collateral amounts
+        const debtAccount = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
+        const collateralAccount = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
+        
         console.log("📊 User1 Trove State:");
-        console.log("- Owner:", troveAccount.owner.toString());
-        console.log("- Debt Amount:", troveAccount.debtAmount.toString());
-        console.log("- Collateral Amount:", troveAccount.collateralAmount.toString());
-        console.log("- Collateral Ratio:", troveAccount.collateralRatio.toString());
-        console.log("- Is Active:", troveAccount.isActive);
+        console.log("- Owner:", debtAccount.owner.toString());
+        console.log("- Debt Amount:", debtAccount.debtAmount.toString());
+        console.log("- Collateral Amount:", collateralAccount.amount.toString());
+        console.log("- Collateral Denom:", collateralAccount.denom);
 
-        assert(troveAccount.owner.equals(user1.publicKey), "Trove owner should match user1");
-        assert(troveAccount.isActive, "Trove should be active");
-        assert(troveAccount.debtAmount.gt(new anchor.BN(0)), "Debt amount should be greater than 0");
-        assert(troveAccount.collateralAmount.gt(new anchor.BN(0)), "Collateral amount should be greater than 0");
+        assert(debtAccount.owner.equals(user1.publicKey), "Debt account owner should match user1");
+        assert(collateralAccount.owner.equals(user1.publicKey), "Collateral account owner should match user1");
+        assert(debtAccount.debtAmount.gt(new anchor.BN(0)), "Debt amount should be greater than 0");
+        assert(collateralAccount.amount.gt(new anchor.BN(0)), "Collateral amount should be greater than 0");
 
         console.log("✅ User trove verification passed");
       } catch (error) {
@@ -838,12 +792,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
           return;
         }
 
-        const stakeAccount = await protocolProgram.account.stakeAccount.fetch(user1Stake);
+        const stakeAccount = await protocolProgram.account.userStakeAmount.fetch(user1Stake);
         console.log("📊 User1 Stake State:");
         console.log("- Owner:", stakeAccount.owner.toString());
         console.log("- Amount:", stakeAccount.amount.toString());
-        console.log("- Total Stake At Time:", stakeAccount.totalStakeAtTime.toString());
-        console.log("- Percentage:", stakeAccount.percentage.toString());
+        console.log("- P Snapshot:", stakeAccount.pSnapshot.toString());
+        console.log("- Epoch Snapshot:", stakeAccount.epochSnapshot.toString());
 
         assert(stakeAccount.owner.equals(user1.publicKey), "Stake owner should match user1");
         assert(stakeAccount.amount.gt(new anchor.BN(0)), "Stake amount should be greater than 0");

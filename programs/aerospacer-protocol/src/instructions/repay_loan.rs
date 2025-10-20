@@ -78,7 +78,7 @@ pub struct RepayLoan<'info> {
         seeds = [b"total_collateral_amount", params.collateral_denom.as_bytes()],
         bump
     )]
-    pub total_collateral_amount: AccountInfo<'info>,
+    pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
 
     #[account(
         mut,

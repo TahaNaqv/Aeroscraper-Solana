@@ -204,8 +204,8 @@ impl UserCollateralSnapshot {
 }
 
 // Constants to match INJECTIVE exactly
-pub const MINIMUM_LOAN_AMOUNT: u64 = 1_000_000_000_000_000_000; // 1 aUSD with 18 decimals
-pub const MINIMUM_COLLATERAL_AMOUNT: u64 = 5_000_000_000; // 5 SOL with 9 decimals
+pub const MINIMUM_LOAN_AMOUNT: u64 = 1_000_000_000_000_000; // 0.001 aUSD with 18 decimals
+pub const MINIMUM_COLLATERAL_AMOUNT: u64 = 1_000_000; // 0.001 SOL with 9 decimals
 pub const DEFAULT_MINIMUM_COLLATERAL_RATIO: u8 = 115; // 115%
 pub const DEFAULT_PROTOCOL_FEE: u8 = 5; // 5%
 

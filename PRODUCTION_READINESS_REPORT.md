@@ -34,7 +34,7 @@ The Aerospacer Protocol is a **DeFi lending platform** built on Solana with **3 
 ### 1.1 Program Structure ✅
 
 **Three Integrated Programs:**
-1. **aerospacer-protocol** (eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe)
+1. **aerospacer-protocol** (9sk8X11GWtZjzXWfkcLMRD6tmuhmiBKgMXsmx9bEh5YQ)
    - Core lending logic (13 instruction handlers)
    - Trove management & liquidations
    - Stability pool operations

@@ -25,7 +25,7 @@ describe("Aerospacer Protocol - Simple Test", () => {
   let feeState: PublicKey;
 
   before(async () => {
-    console.log("\n🚀 Setting up Simple Protocol Test...");
+    console.log("\n🚀 Setting up Simple Protocol Test for devnet...");
     console.log("  Admin:", admin.publicKey.toString());
 
     // Create stablecoin mint
@@ -37,7 +37,7 @@ describe("Aerospacer Protocol - Simple Test", () => {
       18
     );
 
-    // Initialize oracle program
+    // Initialize oracle program using PDA
     const [oracleStatePDA] = PublicKey.findProgramAddressSync(
       [Buffer.from("state")],
       oracleProgram.programId
@@ -47,43 +47,48 @@ describe("Aerospacer Protocol - Simple Test", () => {
     // Check if oracle state already exists
     try {
       const existingState = await oracleProgram.account.oracleStateAccount.fetch(oracleState);
-      console.log("Oracle state already exists, skipping initialization");
+      console.log("✅ Oracle state already exists on devnet");
     } catch (error) {
-      console.log("Oracle state does not exist, initializing...");
+      console.log("Initializing oracle...");
       await oracleProgram.methods
         .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
         .accounts({
           state: oracleState,
-          admin: adminKeypair.publicKey,
+          admin: admin.publicKey,
           systemProgram: SystemProgram.programId,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         })
         .signers([adminKeypair])
         .rpc();
+      console.log("✅ Oracle initialized");
     }
 
-    // Initialize fees program
-    const feeStateKeypair = Keypair.generate();
-    feeState = feeStateKeypair.publicKey;
+    // Initialize fees program using PDA
+    const [feesStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
+    feeState = feesStatePDA;
 
     // Check if fees state already exists
     try {
       const existingState = await feesProgram.account.feeStateAccount.fetch(feeState);
-      console.log("Fees state already exists, skipping initialization");
+      console.log("✅ Fees state already exists on devnet");
     } catch (error) {
-      console.log("Fees state does not exist, initializing...");
+      console.log("Initializing fees...");
       await feesProgram.methods
         .initialize()
         .accounts({
           state: feeState,
-          admin: adminKeypair.publicKey,
+          admin: admin.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers([feeStateKeypair])
+        .signers([adminKeypair])
         .rpc();
+      console.log("✅ Fees initialized");
     }
 
-    // Initialize protocol
+    // Initialize protocol using PDA
     const [protocolStatePDA] = PublicKey.findProgramAddressSync(
       [Buffer.from("state")],
       protocolProgram.programId
@@ -93,9 +98,9 @@ describe("Aerospacer Protocol - Simple Test", () => {
     // Check if protocol state already exists
     try {
       const existingState = await protocolProgram.account.stateAccount.fetch(protocolState);
-      console.log("Protocol state already exists, skipping initialization");
+      console.log("✅ Protocol state already exists on devnet");
     } catch (error) {
-      console.log("Protocol state does not exist, initializing...");
+      console.log("Initializing protocol...");
       await protocolProgram.methods
         .initialize({
           stableCoinCodeId: new anchor.BN(1),
@@ -106,15 +111,16 @@ describe("Aerospacer Protocol - Simple Test", () => {
         })
         .accounts({
           state: protocolState,
-          admin: adminKeypair.publicKey,
+          admin: admin.publicKey,
           stableCoinMint: stablecoinMint,
           systemProgram: SystemProgram.programId,
         })
         .signers([adminKeypair])
         .rpc();
+      console.log("✅ Protocol initialized");
     }
 
-    console.log("✅ All programs initialized successfully");
+    console.log("✅ All programs ready for devnet testing");
     console.log("  Protocol State:", protocolState.toString());
     console.log("  Oracle State:", oracleState.toString());
     console.log("  Fee State:", feeState.toString());

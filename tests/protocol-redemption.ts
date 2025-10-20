@@ -25,34 +25,90 @@ describe("Protocol Contract - Redemption Tests", () => {
   let collateralMint: PublicKey;
 
   before(async () => {
-    console.log("\n🚀 Setting up Redemption Tests...");
+    console.log("\n🚀 Setting up Redemption Tests for devnet...");
 
     stablecoinMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 18);
     collateralMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 9);
 
-    const oracleStateKeypair = Keypair.generate();
-    oracleState = oracleStateKeypair.publicKey;
-    await oracleProgram.methods
-      .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
-      .accounts({ state: oracleState, admin: admin.publicKey, systemProgram: SystemProgram.programId, clock: anchor.web3.SYSVAR_CLOCK_PUBKEY })
-      .signers([oracleStateKeypair])
-      .rpc();
+    // Initialize oracle using PDA
+    const [oracleStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      oracleProgram.programId
+    );
+    oracleState = oracleStatePDA;
 
-    const feeStateKeypair = Keypair.generate();
-    feeState = feeStateKeypair.publicKey;
-    await feesProgram.methods
-      .initialize()
-      .accounts({ state: feeState, admin: admin.publicKey, systemProgram: SystemProgram.programId })
-      .signers([feeStateKeypair])
-      .rpc();
+    try {
+      const existingState = await oracleProgram.account.oracleStateAccount.fetch(oracleState);
+      console.log("✅ Oracle already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing oracle...");
+      await oracleProgram.methods
+        .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
+        .accounts({ 
+          state: oracleState, 
+          admin: admin.publicKey, 
+          systemProgram: SystemProgram.programId, 
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY 
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Oracle initialized");
+    }
 
-    const protocolStateKeypair = Keypair.generate();
-    protocolState = protocolStateKeypair.publicKey;
-    await protocolProgram.methods
-      .initialize({ stableCoinCodeId: new anchor.BN(1), oracleHelperAddr: oracleProgram.programId, oracleStateAddr: oracleState, feeDistributorAddr: feesProgram.programId, feeStateAddr: feeState })
-      .accounts({ state: protocolState, admin: admin.publicKey, stableCoinMint: stablecoinMint, systemProgram: SystemProgram.programId })
-      .signers([protocolStateKeypair])
-      .rpc();
+    // Initialize fees using PDA
+    const [feesStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
+    feeState = feesStatePDA;
+
+    try {
+      const existingState = await feesProgram.account.feeStateAccount.fetch(feeState);
+      console.log("✅ Fees already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing fees...");
+      await feesProgram.methods
+        .initialize()
+        .accounts({ 
+          state: feeState, 
+          admin: admin.publicKey, 
+          systemProgram: SystemProgram.programId 
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Fees initialized");
+    }
+
+    // Initialize protocol using PDA
+    const [protocolStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      protocolProgram.programId
+    );
+    protocolState = protocolStatePDA;
+
+    try {
+      const existingState = await protocolProgram.account.stateAccount.fetch(protocolState);
+      console.log("✅ Protocol already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing protocol...");
+      await protocolProgram.methods
+        .initialize({ 
+          stableCoinCodeId: new anchor.BN(1), 
+          oracleHelperAddr: oracleProgram.programId, 
+          oracleStateAddr: oracleState, 
+          feeDistributorAddr: feesProgram.programId, 
+          feeStateAddr: feeState 
+        })
+        .accounts({ 
+          state: protocolState, 
+          admin: admin.publicKey, 
+          stableCoinMint: stablecoinMint, 
+          systemProgram: SystemProgram.programId 
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Protocol initialized");
+    }
 
     console.log("✅ Setup complete");
   });
@@ -164,7 +220,7 @@ describe("Protocol Contract - Redemption Tests", () => {
       // Mint large amount of aUSD to user
       await mintTo(provider.connection, admin.payer, stablecoinMint, userStablecoinAccount, admin.publicKey, 1_000_000_000_000_000_000);
 
-      const [protocolStablecoinVault] = PublicKey.findProgramAddressSync(
+      const [protocolStablecoinAccount] = PublicKey.findProgramAddressSync(
         [Buffer.from("protocol_stablecoin_vault")],
         protocolProgram.programId
       );
@@ -181,7 +237,7 @@ describe("Protocol Contract - Redemption Tests", () => {
             state: protocolState,
             sortedTrovesState,
             userStablecoinAccount,
-            protocolStablecoinVault,
+            protocolStablecoinAccount,
             oracleProgram: oracleProgram.programId,
             oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,

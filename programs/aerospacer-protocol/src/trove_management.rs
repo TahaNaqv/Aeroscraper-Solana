@@ -54,20 +54,29 @@ impl TroveManager {
         let price_data = oracle_ctx.get_price(&collateral_denom)?;
         oracle_ctx.validate_price(&price_data)?;
         
-        // Calculate collateral value
+        // Calculate collateral value using proper price data
         let collateral_value = PriceCalculator::calculate_collateral_value(
             collateral_amount,
             price_data.price as u64, // Convert i64 to u64
             price_data.decimal,
         )?;
         
-        // Calculate ICR
+        msg!("DEBUG - Collateral amount: {}", collateral_amount);
+        msg!("DEBUG - Price: {}", price_data.price);
+        msg!("DEBUG - Price decimal: {}", price_data.decimal);
+        msg!("DEBUG - Calculated collateral value: {}", collateral_value);
+        msg!("DEBUG - Loan amount: {}", loan_amount);
+        
+        // Calculate ICR using proper calculation
         let icr = PriceCalculator::calculate_collateral_ratio(
             collateral_value,
             loan_amount,
         )?;
         
-        // Check minimum collateral ratio (both are simple percentages)
+        msg!("DEBUG - Calculated ICR: {}", icr);
+        msg!("DEBUG - Minimum ICR required: {}", trove_ctx.state.minimum_collateral_ratio);
+        
+        // Check minimum collateral ratio
         let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         require!(
             icr >= minimum_ratio,
@@ -263,7 +272,7 @@ impl TroveManager {
         )?;
         
         // Check minimum collateral ratio
-        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64 * DECIMAL_FRACTION_18 as u64;
+        let minimum_ratio = trove_ctx.state.minimum_collateral_ratio as u64;
         require!(
             new_icr >= minimum_ratio,
             AerospacerProtocolError::CollateralBelowMinimum

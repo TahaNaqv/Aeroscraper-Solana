@@ -21,9 +21,9 @@ describe("Protocol Contract - Security Tests", () => {
   const nonAdmin = Keypair.generate();
 
   before(async () => {
-    console.log("\n🔒 Setting up Security Tests...");
+    console.log("\n🔒 Setting up Security Tests for devnet...");
     ctx = await setupTestEnvironment();
-    const transferAmount = 10000000; // 0.01 SOL in lamports
+    const transferAmount = 1000000; // 0.001 SOL in lamports
     const nonAdminTx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: ctx.admin.publicKey,
@@ -115,8 +115,8 @@ describe("Protocol Contract - Security Tests", () => {
             collateralMint: ctx.collateralMint,
             userCollateralAccount: userSetup.collateralAccount,
             userStablecoinAccount,
-            protocolStablecoinVault: pdas.protocolStablecoinVault,
-            protocolCollateralVault: pdas.protocolCollateralVault,
+            protocolStablecoinAccount: pdas.protocolStablecoinAccount,
+            protocolCollateralAccount: pdas.protocolCollateralAccount,
             oracleProgram: ctx.oracleProgram.programId,
             oracleState: ctx.oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
@@ -165,8 +165,8 @@ describe("Protocol Contract - Security Tests", () => {
             collateralMint: ctx.collateralMint,
             userCollateralAccount: userSetup.collateralAccount,
             userStablecoinAccount,
-            protocolStablecoinVault: pdas.protocolStablecoinVault,
-            protocolCollateralVault: pdas.protocolCollateralVault,
+            protocolStablecoinAccount: pdas.protocolStablecoinAccount,
+            protocolCollateralAccount: pdas.protocolCollateralAccount,
             oracleProgram: ctx.oracleProgram.programId,
             oracleState: ctx.oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,

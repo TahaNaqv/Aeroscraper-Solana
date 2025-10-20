@@ -20,8 +20,8 @@ To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects
 ✅ Protocol state verification passed
   Admin: 5oMxbgjPWkBYRKbsh3yKrrEC5Ut8y3azHKc787YHY9Ar
   Stable Coin: 5j7VYeSFYSgYUYPYoJKdPfhjLFwFUsbxTZyrNFqBVqGj
-  Oracle Helper: 2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9
-  Fee Distributor: 6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco
+  Oracle Helper: 8zG12srZdYaJPjWzCAJhwyxF7wWTz5spbmehxWpV5Q9M
+  Fee Distributor: AHmGKukQky3mDHLmFyJYcEaFub69vp2QqeSW7EbVpJjZ
   MCR: 115
   Protocol Fee: 5
       ✔ Should verify protocol state after initialization
@@ -44,9 +44,9 @@ To eliminate this warning, add "type": "module" to /home/taha/Documents/Projects
   Mint Address: 5j7VYeSFYSgYUYPYoJKdPfhjLFwFUsbxTZyrNFqBVqGj
       ✔ Should verify stablecoin mint
 📋 Verifying program IDs...
-  Protocol Program ID: eW6XmBQigY6bWkLmk153PncJdXTrHmgSoBzUaLS3GZe
-  Oracle Program ID: 2Vn1gNPEjVW4NbKrrBfNKtyYM6sLXiUkkPDVrCkT8cp9
-  Fees Program ID: 6j3Bpeu3HHKw63x42zjgV19ASyX8D29dB8rNGkPpypco
+  Protocol Program ID: 9sk8X11GWtZjzXWfkcLMRD6tmuhmiBKgMXsmx9bEh5YQ
+  Oracle Program ID: 8zG12srZdYaJPjWzCAJhwyxF7wWTz5spbmehxWpV5Q9M
+  Fees Program ID: AHmGKukQky3mDHLmFyJYcEaFub69vp2QqeSW7EbVpJjZ
 ✅ Program ID verification passed
       ✔ Should verify program IDs are correct
     Integration Tests

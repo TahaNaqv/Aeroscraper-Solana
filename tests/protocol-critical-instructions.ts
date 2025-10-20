@@ -123,8 +123,8 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
             stableCoinMint: ctx.stablecoinMint,
             collateralMint: ctx.collateralMint,
             liquidatorStablecoinAccount: liquidatorStablecoin,
-            protocolStablecoinVault: borrowerPDAs.protocolStablecoinVault,
-            protocolCollateralVault: borrowerPDAs.protocolCollateralVault,
+            protocolStablecoinAccount: borrowerPDAs.protocolStablecoinAccount,
+            protocolCollateralAccount: borrowerPDAs.protocolCollateralAccount,
             oracleProgram: ctx.oracleProgram.programId,
             oracleState: ctx.oracleState,
             pythPriceAccount: PYTH_ORACLE_ADDRESS,
@@ -225,7 +225,7 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
           state: ctx.protocolState,
           sortedTrovesState: ctx.sortedTrovesState,
           userStablecoinAccount: redeemerStablecoin,
-          protocolStablecoinVault: redeemerPDAs.protocolStablecoinVault,
+          protocolStablecoinAccount: redeemerPDAs.protocolStablecoinAccount,
           oracleProgram: ctx.oracleProgram.programId,
           oracleState: ctx.oracleState,
           pythPriceAccount: PYTH_ORACLE_ADDRESS,
@@ -241,7 +241,7 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
           { pubkey: troveOwnerPDAs.userDebtAmount, isSigner: false, isWritable: true },
           { pubkey: troveOwnerPDAs.userCollateralAmount, isSigner: false, isWritable: true },
           { pubkey: redeemerCollateral, isSigner: false, isWritable: true },
-          { pubkey: troveOwnerPDAs.protocolCollateralVault, isSigner: false, isWritable: true },
+          { pubkey: troveOwnerPDAs.protocolCollateralAccount, isSigner: false, isWritable: true },
         ])
         .signers([redeemer.user])
         .rpc();

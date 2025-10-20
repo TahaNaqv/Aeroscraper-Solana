@@ -106,7 +106,7 @@ pub struct BorrowLoan<'info> {
         seeds = [b"total_collateral_amount", params.collateral_denom.as_bytes()],
         bump
     )]
-    pub total_collateral_amount: AccountInfo<'info>,
+    pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
 
     // Oracle context - integration with our aerospacer-oracle
     /// CHECK: Our oracle program - validated against state

@@ -11,6 +11,8 @@ pub mod stake;
 pub mod unstake;
 pub mod withdraw_liquidation_gains;
 pub mod redeem;
+pub mod update_protocol_addresses;
+pub mod transfer_stablecoin;
 
 #[allow(ambiguous_glob_reexports)]
 pub use initialize::*;
@@ -37,4 +39,8 @@ pub use unstake::*;
 #[allow(ambiguous_glob_reexports)]
 pub use withdraw_liquidation_gains::*;
 #[allow(ambiguous_glob_reexports)]
-pub use redeem::*; 
+pub use redeem::*;
+#[allow(ambiguous_glob_reexports)]
+pub use update_protocol_addresses::*;
+#[allow(ambiguous_glob_reexports)]
+pub use transfer_stablecoin::*; 

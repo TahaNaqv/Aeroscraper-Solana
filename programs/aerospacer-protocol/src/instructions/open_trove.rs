@@ -61,7 +61,7 @@ pub struct OpenTrove<'info> {
     )]
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     
-    pub collateral_mint: Account<'info, Mint>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
     
     #[account(
         init_if_needed,
@@ -75,11 +75,13 @@ pub struct OpenTrove<'info> {
     
     /// CHECK: Per-denom collateral total PDA
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
+        space = 8 + TotalCollateralAmount::LEN,
         seeds = [b"total_collateral_amount", params.collateral_denom.as_bytes()],
         bump
     )]
-    pub total_collateral_amount: AccountInfo<'info>,
+    pub total_collateral_amount: Box<Account<'info, TotalCollateralAmount>>,
     
     // Sorted troves context accounts - Box<> to reduce stack usage
     #[account(
@@ -125,7 +127,7 @@ pub struct OpenTrove<'info> {
     #[account(
         constraint = stable_coin_mint.key() == state.stable_coin_addr @ AerospacerProtocolError::InvalidMint
     )]
-    pub stable_coin_mint: Account<'info, Mint>,
+    pub stable_coin_mint: Box<Account<'info, Mint>>,
     
     // Oracle context - UncheckedAccount to reduce stack usage
     /// CHECK: Our oracle program - validated against state in handler
@@ -259,7 +261,7 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
             user_collateral_amount: (*ctx.accounts.user_collateral_amount).clone(),
             user_collateral_account: (*ctx.accounts.user_collateral_account).clone(),
             protocol_collateral_account: (*ctx.accounts.protocol_collateral_account).clone(),
-            total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
+            total_collateral_amount: (*ctx.accounts.total_collateral_amount).clone(),
             token_program: ctx.accounts.token_program.clone(),
         };
         
@@ -290,6 +292,17 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
     ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
+    
+    // Initialize total_collateral_amount if it was just created
+    if ctx.accounts.total_collateral_amount.denom.is_empty() {
+        ctx.accounts.total_collateral_amount.denom = params.collateral_denom.clone();
+        ctx.accounts.total_collateral_amount.amount = params.collateral_amount;
+    } else {
+        // Update existing total
+        ctx.accounts.total_collateral_amount.amount = ctx.accounts.total_collateral_amount.amount
+            .checked_add(params.collateral_amount)
+            .ok_or(AerospacerProtocolError::OverflowError)?;
+    }
     
     // Insert trove into sorted list using the Node account from context
     // Pass remaining_accounts to update neighbor nodes (old_tail.next_id)

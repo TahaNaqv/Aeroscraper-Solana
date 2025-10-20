@@ -36,10 +36,10 @@ describe("Protocol Contract - Stability Pool Tests", () => {
   let staker2StablecoinAccount: PublicKey;
 
   before(async () => {
-    console.log("\n🚀 Setting up Stability Pool Tests...");
+    console.log("\n🚀 Setting up Stability Pool Tests for devnet...");
 
-    // Transfer SOL for transaction fees and account creation
-    const transferAmount = 10000000; // 0.01 SOL in lamports
+    // Transfer minimal SOL for transaction fees and account creation
+    const transferAmount = 1000000; // 0.001 SOL in lamports
     
     const staker1Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
@@ -95,57 +95,83 @@ describe("Protocol Contract - Stability Pool Tests", () => {
       10_000_000_000_000_000_000n // 10 aUSD
     );
 
-    // Initialize programs
-    const oracleStateKeypair = Keypair.generate();
-    oracleState = oracleStateKeypair.publicKey;
+    // Initialize programs using PDAs
+    const [oracleStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      oracleProgram.programId
+    );
+    oracleState = oracleStatePDA;
 
-    await oracleProgram.methods
-      .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
-      .accounts({
-        state: oracleState,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([oracleStateKeypair])
-      .rpc();
+    try {
+      const existingState = await oracleProgram.account.oracleStateAccount.fetch(oracleState);
+      console.log("✅ Oracle already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing oracle...");
+      await oracleProgram.methods
+        .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
+        .accounts({
+          state: oracleState,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Oracle initialized");
+    }
 
-    const feeStateKeypair = Keypair.generate();
-    feeState = feeStateKeypair.publicKey;
+    const [feesStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
+    feeState = feesStatePDA;
 
-    await feesProgram.methods
-      .initialize({
-        admin: admin.publicKey,
-        feeAddress1: admin.publicKey,
-        feeAddress2: admin.publicKey,
-      })
-      .accounts({
-        state: feeState,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([feeStateKeypair])
-      .rpc();
+    try {
+      const existingState = await feesProgram.account.feeStateAccount.fetch(feeState);
+      console.log("✅ Fees already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing fees...");
+      await feesProgram.methods
+        .initialize()
+        .accounts({
+          state: feeState,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Fees initialized");
+    }
 
-    const protocolStateKeypair = Keypair.generate();
-    protocolState = protocolStateKeypair.publicKey;
+    const [protocolStatePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      protocolProgram.programId
+    );
+    protocolState = protocolStatePDA;
 
-    await protocolProgram.methods
-      .initialize({
-        stableCoinMint: stablecoinMint,
-        oracleProgram: oracleProgram.programId,
-        oracleStateAddr: oracleState,
-        feeDistributor: feesProgram.programId,
-        feeStateAddr: feeState,
-      })
-      .accounts({
-        state: protocolState,
-        admin: admin.publicKey,
-        stableCoinMint: stablecoinMint,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([protocolStateKeypair])
-      .rpc();
+    try {
+      const existingState = await protocolProgram.account.stateAccount.fetch(protocolState);
+      console.log("✅ Protocol already initialized on devnet");
+    } catch (error) {
+      console.log("Initializing protocol...");
+      await protocolProgram.methods
+        .initialize({
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
+          oracleStateAddr: oracleState,
+          feeDistributorAddr: feesProgram.programId,
+          feeStateAddr: feeState,
+        })
+        .accounts({
+          state: protocolState,
+          admin: admin.publicKey,
+          stableCoinMint: stablecoinMint,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Protocol initialized");
+    }
 
     console.log("✅ Setup complete");
     console.log("  Staker1:", staker1.publicKey.toString());
@@ -165,14 +191,20 @@ describe("Protocol Contract - Stability Pool Tests", () => {
       console.log("📋 Staking aUSD to stability pool...");
       console.log("  Amount:", stakeAmount.toString());
 
+      // Derive protocol stablecoin vault PDA
+      const [protocolStablecoinAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_stablecoin_vault")],
+        protocolProgram.programId
+      );
+
       await protocolProgram.methods
-        .stake({ stakeAmount })
+        .stake({ amount: stakeAmount })
         .accounts({
-          state: protocolState,
-          userStakeAmount: userStakePda,
           user: staker1.publicKey,
+          userStakeAmount: userStakePda,
+          state: protocolState,
           userStablecoinAccount: staker1StablecoinAccount,
-          protocolStablecoinAccount: protocolState, // Use protocol state for now
+          protocolStablecoinAccount: protocolStablecoinAccount,
           stableCoinMint: stablecoinMint,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,

@@ -59,10 +59,12 @@ pub fn handler(ctx: Context<GetPrice>, params: GetPriceParams) -> Result<PriceRe
     msg!("Real Pyth data extracted successfully using official SDK");
     
     // Return price response with validated Pyth data
+    // Use the actual price exponent from Pyth instead of collateral decimal
+    let actual_decimal = (-price.expo) as u8; // Convert negative exponent to positive decimal places
     Ok(PriceResponse {
         denom: params.denom,
         price: price.price,
-        decimal: collateral_data.decimal,
+        decimal: actual_decimal, // Use actual price decimal from Pyth
         timestamp: price.publish_time,
         confidence: price.conf,
         exponent: price.expo,
