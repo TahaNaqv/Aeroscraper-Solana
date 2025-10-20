@@ -62,6 +62,7 @@ async function main() {
         state: protocolStatePDA,
         admin: admin.publicKey,
         stableCoinMint: stablecoinMint,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       } as any)
       .signers([adminKeypair])

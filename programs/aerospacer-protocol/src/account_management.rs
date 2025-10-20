@@ -249,14 +249,21 @@ impl<'info> LiquidationContext<'info> {
             self.update_total_collateral_amount(denom, *amount)?;
         }
         
-        // Burn stablecoins from protocol vault
-        let burn_ctx = CpiContext::new(
+        // Burn stablecoins from protocol vault (PDA signer)
+        let burn_seeds = &[
+            b"protocol_stablecoin_vault".as_ref(),
+            &[Pubkey::find_program_address(&[b"protocol_stablecoin_vault"], &crate::ID).1],
+        ];
+        let burn_signer = &[&burn_seeds[..]];
+
+        let burn_ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             Burn {
                 mint: self.stable_coin_mint.to_account_info(),
                 from: self.protocol_stablecoin_vault.to_account_info(),
                 authority: self.protocol_stablecoin_vault.to_account_info(),
             },
+            burn_signer,
         );
         anchor_spl::token::burn(burn_ctx, debt_amount)?;
         

@@ -75,7 +75,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
   before(async () => {
     // Transfer SOL for transaction fees and account creation (0.1 SOL each)
     const transferAmount = 100000000; // 0.1 SOL in lamports
-    
+
     const user1Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
@@ -114,7 +114,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
     // Create token mints
     collateralMint = await createMint(provider.connection, adminKeypair, admin.publicKey, null, 9); // 9 decimals for SOL
-    
+
     // Get the existing stablecoin mint from the state account
     const existingState = await provider.connection.getAccountInfo(protocolState);
     if (existingState) {
@@ -138,7 +138,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     console.log("Creating admin stablecoin account...");
     console.log("Admin public key:", admin.publicKey.toString());
     console.log("Stablecoin mint:", stablecoinMint.toString());
-    
+
     // Check if token account already exists
     const adminStablecoinAccountInfo = await provider.connection.getAccountInfo(adminStablecoinAccount);
     if (adminStablecoinAccountInfo) {
@@ -159,11 +159,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user2.publicKey);
 
     // Mint initial tokens (using correct decimal places)
-    try {
-      await mintTo(provider.connection, adminKeypair, stablecoinMint, adminStablecoinAccount, adminKeypair, 1000000000000000000); // 1000 aUSD with 18 decimals (reduced amount)
-    } catch (e) {
-      console.log("Could not mint stablecoins (using existing supply):", e.message);
-    }
+    await mintTo(provider.connection, adminKeypair, stablecoinMint, adminStablecoinAccount, adminKeypair, 1000000000000000000); // 1000 aUSD with 18 decimals
     await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
 
     // Transfer tokens to users
@@ -242,7 +238,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // Create minimal token accounts for testing
     const feeAddress1 = Keypair.generate();
     const feeAddress2 = Keypair.generate();
-    
+
     // Transfer minimal SOL to fee addresses
     const fee1Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
@@ -347,8 +343,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // In a real implementation, these would be managed by the program itself
     console.log("Skipping PDA token account creation (not allowed)");
 
-        // Sorted troves state will be created automatically by the protocol program
-        // when the first trove is opened (init_if_needed constraint)
+    // Sorted troves state will be created automatically by the protocol program
+    // when the first trove is opened (init_if_needed constraint)
   });
 
   describe("Core Protocol Operations", () => {
@@ -363,7 +359,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- oracleState:", oracleState.toString());
         console.log("- feesProgram:", feesProgram.programId.toString());
         console.log("- feesState:", feesState.toString());
-        
+
         await protocolProgram.methods
           .openTrove({
             loanAmount: new anchor.BN(loanAmount),
@@ -500,7 +496,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
       try {
         // First, ensure user1 has enough stablecoins by transferring from admin
         const transferAmount = new anchor.BN("5000000000000000000"); // 5 aUSD with 18 decimals
-        
+
         console.log("Transferring stablecoins to user1 for staking...");
         const transferTx = await protocolProgram.methods
           .transferStablecoin({ amount: transferAmount })
@@ -764,7 +760,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
         // Fetch user debt and collateral amounts
         const debtAccount = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
         const collateralAccount = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
-        
+
         console.log("📊 User1 Trove State:");
         console.log("- Owner:", debtAccount.owner.toString());
         console.log("- Debt Amount:", debtAccount.debtAmount.toString());

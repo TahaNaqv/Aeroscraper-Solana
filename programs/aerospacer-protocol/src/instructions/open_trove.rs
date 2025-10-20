@@ -125,6 +125,7 @@ pub struct OpenTrove<'info> {
     pub protocol_stablecoin_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
+        mut,
         constraint = stable_coin_mint.key() == state.stable_coin_addr @ AerospacerProtocolError::InvalidMint
     )]
     pub stable_coin_mint: Box<Account<'info, Mint>>,

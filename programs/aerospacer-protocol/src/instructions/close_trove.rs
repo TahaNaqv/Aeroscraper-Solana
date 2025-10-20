@@ -69,6 +69,7 @@ pub struct CloseTrove<'info> {
 
     /// CHECK: This is the stable coin mint account
     #[account(
+        mut,
         constraint = stable_coin_mint.key() == state.stable_coin_addr @ AerospacerProtocolError::InvalidMint
     )]
     pub stable_coin_mint: UncheckedAccount<'info>,

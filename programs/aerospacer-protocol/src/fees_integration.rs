@@ -140,13 +140,13 @@ fn distribute_fee_via_cpi<'info>(
     
     // Build account metas for distribute_fee instruction
     let account_metas = vec![
-        anchor_lang::solana_program::instruction::AccountMeta::new(*payer.key, true),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*fees_state.key, false),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*payer_token_account.key, true),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*stability_pool_token_account.key, true),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_1_token_account.key, true),
-        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_2_token_account.key, true),
-        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*token_program.key, false),
+        anchor_lang::solana_program::instruction::AccountMeta::new(*payer.key, true),           // ✅ payer as signer
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fees_state.key, false),    // ✅ fees_state as writable, not signer
+        anchor_lang::solana_program::instruction::AccountMeta::new(*payer_token_account.key, false),     // ✅ payer_token_account as writable, not signer
+        anchor_lang::solana_program::instruction::AccountMeta::new(*stability_pool_token_account.key, false), // ✅ stability_pool_token_account as writable, not signer
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_1_token_account.key, false),   // ✅ fee_address_1_token_account as writable, not signer
+        anchor_lang::solana_program::instruction::AccountMeta::new(*fee_address_2_token_account.key, false),   // ✅ fee_address_2_token_account as writable, not signer
+        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*token_program.key, false),       // ✅ token_program as readonly
     ];
     
     // Create instruction
