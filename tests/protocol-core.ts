@@ -112,8 +112,11 @@ describe("Aeroscraper Protocol Core Operations", () => {
     oracleState = oracleStatePda;
     feesState = feesStatePda;
 
-    // Create token mints
+    // Create token mints - always create new collateral mint for clean testing
+    // The protocol_collateral_account PDA will be created automatically by the contract
+    // when openTrove is called with init_if_needed
     collateralMint = await createMint(provider.connection, adminKeypair, admin.publicKey, null, 9); // 9 decimals for SOL
+    console.log("✅ Created new collateral mint:", collateralMint.toString());
 
     // Get the existing stablecoin mint from the state account
     const existingState = await provider.connection.getAccountInfo(protocolState);
@@ -159,7 +162,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
     await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user2.publicKey);
 
     // Mint initial tokens (using correct decimal places)
-    await mintTo(provider.connection, adminKeypair, stablecoinMint, adminStablecoinAccount, adminKeypair, 1000000000000000000); // 1000 aUSD with 18 decimals
+    // Skip stablecoin minting - protocol will mint tokens when users open troves
+    console.log("Skipping stablecoin minting - protocol will mint tokens during operations");
     await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
 
     // Transfer tokens to users
@@ -230,20 +234,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
     user1LiquidityThresholdPDA = user1LiquidityThresholdPda;
     user1CollateralAmountPDA = user1CollateralAmountPda;
     user1NodePDA = user1NodePda;
-    protocolCollateralAccountPDA = protocolCollateralAccountPda;
+    protocolCollateralAccountPDA = protocolCollateralAccountPda; // Already derived above
     totalCollateralAmountPDA = totalCollateralAmountPda;
     sortedTrovesStatePDA = sortedTrovesStatePda;
     protocolStablecoinAccountPDA = protocolStablecoinAccountPda;
 
     // Create minimal token accounts for testing
-    const feeAddress1 = Keypair.generate();
-    const feeAddress2 = Keypair.generate();
+    // Use the configured fee addresses from the fees contract
+    const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
+    const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
 
     // Transfer minimal SOL to fee addresses
     const fee1Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
-        toPubkey: feeAddress1.publicKey,
+        toPubkey: feeAddress1,
         lamports: transferAmount,
       })
     );
@@ -252,22 +257,56 @@ describe("Aeroscraper Protocol Core Operations", () => {
     const fee2Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
-        toPubkey: feeAddress2.publicKey,
+        toPubkey: feeAddress2,
         lamports: transferAmount,
       })
     );
     await provider.sendAndConfirm(fee2Tx, [adminKeypair]);
 
     // Create token accounts for fee addresses
-    feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1.publicKey);
-    feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2.publicKey);
+    feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);
+    feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2);
     stabilityPoolTokenAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey); // Use admin as stability pool owner for simplicity
 
     // Create the token accounts
     console.log("Creating token account for feeAddress1...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, feeAddress1.publicKey);
-    console.log("Creating token account for feeAddress2...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, feeAddress2.publicKey);
+    console.log("FeeAddress1:", feeAddress1.toString());
+    console.log("StablecoinMint:", stablecoinMint.toString());
+
+    // Check if token accounts already exist
+    const fee1TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
+    const fee2TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
+
+    if (!fee1TokenAccountInfo) {
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, feeAddress1);
+      console.log("Created feeAddress1 token account:", feeAddress1TokenAccount.toString());
+    } else {
+      console.log("FeeAddress1 token account already exists:", feeAddress1TokenAccount.toString());
+    }
+
+    if (!fee2TokenAccountInfo) {
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, feeAddress2);
+      console.log("Created feeAddress2 token account:", feeAddress2TokenAccount.toString());
+    } else {
+      console.log("FeeAddress2 token account already exists:", feeAddress2TokenAccount.toString());
+    }
+
+    // Verify token account owners
+    const fee1AccountInfo = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
+    const fee2AccountInfo = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
+
+    if (fee1AccountInfo) {
+      console.log("Fee1 token account owner:", fee1AccountInfo.owner.toString());
+      console.log("Expected fee1 owner:", feeAddress1.toString());
+      console.log("Match:", fee1AccountInfo.owner.equals(feeAddress1));
+    }
+
+    if (fee2AccountInfo) {
+      console.log("Fee2 token account owner:", fee2AccountInfo.owner.toString());
+      console.log("Expected fee2 owner:", feeAddress2.toString());
+      console.log("Match:", fee2AccountInfo.owner.equals(feeAddress2));
+    }
+
     console.log("Token accounts created successfully");
 
     // Check if oracle state already exists
@@ -351,7 +390,25 @@ describe("Aeroscraper Protocol Core Operations", () => {
     it("Should open a trove successfully", async () => {
       const collateralAmount = 10000000000; // 10 SOL with 9 decimals (meet minimum requirement)
       const loanAmount = "1100000000000000"; // 0.0011 aUSD with 18 decimals (above minimum after 5% fee)
-      const collateralDenom = "SOL";
+      const collateralDenom = "SOL"; // Use SOL for price feed
+
+      // Use user2 to avoid existing PDA conflicts
+      const [user2DebtAmountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+      const [user2LiquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+      const [user2CollateralAmountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_collateral_amount"), user2.publicKey.toBuffer(), Buffer.from("SOL")],
+        protocolProgram.programId
+      );
+      const [user2NodePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), user2.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
 
       try {
         console.log("🔍 Debug - Account addresses being passed:");
@@ -367,18 +424,18 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralAmount: new anchor.BN(collateralAmount),
           })
           .accounts({
-            user: user1.publicKey,
-            userDebtAmount: user1DebtAmountPDA,
-            liquidityThreshold: user1LiquidityThresholdPDA,
-            userCollateralAmount: user1CollateralAmountPDA,
-            userCollateralAccount: user1CollateralAccount,
+            user: user2.publicKey,
+            userDebtAmount: user2DebtAmountPda,
+            liquidityThreshold: user2LiquidityThresholdPda,
+            userCollateralAmount: user2CollateralAmountPda,
+            userCollateralAccount: user2CollateralAccount,
             collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
-            node: user1NodePDA,
+            node: user2NodePda,
             state: protocolState,
-            userStablecoinAccount: user1StablecoinAccount,
+            userStablecoinAccount: user2StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
@@ -393,7 +450,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .signers([user1])
+          .signers([user2])
           .rpc();
 
         console.log("✅ Trove opened successfully");
@@ -491,26 +548,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
     });
 
     it("Should stake stablecoins in stability pool", async () => {
-      const stakeAmount = "2000000000000000000"; // 2 aUSD with 18 decimals (above minimum)
+      const stakeAmount = "1000000000000000000"; // 1 aUSD with 18 decimals (use some of the tokens from trove opening)
 
       try {
-        // First, ensure user1 has enough stablecoins by transferring from admin
-        const transferAmount = new anchor.BN("5000000000000000000"); // 5 aUSD with 18 decimals
-
-        console.log("Transferring stablecoins to user1 for staking...");
-        const transferTx = await protocolProgram.methods
-          .transferStablecoin({ amount: transferAmount })
-          .accounts({
-            from: admin.publicKey,
-            state: protocolState,
-            fromAccount: adminStablecoinAccount,
-            toAccount: user1StablecoinAccount,
-            tokenProgram: TOKEN_PROGRAM_ID,
-          })
-          .signers([adminKeypair])
-          .rpc();
-
-        console.log("Transfer transaction successful:", transferTx);
+        // User1 should have stablecoins from opening the trove in the previous test
+        // We'll stake a portion of those tokens
+        console.log("Staking stablecoins from user1's trove...");
 
         await protocolProgram.methods
           .stake({
