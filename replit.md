@@ -87,6 +87,26 @@ See **TEST_COVERAGE_ANALYSIS.md** for detailed coverage breakdown and **DEPLOYME
 
 ## Recent Changes
 
+**October 20, 2025 - Devnet Testing Fix: Collateral Mint Constraint Violation Resolved** ✅
+- **CRITICAL FIX**: Resolved `ConstraintTokenMint` errors when testing protocol-core.ts on devnet
+  * ✅ Root Cause: Test was creating NEW collateral mints, but devnet vaults already exist with specific mints
+  * ✅ Solution: Fetch existing collateral mint from `protocol_collateral_vault` PDA instead of creating new
+  * ✅ Pattern: Derive vault PDA → fetch account → parse mint address → use for all operations
+  * ✅ Handles both scenarios: existing devnet vaults AND fresh localnet deployments
+- **TOKEN HANDLING**: Added smart minting logic for localnet vs devnet
+  * ✅ Checks mint authority before attempting to mint tokens
+  * ✅ On localnet: Mints test tokens when admin controls the mint
+  * ✅ On devnet: Validates user token balances and warns if insufficient
+- **DOCUMENTATION**: Created comprehensive guide
+  * ✅ DEVNET_COLLATERAL_SETUP.md: Complete guide for devnet testing with collateral mints
+  * ✅ Explains PDA vault architecture and why mints are immutable per denomination
+  * ✅ Troubleshooting section for common errors (ConstraintTokenMint, AccountNotInitialized, InsufficientCollateral)
+- **TEST STATUS UPDATE**:
+  * ✅ protocol-core.ts: Now ready for devnet testing with correct mint handling
+  * ✅ protocol-simple-test.ts: Already passing (initialization only)
+  * ✅ protocol-initialization.ts: Already passing (state verification only)
+  * 📝 Other protocol tests: Need to verify if they have sufficient collateral tokens on devnet
+
 **October 18, 2025 - Test Suite Fixed: All 46 Test Files Verified and Ready** ✅
 - **COMPREHENSIVE TEST FIX**: Resolved "Account `collateralMint` not provided" errors across all test files
   * ✅ Fixed 4 test files by adding `collateralMint` parameter to trove operations:
