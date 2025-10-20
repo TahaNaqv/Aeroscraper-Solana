@@ -112,12 +112,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
     oracleState = oracleStatePda;
     feesState = feesStatePda;
 
-    // Create token mints - always create new collateral mint for clean testing
-    // The protocol_collateral_account PDA will be created automatically by the contract
-    // when openTrove is called with init_if_needed
-    collateralMint = await createMint(provider.connection, adminKeypair, admin.publicKey, null, 9); // 9 decimals for SOL
-    console.log("✅ Created new collateral mint:", collateralMint.toString());
-
     // Get the existing stablecoin mint from the state account
     const existingState = await provider.connection.getAccountInfo(protocolState);
     if (existingState) {
@@ -127,6 +121,30 @@ describe("Aeroscraper Protocol Core Operations", () => {
     } else {
       stablecoinMint = await createMint(provider.connection, adminKeypair, admin.publicKey, null, 18); // 18 decimals for aUSD
       console.log("Created new stablecoin mint:", stablecoinMint.toString());
+    }
+
+    // CRITICAL: Fetch the existing collateral mint from the devnet protocol vault
+    // The protocol_collateral_vault PDA is already initialized on devnet for "SOL"
+    // We must use the SAME mint that's already associated with this vault
+    const [protocolCollateralVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_collateral_vault"), Buffer.from("SOL")],
+      protocolProgram.programId
+    );
+    
+    const vaultAccountInfo = await provider.connection.getAccountInfo(protocolCollateralVaultPda);
+    if (vaultAccountInfo) {
+      // Vault exists on devnet - fetch its mint address
+      const vaultAccount = await provider.connection.getParsedAccountInfo(protocolCollateralVaultPda);
+      if (vaultAccount.value && 'parsed' in vaultAccount.value.data) {
+        collateralMint = new PublicKey(vaultAccount.value.data.parsed.info.mint);
+        console.log("✅ Using existing devnet collateral mint from vault:", collateralMint.toString());
+      } else {
+        throw new Error("Failed to parse vault account data");
+      }
+    } else {
+      // Vault doesn't exist - create a new mint (localnet scenario)
+      collateralMint = await createMint(provider.connection, adminKeypair, admin.publicKey, null, 9);
+      console.log("✅ Created new collateral mint for localnet:", collateralMint.toString());
     }
 
     // Create token accounts
@@ -150,25 +168,70 @@ describe("Aeroscraper Protocol Core Operations", () => {
       console.log("Creating new admin stablecoin account...");
       await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, admin.publicKey);
     }
-    console.log("Creating admin collateral account...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, admin.publicKey);
+    // Create collateral accounts - check if they already exist
+    const adminCollateralAccountInfo = await provider.connection.getAccountInfo(adminCollateralAccount);
+    if (!adminCollateralAccountInfo) {
+      console.log("Creating admin collateral account...");
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, admin.publicKey);
+    } else {
+      console.log("Admin collateral account already exists");
+    }
+
     console.log("Creating user1 stablecoin account...");
     await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user1.publicKey);
-    console.log("Creating user1 collateral account...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user1.publicKey);
+    
+    const user1CollateralAccountInfo = await provider.connection.getAccountInfo(user1CollateralAccount);
+    if (!user1CollateralAccountInfo) {
+      console.log("Creating user1 collateral account...");
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user1.publicKey);
+    } else {
+      console.log("User1 collateral account already exists");
+    }
+
     console.log("Creating user2 stablecoin account...");
     await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user2.publicKey);
-    console.log("Creating user2 collateral account...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user2.publicKey);
+    
+    const user2CollateralAccountInfo = await provider.connection.getAccountInfo(user2CollateralAccount);
+    if (!user2CollateralAccountInfo) {
+      console.log("Creating user2 collateral account...");
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, collateralMint, user2.publicKey);
+    } else {
+      console.log("User2 collateral account already exists");
+    }
 
     // Mint initial tokens (using correct decimal places)
     // Skip stablecoin minting - protocol will mint tokens when users open troves
     console.log("Skipping stablecoin minting - protocol will mint tokens during operations");
-    await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
+    
+    // Check if this is an existing devnet mint or a new localnet mint
+    const mintInfo = await provider.connection.getParsedAccountInfo(collateralMint);
+    let canMint = false;
+    if (mintInfo.value && 'parsed' in mintInfo.value.data) {
+      const mintAuthority = mintInfo.value.data.parsed.info.mintAuthority;
+      canMint = mintAuthority && new PublicKey(mintAuthority).equals(admin.publicKey);
+    }
 
-    // Transfer tokens to users
-    await transfer(provider.connection, adminKeypair, adminCollateralAccount, user1CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
-    await transfer(provider.connection, adminKeypair, adminCollateralAccount, user2CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+    if (canMint) {
+      // We control this mint - can mint tokens for testing
+      console.log("Minting collateral tokens for testing (localnet)...");
+      await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
+      await transfer(provider.connection, adminKeypair, adminCollateralAccount, user1CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+      await transfer(provider.connection, adminKeypair, adminCollateralAccount, user2CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+    } else {
+      // Existing devnet mint - check if users already have tokens
+      console.log("Using existing devnet collateral mint - checking user balances...");
+      const user1Balance = await provider.connection.getTokenAccountBalance(user1CollateralAccount);
+      const user2Balance = await provider.connection.getTokenAccountBalance(user2CollateralAccount);
+      console.log(`User1 collateral balance: ${user1Balance.value.uiAmount} tokens`);
+      console.log(`User2 collateral balance: ${user2Balance.value.uiAmount} tokens`);
+      
+      if (parseFloat(user1Balance.value.amount) < 1000000000) {
+        console.log("⚠️  User1 has insufficient collateral tokens for testing");
+      }
+      if (parseFloat(user2Balance.value.amount) < 1000000000) {
+        console.log("⚠️  User2 has insufficient collateral tokens for testing");
+      }
+    }
 
     // Derive user trove PDAs
     const [user1TrovePda] = PublicKey.findProgramAddressSync(
