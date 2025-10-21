@@ -585,24 +585,6 @@ describe("Aeroscraper Protocol Core Operations", () => {
         sortedTrovesStatePDA
       );
 
-      // Use user2 to avoid existing PDA conflicts
-      const [user2DebtAmountPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
-        protocolProgram.programId
-      );
-      const [user2LiquidityThresholdPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("liquidity_threshold"), user2.publicKey.toBuffer()],
-        protocolProgram.programId
-      );
-      const [user2CollateralAmountPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("user_collateral_amount"), user2.publicKey.toBuffer(), Buffer.from("SOL")],
-        protocolProgram.programId
-      );
-      const [user2NodePda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("node"), user2.publicKey.toBuffer()],
-        protocolProgram.programId
-      );
-
       try {
         console.log("🔍 Debug - Account addresses being passed:");
         console.log("- oracleProgram:", oracleProgram.programId.toString());
@@ -618,18 +600,18 @@ describe("Aeroscraper Protocol Core Operations", () => {
             collateralAmount: new anchor.BN(collateralAmount),
           })
           .accounts({
-            user: user2.publicKey,
-            userDebtAmount: user2DebtAmountPda,
-            liquidityThreshold: user2LiquidityThresholdPda,
-            userCollateralAmount: user2CollateralAmountPda,
-            userCollateralAccount: user2CollateralAccount,
+            user: user1.publicKey,
+            userDebtAmount: user1DebtAmountPDA,
+            liquidityThreshold: user1LiquidityThresholdPDA,
+            userCollateralAmount: user1CollateralAmountPDA,
+            userCollateralAccount: user1CollateralAccount,
             collateralMint: collateralMint,
             protocolCollateralAccount: protocolCollateralAccountPDA,
             totalCollateralAmount: totalCollateralAmountPDA,
             sortedTrovesState: sortedTrovesStatePDA,
-            node: user2NodePda,
+            node: user1NodePDA,
             state: protocolState,
-            userStablecoinAccount: user2StablecoinAccount,
+            userStablecoinAccount: user1StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinAccountPDA,
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
@@ -644,8 +626,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .remainingAccounts(existingTrovesAccounts) // Add this line
-          .signers([user2])
+          .remainingAccounts(existingTrovesAccounts)
+          .signers([user1])
           .rpc();
 
         console.log("✅ Trove opened successfully");
@@ -743,7 +725,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     });
 
     it("Should stake stablecoins in stability pool", async () => {
-      const stakeAmount = "1000000000000000000"; // 1 aUSD with 18 decimals (use some of the tokens from trove opening)
+      const stakeAmount = "500000000000000"; // 0.0005 aUSD with 18 decimals (half of what user1 borrowed)
 
       try {
         // User1 should have stablecoins from opening the trove in the previous test
