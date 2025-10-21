@@ -158,6 +158,59 @@ if (canMint) {
 **Cause**: The collateral mint authority is not your test admin  
 **Solution**: This is expected on devnet. Ensure test users are pre-funded with collateral tokens
 
+## Critical Fix: Sorted Troves Traversal
+
+When opening a trove on devnet where the sorted troves list already contains existing troves, you **MUST** provide those existing trove accounts via `.remainingAccounts()`. The smart contract's `find_insert_position` function needs to traverse the list to find where to insert the new trove based on ICR (Individual Collateral Ratio).
+
+### The Problem
+
+Error you see:
+```
+AnchorError: Error Code: InvalidList. Error Number: 6016.
+```
+
+This happens at line 541 in `sorted_troves.rs`:
+```rust
+require!(
+    account_idx + 1 < remaining_accounts.len(),
+    AerospacerProtocolError::InvalidList
+);
+```
+
+The contract expects accounts to traverse the list, but if you don't provide them, it fails immediately.
+
+### The Solution
+
+```typescript
+// 1. Fetch existing troves from the sorted list
+const existingTrovesAccounts = await getExistingTrovesAccounts(
+  provider,
+  protocolProgram,
+  sortedTrovesStatePDA
+);
+
+// 2. Pass them when opening a new trove
+await protocolProgram.methods
+  .openTrove({ ... })
+  .accounts({ ... })
+  .remainingAccounts(existingTrovesAccounts)  // ← CRITICAL!
+  .rpc();
+```
+
+### Helper Function
+
+The test file includes a `getExistingTrovesAccounts` helper that:
+1. Checks if SortedTrovesState exists and has size > 0
+2. Traverses the linked list starting from `head`
+3. For each trove, fetches its `Node` and `LiquidityThreshold` accounts
+4. Returns them in the order expected by the contract: `[node1, lt1, node2, lt2, ...]`
+5. Handles missing accounts gracefully (devnet data may be inconsistent)
+
 ## Summary
 
-The key takeaway: **On devnet, collateral mints are immutable per denomination**. Your tests must adapt to the existing infrastructure rather than trying to create new mints. The vault PDA system ensures deterministic addresses but also locks in the mint address when first initialized.
+The key takeaways for devnet testing:
+
+1. **Collateral mints are immutable** - Always fetch from existing vault, never create new
+2. **Sorted troves need traversal accounts** - Must provide existing troves via `.remainingAccounts()`
+3. **Token balances required** - Users need sufficient collateral tokens before testing
+4. **Mint authority detection** - Check carefully if you control the mint before attempting to mint tokens
