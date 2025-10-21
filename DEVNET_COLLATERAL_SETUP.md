@@ -154,6 +154,15 @@ if (canMint) {
 **Cause**: User doesn't have enough collateral tokens in their account  
 **Solution**: Ensure users have tokens before running tests (mint on localnet, or transfer on devnet)
 
+### Error: `AccountDiscriminatorMismatch` (3002) on `Node` account
+**Cause**: Devnet's sorted troves state is corrupted - SortedTrovesState.size > 0 but Node accounts have wrong discriminators  
+**Solution**: Reset required! The protocol cannot safely insert troves when existing state is corrupted.  
+**Options**:
+1. **Run on localnet** instead (recommended): `solana-test-validator` → `anchor deploy` → `anchor test`
+2. **Contact protocol admin** to add/call a `reset_sorted_troves` instruction on devnet
+3. **Redeploy protocol** to a fresh devnet instance with clean state
+**Technical Detail**: Account discriminators (first 8 bytes) identify account types. Corrupted discriminators mean accounts were reused or overwritten, making the sorted list untraversable.
+
 ### Warning: Cannot mint tokens on devnet
 **Cause**: The collateral mint authority is not your test admin  
 **Solution**: This is expected on devnet. Ensure test users are pre-funded with collateral tokens
@@ -203,8 +212,9 @@ The test file includes a `getExistingTrovesAccounts` helper that:
 1. Checks if SortedTrovesState exists and has size > 0
 2. Traverses the linked list starting from `head`
 3. For each trove, fetches its `Node` and `LiquidityThreshold` accounts
-4. Returns them in the order expected by the contract: `[node1, lt1, node2, lt2, ...]`
-5. Handles missing accounts gracefully (devnet data may be inconsistent)
+4. **Validates account discriminators** to ensure accounts are actually valid (not corrupted)
+5. Returns them in the order expected by the contract: `[node1, lt1, node2, lt2, ...]`
+6. **Throws error if corruption detected** - tests will fail with clear instructions to reset devnet state or switch to localnet
 
 ## Summary
 

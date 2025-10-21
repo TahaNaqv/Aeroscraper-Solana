@@ -68,7 +68,31 @@ async function getExistingTrovesAccounts(
       }
 
       try {
-        // Add accounts to remaining accounts
+        // CRITICAL: Validate account discriminators before using them
+        // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
+        const nodeDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("node");
+        const ltDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("liquidityThreshold");
+        
+        // Check if account has the correct discriminator (first 8 bytes)
+        const nodeAccountDiscriminator = nodeAccountInfo.data.slice(0, 8);
+        const ltAccountDiscriminator = ltAccountInfo.data.slice(0, 8);
+        
+        const nodeMatches = nodeDiscriminator.every((byte, i) => byte === nodeAccountDiscriminator[i]);
+        const ltMatches = ltDiscriminator.every((byte, i) => byte === ltAccountDiscriminator[i]);
+        
+        if (!nodeMatches || !ltMatches) {
+          console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
+          console.log(`Node account ${currentId.toString()} has invalid discriminator`);
+          console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
+          console.log(`\n⚠️ SOLUTION REQUIRED: Reset the sorted troves state using admin instruction`);
+          console.log(`   The protocol cannot safely insert new troves when existing state is corrupted.`);
+          console.log(`   Contact protocol admin to reset SortedTrovesState on devnet.\n`);
+          
+          // Throw error to fail the test - user must fix devnet state
+          throw new Error(`Corrupted sorted troves state on devnet - admin reset required`);
+        }
+
+        // Discriminators match - safe to add these accounts
         remainingAccounts.push({
           pubkey: nodePDA,
           isSigner: false,
@@ -92,15 +116,17 @@ async function getExistingTrovesAccounts(
         processedCount++;
       } catch (decodeError) {
         console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
-        break;
+        throw decodeError; // Propagate error - don't silently fail
       }
     }
 
-    console.log(`✅ Fetched ${remainingAccounts.length / 2} trove accounts for traversal`);
+    console.log(`✅ Fetched ${remainingAccounts.length / 2} valid trove accounts for traversal`);
     return remainingAccounts;
   } catch (error) {
+    // Re-throw any errors - do NOT silently return empty array
+    // Returning [] when size > 0 would just trigger InvalidList error in contract
     console.log("Error fetching existing troves:", error);
-    return []; // Return empty array if there's an error
+    throw error;
   }
 }
 
