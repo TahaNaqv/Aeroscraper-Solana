@@ -156,10 +156,10 @@ if (canMint) {
 
 ### Error: `AccountDiscriminatorMismatch` (3002) on `Node` account
 **Cause**: Devnet's sorted troves state is corrupted - SortedTrovesState.size > 0 but Node accounts have wrong discriminators  
-**Solution**: Reset required! The protocol cannot safely insert troves when existing state is corrupted.  
+**Solution**: Use the cleanup script to fix devnet state! See **Fixing Corrupted Sorted Troves State** section below.  
 **Options**:
-1. **Run on localnet** instead (recommended): `solana-test-validator` → `anchor deploy` → `anchor test`
-2. **Contact protocol admin** to add/call a `reset_sorted_troves` instruction on devnet
+1. **Fix devnet state** (recommended for Pyth integration): Run `scripts/close-sorted-troves-devnet.ts` after redeploying
+2. **Run on localnet** instead: `solana-test-validator` → `anchor deploy` → `anchor test`
 3. **Redeploy protocol** to a fresh devnet instance with clean state
 **Technical Detail**: Account discriminators (first 8 bytes) identify account types. Corrupted discriminators mean accounts were reused or overwritten, making the sorted list untraversable.
 
@@ -216,6 +216,63 @@ The test file includes a `getExistingTrovesAccounts` helper that:
 5. Returns them in the order expected by the contract: `[node1, lt1, node2, lt2, ...]`
 6. **Throws error if corruption detected** - tests will fail with clear instructions to reset devnet state or switch to localnet
 
+## Fixing Corrupted Sorted Troves State
+
+If you encounter `AccountDiscriminatorMismatch` errors, your devnet sorted troves state is corrupted. Here's how to fix it:
+
+### Step 1: Redeploy Program with Reset Instruction
+
+The program now includes a `reset_sorted_troves` admin instruction. Build and deploy it:
+
+```bash
+# Build the program
+anchor build
+
+# Deploy to devnet
+anchor deploy --provider.cluster devnet
+```
+
+### Step 2: Run the Cleanup Script
+
+This will close the corrupted SortedTrovesState account:
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET=~/.config/solana/id.json \
+npx ts-node scripts/close-sorted-troves-devnet.ts
+```
+
+**What this does:**
+- Calls the `reset_sorted_troves` instruction
+- Closes the corrupted SortedTrovesState account (lamports refunded to admin)
+- Next `openTrove` call will automatically reinitialize fresh state
+
+**Requirements:**
+- You must be the protocol authority (admin wallet)
+- Program must be redeployed with the reset instruction
+
+### Step 3: Run Your Tests
+
+After cleanup, the sorted troves state is fresh and ready:
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET=~/.config/solana/id.json \
+npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/protocol-core.ts'
+```
+
+The first `openTrove` in your tests will create a clean SortedTrovesState, and all subsequent troves will be inserted correctly.
+
+### Verification
+
+After running the cleanup script, you can verify the account is closed:
+
+```bash
+solana account <SortedTrovesState_PDA> --url devnet
+```
+
+You should see either "Account not found" or a fresh account after running tests.
+
 ## Summary
 
 The key takeaways for devnet testing:
@@ -224,3 +281,4 @@ The key takeaways for devnet testing:
 2. **Sorted troves need traversal accounts** - Must provide existing troves via `.remainingAccounts()`
 3. **Token balances required** - Users need sufficient collateral tokens before testing
 4. **Mint authority detection** - Check carefully if you control the mint before attempting to mint tokens
+5. **State corruption recovery** - Use `scripts/close-sorted-troves-devnet.ts` to fix corrupted sorted troves

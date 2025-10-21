@@ -101,4 +101,9 @@ pub mod aerospacer_protocol {
     pub fn redeem(ctx: Context<Redeem>, params: RedeemParams) -> Result<()> {
         instructions::redeem::handler(ctx, params)
     }
+
+    // ADMIN: Reset corrupted sorted troves state (emergency recovery)
+    pub fn reset_sorted_troves(ctx: Context<ResetSortedTroves>) -> Result<()> {
+        instructions::reset_sorted_troves::handler(ctx)
+    }
 }

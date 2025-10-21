@@ -13,6 +13,7 @@ pub mod withdraw_liquidation_gains;
 pub mod redeem;
 pub mod update_protocol_addresses;
 pub mod transfer_stablecoin;
+pub mod reset_sorted_troves;
 
 #[allow(ambiguous_glob_reexports)]
 pub use initialize::*;
@@ -43,4 +44,6 @@ pub use redeem::*;
 #[allow(ambiguous_glob_reexports)]
 pub use update_protocol_addresses::*;
 #[allow(ambiguous_glob_reexports)]
-pub use transfer_stablecoin::*; 
+pub use transfer_stablecoin::*;
+#[allow(ambiguous_glob_reexports)]
+pub use reset_sorted_troves::*; 
