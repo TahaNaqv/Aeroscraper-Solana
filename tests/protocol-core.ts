@@ -3,7 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY, LAMPORTS_PER_SOL, AccountInfo } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -17,6 +17,67 @@ import { assert } from "chai";
 
 // Constants
 const PYTH_ORACLE_ADDRESS = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
+
+// Add this function after the imports and before the describe block
+async function getExistingTrovesAccounts(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  sortedTrovesStatePDA: PublicKey
+): Promise<AccountInfo[]> {
+  try {
+    const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
+
+    if (sortedTrovesState.size === 0) {
+      return []; // No existing troves
+    }
+
+    const remainingAccounts: AccountInfo[] = [];
+    let currentId = sortedTrovesState.head;
+
+    while (currentId) {
+      // Derive Node and LiquidityThreshold PDAs for current trove
+      const [nodePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+      const [liquidityThresholdPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+
+      // Get account info
+      const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
+      const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
+
+      if (nodeAccountInfo && ltAccountInfo) {
+        remainingAccounts.push({
+          pubkey: nodePDA,
+          isSigner: false,
+          isWritable: false,
+          ...nodeAccountInfo
+        });
+        remainingAccounts.push({
+          pubkey: liquidityThresholdPDA,
+          isSigner: false,
+          isWritable: false,
+          ...ltAccountInfo
+        });
+
+        // Get next node ID from the current node
+        const nodeData = nodeAccountInfo.data;
+        const node = protocolProgram.coder.accounts.decode("Node", nodeData.slice(8));
+        currentId = node.nextId;
+      } else {
+        break; // Stop if we can't find accounts
+      }
+    }
+
+    return remainingAccounts;
+  } catch (error) {
+    console.log("Error fetching existing troves:", error);
+    return []; // Return empty array if there's an error
+  }
+}
 
 describe("Aeroscraper Protocol Core Operations", () => {
   const provider = anchor.AnchorProvider.env();
@@ -130,7 +191,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
       [Buffer.from("protocol_collateral_vault"), Buffer.from("SOL")],
       protocolProgram.programId
     );
-    
+
     const vaultAccountInfo = await provider.connection.getAccountInfo(protocolCollateralVaultPda);
     if (vaultAccountInfo) {
       // Vault exists on devnet - fetch its mint address
@@ -179,7 +240,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
     console.log("Creating user1 stablecoin account...");
     await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user1.publicKey);
-    
+
     const user1CollateralAccountInfo = await provider.connection.getAccountInfo(user1CollateralAccount);
     if (!user1CollateralAccountInfo) {
       console.log("Creating user1 collateral account...");
@@ -190,7 +251,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
 
     console.log("Creating user2 stablecoin account...");
     await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user2.publicKey);
-    
+
     const user2CollateralAccountInfo = await provider.connection.getAccountInfo(user2CollateralAccount);
     if (!user2CollateralAccountInfo) {
       console.log("Creating user2 collateral account...");
@@ -202,7 +263,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
     // Mint initial tokens (using correct decimal places)
     // Skip stablecoin minting - protocol will mint tokens when users open troves
     console.log("Skipping stablecoin minting - protocol will mint tokens during operations");
-    
+
     // Check if this is an existing devnet mint or a new localnet mint
     const mintInfo = await provider.connection.getParsedAccountInfo(collateralMint);
     let canMint = false;
@@ -224,7 +285,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const user2Balance = await provider.connection.getTokenAccountBalance(user2CollateralAccount);
       console.log(`User1 collateral balance: ${user1Balance.value.uiAmount} tokens`);
       console.log(`User2 collateral balance: ${user2Balance.value.uiAmount} tokens`);
-      
+
       if (parseFloat(user1Balance.value.amount) < 1000000000) {
         console.log("⚠️  User1 has insufficient collateral tokens for testing");
       }
@@ -455,6 +516,13 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const loanAmount = "1100000000000000"; // 0.0011 aUSD with 18 decimals (above minimum after 5% fee)
       const collateralDenom = "SOL"; // Use SOL for price feed
 
+      // Get existing troves accounts
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        provider,
+        protocolProgram,
+        sortedTrovesStatePDA
+      );
+
       // Use user2 to avoid existing PDA conflicts
       const [user2DebtAmountPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
@@ -479,6 +547,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- oracleState:", oracleState.toString());
         console.log("- feesProgram:", feesProgram.programId.toString());
         console.log("- feesState:", feesState.toString());
+        console.log("- Existing troves accounts:", existingTrovesAccounts.length);
 
         await protocolProgram.methods
           .openTrove({
@@ -513,6 +582,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(existingTrovesAccounts) // Add this line
           .signers([user2])
           .rpc();
 
@@ -647,6 +717,13 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const loanAmount = "2000000000000000"; // 0.002 aUSD with 18 decimals (above minimum after fee)
       const collateralDenom = "SOL";
 
+      // Get existing troves accounts (including the one we just created)
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        provider,
+        protocolProgram,
+        sortedTrovesStatePDA
+      );
+
       // Derive user2 PDAs
       const [user2DebtAmountPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
@@ -699,6 +776,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(existingTrovesAccounts) // Add this line
           .signers([user2])
           .rpc();
 
