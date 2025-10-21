@@ -29,6 +29,7 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Sorted Troves**: Implemented as a doubly-linked list for efficient management of CDPs, supporting ICR-based positioning and auto-discovery of liquidatable troves.
 *   **Individual Collateral Ratio (ICR)**: Comprehensive, real-time ICR calculations are implemented across the protocol, supporting multi-collateral types and ensuring solvency checks.
 *   **Redemption System**: Integrates with the sorted troves list, supporting both full and partial redemptions.
+*   **Admin State Recovery**: Includes `reset_sorted_troves` instruction for recovering from corrupted sorted troves state on devnet.
 
 **System Design Choices:**
 *   **Anchor Framework**: Used for Solana smart contract development.
@@ -46,3 +47,43 @@ The design supports transparent and auditable on-chain interactions, with all st
 *   **Pyth Network**: Used by the `aerospacer-oracle` program for real-time price feeds.
 *   **Solana Program Library (SPL) Tokens**: Integrated for token operations within the protocol.
 *   **Node.js & npm**: For running TypeScript tests and managing project dependencies.
+
+---
+
+## Recent Changes
+
+**October 21, 2025 - Devnet State Corruption Fix: Complete Recovery Solution** ✅
+- **ISSUE**: Devnet sorted troves state corrupted (SortedTrovesState.size=1 but Node accounts have wrong discriminators)
+  * Root Cause: Devnet accounts were reused/overwritten, making sorted list untraversable
+  * Error: `AccountDiscriminatorMismatch` (3002) when passing Node accounts to contract
+  
+- **COMPLETE SOLUTION IMPLEMENTED**:
+  * ✅ **NEW INSTRUCTION**: `reset_sorted_troves` admin instruction added to protocol program
+    - Uses Anchor's `close = authority` constraint for safe PDA closing
+    - Requires admin authority check via `state.authority`
+    - Refunds lamports to admin wallet
+    - Next `openTrove` automatically reinitializes fresh state
+  * ✅ **CLEANUP SCRIPT**: `scripts/close-sorted-troves-devnet.ts`
+    - Calls `reset_sorted_troves` instruction on devnet
+    - Safety preflight checks and 3-second countdown
+    - Clear error messages and troubleshooting
+    - Validates admin authority
+  * ✅ **DETECTION**: Enhanced `getExistingTrovesAccounts` with discriminator validation
+    - Validates first 8 bytes match expected account types
+    - Throws error when corruption detected (cannot return empty array)
+    - Provides clear remediation instructions
+    
+- **RECOVERY PROCESS**:
+  1. Build and redeploy: `anchor build && anchor deploy --provider.cluster devnet`
+  2. Run cleanup: `npx ts-node scripts/close-sorted-troves-devnet.ts`
+  3. Run tests: Next `openTrove` creates fresh sorted list
+  
+- **DOCUMENTATION**: Step-by-step guide in DEVNET_COLLATERAL_SETUP.md
+  * "Fixing Corrupted Sorted Troves State" section with 3-step recovery
+  * Updated troubleshooting to reference cleanup script
+  * Verification steps included
+  
+- **ARCHITECT REVIEW**: Approved ✅
+  * Security: Admin access properly gated
+  * Safety: Anchor close constraint handles lamports correctly  
+  * Design: Follows Solana best practices for PDA management
