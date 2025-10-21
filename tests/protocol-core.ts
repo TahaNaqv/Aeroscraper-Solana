@@ -25,16 +25,29 @@ async function getExistingTrovesAccounts(
   sortedTrovesStatePDA: PublicKey
 ): Promise<AccountInfo[]> {
   try {
+    // Try to fetch the sorted troves state
+    const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
+    
+    if (!sortedTrovesStateInfo) {
+      console.log("SortedTrovesState account doesn't exist yet");
+      return []; // Account doesn't exist yet
+    }
+
     const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
 
     if (sortedTrovesState.size === 0) {
+      console.log("SortedTrovesState is empty (size = 0)");
       return []; // No existing troves
     }
 
+    console.log(`SortedTrovesState has ${sortedTrovesState.size} troves, head: ${sortedTrovesState.head?.toString()}`);
+
     const remainingAccounts: AccountInfo[] = [];
     let currentId = sortedTrovesState.head;
+    let processedCount = 0;
+    const maxIterations = sortedTrovesState.size; // Prevent infinite loops
 
-    while (currentId) {
+    while (currentId && processedCount < maxIterations) {
       // Derive Node and LiquidityThreshold PDAs for current trove
       const [nodePDA] = PublicKey.findProgramAddressSync(
         [Buffer.from("node"), currentId.toBuffer()],
@@ -49,7 +62,13 @@ async function getExistingTrovesAccounts(
       const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
       const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
 
-      if (nodeAccountInfo && ltAccountInfo) {
+      if (!nodeAccountInfo || !ltAccountInfo) {
+        console.log(`⚠️ Warning: Missing accounts for trove ${currentId.toString()}, stopping traversal`);
+        break;
+      }
+
+      try {
+        // Add accounts to remaining accounts
         remainingAccounts.push({
           pubkey: nodePDA,
           isSigner: false,
@@ -65,13 +84,19 @@ async function getExistingTrovesAccounts(
 
         // Get next node ID from the current node
         const nodeData = nodeAccountInfo.data;
-        const node = protocolProgram.coder.accounts.decode("Node", nodeData.slice(8));
+        const node = protocolProgram.coder.accounts.decode("node", nodeData);
+        
+        console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
+        
         currentId = node.nextId;
-      } else {
-        break; // Stop if we can't find accounts
+        processedCount++;
+      } catch (decodeError) {
+        console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
+        break;
       }
     }
 
+    console.log(`✅ Fetched ${remainingAccounts.length / 2} trove accounts for traversal`);
     return remainingAccounts;
   } catch (error) {
     console.log("Error fetching existing troves:", error);
@@ -269,28 +294,39 @@ describe("Aeroscraper Protocol Core Operations", () => {
     let canMint = false;
     if (mintInfo.value && 'parsed' in mintInfo.value.data) {
       const mintAuthority = mintInfo.value.data.parsed.info.mintAuthority;
-      canMint = mintAuthority && new PublicKey(mintAuthority).equals(admin.publicKey);
+      // Check if we control the mint authority (must be non-null AND equal to admin)
+      canMint = mintAuthority !== null && mintAuthority !== undefined && new PublicKey(mintAuthority).equals(admin.publicKey);
+      console.log(`Mint authority: ${mintAuthority || 'null'}, Admin: ${admin.publicKey.toString()}, Can mint: ${canMint}`);
     }
 
     if (canMint) {
       // We control this mint - can mint tokens for testing
-      console.log("Minting collateral tokens for testing (localnet)...");
-      await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
-      await transfer(provider.connection, adminKeypair, adminCollateralAccount, user1CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
-      await transfer(provider.connection, adminKeypair, adminCollateralAccount, user2CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+      console.log("✅ Minting collateral tokens for testing (localnet)...");
+      try {
+        await mintTo(provider.connection, adminKeypair, collateralMint, adminCollateralAccount, adminKeypair, 100000000000); // 100 SOL with 9 decimals
+        await transfer(provider.connection, adminKeypair, adminCollateralAccount, user1CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+        await transfer(provider.connection, adminKeypair, adminCollateralAccount, user2CollateralAccount, adminKeypair, 10000000000); // 10 SOL with 9 decimals
+        console.log("✅ Minted and distributed collateral tokens successfully");
+      } catch (mintError) {
+        console.log("❌ Failed to mint tokens:", mintError);
+        throw mintError;
+      }
     } else {
       // Existing devnet mint - check if users already have tokens
-      console.log("Using existing devnet collateral mint - checking user balances...");
+      console.log("⚠️  Using existing devnet collateral mint - checking user balances...");
       const user1Balance = await provider.connection.getTokenAccountBalance(user1CollateralAccount);
       const user2Balance = await provider.connection.getTokenAccountBalance(user2CollateralAccount);
-      console.log(`User1 collateral balance: ${user1Balance.value.uiAmount} tokens`);
-      console.log(`User2 collateral balance: ${user2Balance.value.uiAmount} tokens`);
+      console.log(`  User1 collateral balance: ${user1Balance.value.uiAmount} tokens`);
+      console.log(`  User2 collateral balance: ${user2Balance.value.uiAmount} tokens`);
 
-      if (parseFloat(user1Balance.value.amount) < 1000000000) {
-        console.log("⚠️  User1 has insufficient collateral tokens for testing");
+      const minRequired = 1; // 1 token minimum
+      if (parseFloat(user1Balance.value.uiAmount || "0") < minRequired) {
+        console.log(`⚠️  User1 has insufficient collateral (${user1Balance.value.uiAmount} < ${minRequired})`);
+        console.log("   Tests may fail - please fund user1's collateral account on devnet");
       }
-      if (parseFloat(user2Balance.value.amount) < 1000000000) {
-        console.log("⚠️  User2 has insufficient collateral tokens for testing");
+      if (parseFloat(user2Balance.value.uiAmount || "0") < minRequired) {
+        console.log(`⚠️  User2 has insufficient collateral (${user2Balance.value.uiAmount} < ${minRequired})`);
+        console.log("   Tests may fail - please fund user2's collateral account on devnet");
       }
     }
 
