@@ -1,13 +1,13 @@
 use anchor_lang::prelude::*;
-use crate::state::SortedTrovesState;
-use crate::errors::AerospacerProtocolError;
+use crate::state::{SortedTrovesState, StateAccount};
+use crate::error::AerospacerProtocolError;
 
 #[derive(Accounts)]
 pub struct ResetSortedTroves<'info> {
     #[account(
         mut,
         close = authority,
-        seeds = [b"sorted_troves"],
+        seeds = [b"sorted_troves_state"],
         bump,
     )]
     pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
@@ -16,9 +16,9 @@ pub struct ResetSortedTroves<'info> {
         mut,
         seeds = [b"state"],
         bump,
-        constraint = state.authority == authority.key() @ AerospacerProtocolError::Unauthorized
+        constraint = state.admin == authority.key() @ AerospacerProtocolError::Unauthorized
     )]
-    pub state: Box<Account<'info, crate::state::State>>,
+    pub state: Box<Account<'info, StateAccount>>,
 
     #[account(mut)]
     pub authority: Signer<'info>,
