@@ -38,7 +38,7 @@ async function main() {
   );
 
   const [sortedTrovesStatePDA] = PublicKey.findProgramAddressSync(
-    [Buffer.from("sorted_troves")],
+    [Buffer.from("sorted_troves_state")],
     protocolProgram.programId
   );
 
@@ -53,7 +53,7 @@ async function main() {
     console.log(`  Head: ${currentState.head?.toString() || 'None'}`);
     console.log(`  Tail: ${currentState.tail?.toString() || 'None'}\n`);
 
-    if (currentState.size === 0) {
+    if (currentState.size.eq(new anchor.BN(0))) {
       console.log("⚠️  State is already empty - no need to reset");
       console.log("   If you're still seeing errors, the Node accounts may be corrupted");
       console.log("   This script will still close and reinitialize the account\n");
@@ -74,14 +74,14 @@ async function main() {
 
   try {
     console.log("📤 Calling reset_sorted_troves instruction...");
-    
+
     const tx = await protocolProgram.methods
       .resetSortedTroves()
       .accounts({
         sortedTrovesState: sortedTrovesStatePDA,
         state: statePDA,
         authority: admin.publicKey,
-      })
+      } as any)
       .rpc();
 
     console.log("✅ Success! Transaction signature:", tx);

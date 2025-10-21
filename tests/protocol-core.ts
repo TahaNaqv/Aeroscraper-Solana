@@ -27,7 +27,7 @@ async function getExistingTrovesAccounts(
   try {
     // Try to fetch the sorted troves state
     const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
-    
+
     if (!sortedTrovesStateInfo) {
       console.log("SortedTrovesState account doesn't exist yet");
       return []; // Account doesn't exist yet
@@ -72,14 +72,14 @@ async function getExistingTrovesAccounts(
         // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
         const nodeDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("node");
         const ltDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("liquidityThreshold");
-        
+
         // Check if account has the correct discriminator (first 8 bytes)
         const nodeAccountDiscriminator = nodeAccountInfo.data.slice(0, 8);
         const ltAccountDiscriminator = ltAccountInfo.data.slice(0, 8);
-        
+
         const nodeMatches = nodeDiscriminator.every((byte, i) => byte === nodeAccountDiscriminator[i]);
         const ltMatches = ltDiscriminator.every((byte, i) => byte === ltAccountDiscriminator[i]);
-        
+
         if (!nodeMatches || !ltMatches) {
           console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
           console.log(`Node account ${currentId.toString()} has invalid discriminator`);
@@ -87,7 +87,7 @@ async function getExistingTrovesAccounts(
           console.log(`\n⚠️ SOLUTION REQUIRED: Reset the sorted troves state using admin instruction`);
           console.log(`   The protocol cannot safely insert new troves when existing state is corrupted.`);
           console.log(`   Contact protocol admin to reset SortedTrovesState on devnet.\n`);
-          
+
           // Throw error to fail the test - user must fix devnet state
           throw new Error(`Corrupted sorted troves state on devnet - admin reset required`);
         }
@@ -109,9 +109,9 @@ async function getExistingTrovesAccounts(
         // Get next node ID from the current node
         const nodeData = nodeAccountInfo.data;
         const node = protocolProgram.coder.accounts.decode("node", nodeData);
-        
+
         console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
-        
+
         currentId = node.nextId;
         processedCount++;
       } catch (decodeError) {
