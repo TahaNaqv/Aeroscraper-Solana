@@ -87,3 +87,41 @@ The design supports transparent and auditable on-chain interactions, with all st
   * Security: Admin access properly gated
   * Safety: Anchor close constraint handles lamports correctly  
   * Design: Follows Solana best practices for PDA management
+
+---
+
+**October 21, 2025 - Test Suite Fixes for Devnet Integration Testing** ✅
+- **ISSUE**: Test suite had user/account mismatches preventing sequential test flow
+  * First test opened trove for user2, but subsequent tests tried to use user1's non-existent trove
+  * Stake test tried to stake 1 aUSD but user1 only borrowed 0.0011 aUSD
+
+- **FIXES IMPLEMENTED**:
+  * ✅ **First openTrove Test**: Changed to use user1 (instead of user2)
+    - Now uses user1's PDAs: user1DebtAmountPDA, user1LiquidityThresholdPDA, user1CollateralAmountPDA, user1NodePDA
+    - Uses user1 as signer and user1StablecoinAccount for minting
+    - Enables proper sequential flow: openTrove → addCollateral → borrowLoan
+  * ✅ **Stake Test Amount**: Reduced from 1 aUSD to 0.0005 aUSD
+    - Matches user1's actual borrowed balance after fees (~0.0011 aUSD total, staking half)
+    - Prevents InsufficientCollateral errors
+  * ✅ **Devnet Environment Setup**: 
+    - Generated Solana keypair at ~/.config/solana/id.json (pubkey: AXbPgQyHpUmQv4VEDA5JHVktJ3iYWXe5GH13ch7MpApp)
+    - Airdropped 1 SOL on devnet for test funding
+    - Installed Anchor CLI v0.31.1 binary at ~/.local/bin/anchor
+
+- **ARCHITECT REVIEW**: Approved ✅
+  * Changes correctly align test flow
+  * User1 PDAs now consistent across all operations
+  * Stake amount within user1's balance
+  * No security issues
+
+- **BLOCKING ISSUE**: IDL Files Required for Tests ⚠️
+  * Tests require IDL files in `target/idl/` directory (aerospacer_protocol.json, aerospacer_oracle.json, aerospacer_fees.json)
+  * IDL files not found on devnet (not uploaded during deployment)
+  * Local build attempts fail:
+    - Anchor v0.31.1 tries to use Docker (not available in Replit)
+    - With DOCKER_UNAVAILABLE=true: Solana toolchain installation hits "Permission denied (os error 13)"
+    - Build times out even with workarounds
+  * **WORKAROUND NEEDED**: Either:
+    1. Provide pre-built IDL files from previous successful build
+    2. Build in different environment with Docker/proper Solana toolchain
+    3. Alternative testing approach without full Anchor test harness
