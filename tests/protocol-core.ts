@@ -84,13 +84,11 @@ async function getExistingTrovesAccounts(
           console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
           console.log(`Node account ${currentId.toString()} has invalid discriminator`);
           console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
-          console.log(`\n⚠️ SOLUTION: Skip this trove and continue with empty remaining_accounts`);
-          console.log(`   This will allow the second trove to open without the corrupted Node\n`);
+          console.log(`\n⚠️ SOLUTION: Return current valid accounts without corrupted ones`);
+          console.log(`   Stopping traversal at corrupted node\n`);
 
-          // Skip this corrupted trove and continue
-          currentId = node.nextId;
-          processedCount++;
-          continue;
+          // Break out - can't safely get nextId from corrupted account
+          break;
         }
 
         // Discriminators match - safe to add these accounts
@@ -117,12 +115,10 @@ async function getExistingTrovesAccounts(
         processedCount++;
       } catch (decodeError) {
         console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
-        console.log(`   Skipping this corrupted trove and continuing...`);
+        console.log(`   Stopping traversal at corrupted node`);
         
-        // Skip this corrupted trove and continue
-        currentId = node.nextId;
-        processedCount++;
-        continue;
+        // Break out - can't safely get nextId from node we failed to decode
+        break;
       }
     }
 
