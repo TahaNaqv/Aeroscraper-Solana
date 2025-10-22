@@ -114,14 +114,34 @@ The design supports transparent and auditable on-chain interactions, with all st
   * Stake amount within user1's balance
   * No security issues
 
-- **BLOCKING ISSUE**: IDL Files Required for Tests ⚠️
-  * Tests require IDL files in `target/idl/` directory (aerospacer_protocol.json, aerospacer_oracle.json, aerospacer_fees.json)
-  * IDL files not found on devnet (not uploaded during deployment)
-  * Local build attempts fail:
-    - Anchor v0.31.1 tries to use Docker (not available in Replit)
-    - With DOCKER_UNAVAILABLE=true: Solana toolchain installation hits "Permission denied (os error 13)"
-    - Build times out even with workarounds
-  * **WORKAROUND NEEDED**: Either:
-    1. Provide pre-built IDL files from previous successful build
-    2. Build in different environment with Docker/proper Solana toolchain
-    3. Alternative testing approach without full Anchor test harness
+---
+
+**October 22, 2025 - Fixed getExistingTrovesAccounts Bug for Multi-User Tests** ✅
+- **ISSUE**: Second user trove opening failed with undefined variable error
+  * `getExistingTrovesAccounts` tried to access `node.nextId` on lines 91 and 123
+  * `node` variable was undefined at that point (only decoded later on line 112)
+  * Error occurred in both corrupted discriminator check and decode error handlers
+  * Caused tests to crash when trying to traverse existing troves list
+
+- **ROOT CAUSE**:
+  * When discriminator validation fails, code tried to `continue` loop with `node.nextId`
+  * When decode operation fails in catch block, same issue with `node.nextId` access
+  * Both cases attempted to access a variable that hadn't been defined yet
+
+- **FIX IMPLEMENTED**: ✅
+  * Changed both error handlers from `continue` to `break`
+  * Line 94: Break out when discriminator mismatch detected (can't safely decode)
+  * Line 124: Break out when decode fails (can't access nextId from failed decode)
+  * Returns partial list of valid accounts collected before corruption
+  * Prevents undefined variable access crash
+
+- **ARCHITECT REVIEW**: Approved ✅
+  * Fix safely removes undefined variable access
+  * Returns valid prefix of accounts when corruption detected
+  * Normal traversal logic unchanged for valid accounts
+  * No security issues observed
+
+- **IMPACT**:
+  * Second user trove opening should now work on devnet
+  * Test suite can handle both valid and corrupted account states gracefully
+  * Eliminates runtime crashes from undefined variable access
