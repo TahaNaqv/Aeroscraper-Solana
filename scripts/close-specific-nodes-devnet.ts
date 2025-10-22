@@ -45,30 +45,55 @@ async function main() {
       console.log(`  ⚠️  Node exists with ${nodeAccountInfo.data.length} bytes`);
       console.log(`  Owner: ${nodeAccountInfo.owner.toString()}`);
 
+      let userPubkey: PublicKey;
+      
       try {
         const nodeData = await protocolProgram.account.node.fetch(nodePubkey);
-        console.log(`  Current Node data:`);
+        console.log(`  ✓ Successfully decoded Node data with Anchor`);
         console.log(`    ID (user): ${nodeData.id.toString()}`);
         console.log(`    Prev: ${nodeData.prevId?.toString() || 'null'}`);
         console.log(`    Next: ${nodeData.nextId?.toString() || 'null'}`);
-
-        // Now we know the user ID, verify PDA derivation
-        const [derivedNodePDA, bump] = PublicKey.findProgramAddressSync(
-          [Buffer.from("node"), nodeData.id.toBuffer()],
-          protocolProgram.programId
-        );
+        userPubkey = nodeData.id;
+      } catch (decodeError) {
+        console.log(`  ⚠️  Anchor decode failed: ${decodeError.message}`);
+        console.log(`  🔧 Attempting manual extraction of user pubkey from raw bytes...`);
         
-        console.log(`  Verification:`);
-        console.log(`    Derived PDA: ${derivedNodePDA.toString()}`);
-        console.log(`    Actual PDA:  ${nodePubkey.toString()}`);
-        console.log(`    Match: ${derivedNodePDA.equals(nodePubkey)}`);
-        console.log(`    Bump: ${bump}`);
+        if (nodeAccountInfo.data.length < 40) {
+          console.log(`  ❌ Account too small (${nodeAccountInfo.data.length} bytes), expected at least 40`);
+          continue;
+        }
+        
+        try {
+          const userPubkeyBytes = nodeAccountInfo.data.slice(8, 40);
+          userPubkey = new PublicKey(userPubkeyBytes);
+          console.log(`  ✓ Extracted user pubkey: ${userPubkey.toString()}`);
+        } catch (extractError) {
+          console.log(`  ❌ Failed to extract user pubkey: ${extractError.message}`);
+          continue;
+        }
+      }
 
-        // Try to close this node
+      const [derivedNodePDA, bump] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), userPubkey.toBuffer()],
+        protocolProgram.programId
+      );
+      
+      console.log(`  Verification:`);
+      console.log(`    Derived PDA: ${derivedNodePDA.toString()}`);
+      console.log(`    Actual PDA:  ${nodePubkey.toString()}`);
+      console.log(`    Match: ${derivedNodePDA.equals(nodePubkey)}`);
+      console.log(`    Bump: ${bump}`);
+
+      if (!derivedNodePDA.equals(nodePubkey)) {
+        console.log(`  ❌ PDA mismatch! Cannot safely close this account.`);
+        continue;
+      }
+
+      try {
         console.log(`  📤 Calling close_node instruction...`);
 
         const tx = await protocolProgram.methods
-          .closeNode(nodeData.id)
+          .closeNode(userPubkey)
           .accounts({
             node: nodePubkey,
             state: statePDA,
@@ -78,10 +103,10 @@ async function main() {
           .rpc();
 
         console.log(`  ✅ Success! Transaction: ${tx}`);
-      } catch (e) {
-        console.log(`  ⚠️  Failed to decode/close Node: ${e.message}`);
-        if (e.logs) {
-          console.log(`  Transaction logs:`, e.logs);
+      } catch (closeError) {
+        console.log(`  ❌ Failed to close Node: ${closeError.message}`);
+        if (closeError.logs) {
+          console.log(`  Transaction logs:`, closeError.logs);
         }
       }
     } catch (error) {
