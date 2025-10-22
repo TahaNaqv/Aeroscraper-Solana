@@ -106,4 +106,9 @@ pub mod aerospacer_protocol {
     pub fn reset_sorted_troves(ctx: Context<ResetSortedTroves>) -> Result<()> {
         instructions::reset_sorted_troves::handler(ctx)
     }
+
+    // ADMIN: Close corrupted Node account (emergency recovery)
+    pub fn close_node(ctx: Context<CloseNode>, user_pubkey: Pubkey) -> Result<()> {
+        instructions::close_node::handler(ctx, user_pubkey)
+    }
 }
