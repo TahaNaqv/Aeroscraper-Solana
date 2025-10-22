@@ -270,10 +270,10 @@ pub fn get_price_via_cpi<'info>(
     anchor_lang::solana_program::program::invoke(
         &ix,
         &[
+            oracle_program.clone(),
             oracle_state.clone(),
             pyth_price_account.clone(),
             clock.clone(),
-            oracle_program.clone(),
         ],
     )?;
     

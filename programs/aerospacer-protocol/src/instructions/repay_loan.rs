@@ -185,6 +185,7 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
             &mut collateral_ctx,
             &oracle_ctx,
             params.amount,
+            ctx.bumps.protocol_collateral_account,
         )?;
         
         // Update state before contexts are dropped

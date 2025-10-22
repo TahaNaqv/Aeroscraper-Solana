@@ -167,6 +167,7 @@ pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -
             &oracle_ctx,
             params.collateral_amount,
             params.collateral_denom.clone(),
+            ctx.bumps.protocol_collateral_account,
         )?;
         
         // Update state before contexts are dropped
@@ -196,26 +197,6 @@ pub fn handler(ctx: Context<RemoveCollateral>, params: RemoveCollateralParams) -
     } else {
         msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
     }
-    
-    // Transfer collateral from protocol to user
-    // Use invoke_signed for PDA authority
-    let transfer_seeds = &[
-        b"protocol_collateral_vault".as_ref(),
-        params.collateral_denom.as_bytes(),
-        &[ctx.bumps.protocol_collateral_account],
-    ];
-    let transfer_signer = &[&transfer_seeds[..]];
-    
-    let transfer_ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.protocol_collateral_account.to_account_info(),
-            to: ctx.accounts.user_collateral_account.to_account_info(),
-            authority: ctx.accounts.protocol_collateral_account.to_account_info(),
-        },
-        transfer_signer,
-    );
-    anchor_spl::token::transfer(transfer_ctx, params.collateral_amount)?;
 
     msg!("Collateral removed successfully");
     msg!("Removed: {} {}", params.collateral_amount, params.collateral_denom);

@@ -201,17 +201,6 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
     } else {
         msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
     }
-    
-    // Transfer collateral from user to protocol
-    let transfer_ctx = CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.user_collateral_account.to_account_info(),
-            to: ctx.accounts.protocol_collateral_account.to_account_info(),
-            authority: ctx.accounts.user.to_account_info(),
-        },
-    );
-    anchor_spl::token::transfer(transfer_ctx, params.amount)?;
 
     msg!("Collateral added successfully");
     msg!("Added: {} {}", params.amount, params.collateral_denom);

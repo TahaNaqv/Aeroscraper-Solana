@@ -199,14 +199,23 @@ impl<'info> CollateralContext<'info> {
     }
     
     /// Transfer collateral from protocol to user
-    pub fn transfer_to_user(&self, amount: u64) -> Result<()> {
-        let transfer_ctx = CpiContext::new(
+    pub fn transfer_to_user(&self, amount: u64, collateral_denom: &str, bump: u8) -> Result<()> {
+        // Derive the PDA seeds for the protocol_collateral_account
+        let transfer_seeds = &[
+            b"protocol_collateral_vault".as_ref(),
+            collateral_denom.as_bytes(),
+            &[bump],  // ← Use the passed bump instead of trying to access .bumps
+        ];
+        let transfer_signer = &[&transfer_seeds[..]];
+
+        let transfer_ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             Transfer {
                 from: self.protocol_collateral_account.to_account_info(),
                 to: self.user_collateral_account.to_account_info(),
                 authority: self.protocol_collateral_account.to_account_info(),
             },
+            transfer_signer,
         );
         anchor_spl::token::transfer(transfer_ctx, amount)?;
         Ok(())

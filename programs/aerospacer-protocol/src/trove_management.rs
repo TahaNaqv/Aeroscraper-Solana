@@ -174,6 +174,7 @@ impl TroveManager {
         oracle_ctx: &OracleContext,
         remove_amount: u64,
         collateral_denom: String,
+        bump: u8,
     ) -> Result<TroveOperationResult> {
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
@@ -223,9 +224,8 @@ impl TroveManager {
         // Update accounts
         collateral_ctx.update_collateral_amount(new_collateral_amount)?;
         trove_ctx.update_liquidity_threshold(new_icr)?;
-        
         // Transfer collateral back to user
-        collateral_ctx.transfer_to_user(remove_amount)?;
+        collateral_ctx.transfer_to_user(remove_amount, &collateral_denom, bump)?;
         
         // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
         
@@ -304,6 +304,7 @@ impl TroveManager {
         collateral_ctx: &mut CollateralContext,
         oracle_ctx: &OracleContext,
         repay_amount: u64,
+        bump: u8,
     ) -> Result<TroveOperationResult> {
         // Get current trove info
         let trove_info = trove_ctx.get_trove_info()?;
@@ -330,9 +331,9 @@ impl TroveManager {
             trove_ctx.update_debt_amount(0)?;
             trove_ctx.update_liquidity_threshold(0)?;
             collateral_ctx.update_collateral_amount(0)?;
-            
+
             // Return collateral to user
-            collateral_ctx.transfer_to_user(collateral_info.amount)?;
+            collateral_ctx.transfer_to_user(collateral_info.amount, &collateral_info.denom, bump)?;
             
             // Note: Sorted list operations happen in instruction handler via sorted_troves_simple
             
