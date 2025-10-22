@@ -14,6 +14,7 @@ import {
   transfer
 } from "@solana/spl-token";
 import { assert } from "chai";
+import * as fs from "fs";
 
 // Constants
 const PYTH_ORACLE_ADDRESS = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
@@ -91,17 +92,16 @@ async function getExistingTrovesAccounts(
           break;
         }
 
-        // Discriminators match - safe to add these accounts
         remainingAccounts.push({
           pubkey: nodePDA,
           isSigner: false,
-          isWritable: false,
+          isWritable: true,
           ...nodeAccountInfo
         });
         remainingAccounts.push({
           pubkey: liquidityThresholdPDA,
           isSigner: false,
-          isWritable: false,
+          isWritable: true,
           ...ltAccountInfo
         });
 
@@ -116,7 +116,7 @@ async function getExistingTrovesAccounts(
       } catch (decodeError) {
         console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
         console.log(`   Stopping traversal at corrupted node`);
-        
+
         // Break out - can't safely get nextId from node we failed to decode
         break;
       }
@@ -143,8 +143,18 @@ describe("Aeroscraper Protocol Core Operations", () => {
   // Test accounts
   const admin = provider.wallet as anchor.Wallet;
   const adminKeypair = admin.payer;
-  const user1 = Keypair.generate();
-  const user2 = Keypair.generate();
+
+  const user1 = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/user1-keypair.json", "utf8")))
+  );
+  const user2 = Keypair.fromSecretKey(
+    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/user2-keypair.json", "utf8")))
+  );
+  const USER1 = user1.publicKey;
+  const USER2 = user2.publicKey;
+
+  console.log("USER1:", USER1.toString());
+  console.log("USER2:", USER2.toString());
 
   // Token mints
   let stablecoinMint: PublicKey;

@@ -24,8 +24,8 @@ async function main() {
   console.log();
 
   const userPublicKeys = [
-    "9ZFv2mh7oCTpLumHDBuYqEY7Zfn74BBx5vsk8q7QgPe5",
-    "FMXYUrMvs3HeYi2mV7aXhNHxBkP7MVFr6AvMzbtiVJVQ",
+    "7d4AG2fCbYW9gdmdUe9afUX69UknDmh9MXVXapRt7y56",
+    "HdvpoRLcVAtNQgEeH62ypLycCuncGvWCn4DVA8Xgq8FY",
   ];
 
   for (const userPubkeyStr of userPublicKeys) {
