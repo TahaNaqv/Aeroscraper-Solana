@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["solana-cli", "pkg-config", "openssl"]
+packages = ["solana-cli", "pkg-config", "openssl", "bzip2"]
 
 [workflows]
 runButton = "Project"
