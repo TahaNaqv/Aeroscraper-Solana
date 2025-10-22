@@ -302,7 +302,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
     }
 
     console.log("Creating user1 stablecoin account...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user1.publicKey);
+    const user1StablecoinAccountInfo = await provider.connection.getAccountInfo(user1StablecoinAccount);
+    if (!user1StablecoinAccountInfo) {
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user1.publicKey);
+    } else {
+      console.log("User1 stablecoin account already exists");
+    }
 
     const user1CollateralAccountInfo = await provider.connection.getAccountInfo(user1CollateralAccount);
     if (!user1CollateralAccountInfo) {
@@ -313,7 +318,12 @@ describe("Aeroscraper Protocol Core Operations", () => {
     }
 
     console.log("Creating user2 stablecoin account...");
-    await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user2.publicKey);
+    const user2StablecoinAccountInfo = await provider.connection.getAccountInfo(user2StablecoinAccount);
+    if (!user2StablecoinAccountInfo) {
+      await createAssociatedTokenAccount(provider.connection, adminKeypair, stablecoinMint, user2.publicKey);
+    } else {
+      console.log("User2 stablecoin account already exists");
+    }
 
     const user2CollateralAccountInfo = await provider.connection.getAccountInfo(user2CollateralAccount);
     if (!user2CollateralAccountInfo) {
