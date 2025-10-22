@@ -145,3 +145,58 @@ The design supports transparent and auditable on-chain interactions, with all st
   * Second user trove opening should now work on devnet
   * Test suite can handle both valid and corrupted account states gracefully
   * Eliminates runtime crashes from undefined variable access
+
+---
+
+**October 22, 2025 - Added close_node Instruction for Emergency Node Cleanup** ✅
+- **ISSUE**: User2 cannot open trove because Node PDA exists from previous test with corrupted discriminator
+  * openTrove uses `init` constraint which requires account to be uninitialized
+  * User2's Node PDA exists on devnet with wrong discriminator from old test run
+  * Error: `AccountDiscriminatorMismatch` when trying to initialize existing Node account
+  * Cannot open multiple user troves on devnet without clearing old Node accounts
+
+- **ROOT CAUSE**:
+  * Devnet Node PDAs persist between test runs
+  * cleanup script only closed SortedTrovesState, not individual user Nodes
+  * No way to close corrupted Node accounts from the contract
+  * Normal Anchor Account deserialization fails on corrupted discriminators
+
+- **SOLUTION IMPLEMENTED**: ✅
+  * **NEW INSTRUCTION**: `close_node` admin instruction added to protocol program
+    - Uses `UncheckedAccount` to bypass Anchor discriminator validation
+    - PDA seeds and bump still validated for security
+    - Manually closes account:
+      1. Transfers all lamports from Node to admin authority
+      2. Reallocates account data to 0 bytes
+      3. Assigns ownership back to system program
+    - Best-effort discriminator logging (doesn't abort on corruption)
+    - Admin-only access via `state.admin` check
+  * **CLEANUP SCRIPT**: `scripts/close-user-nodes-devnet.ts`
+    - Closes Node PDAs for known test users (user1, user2)
+    - Checks if Node exists before attempting to close
+    - Handles both valid and corrupted Node accounts
+    - Clear status output and error messages
+
+- **TECHNICAL DETAILS**:
+  * Cannot use `close = authority` constraint with UncheckedAccount
+  * Manual close follows Solana best practices for account reclamation
+  * Node discriminator: [198, 82, 111, 206, 177, 93, 160, 219]
+  * Lamports refunded to admin wallet on close
+
+- **ARCHITECT REVIEW**: Approved ✅
+  * UncheckedAccount correctly bypasses deserialization
+  * Manual close implementation is safe and follows best practices
+  * Admin access control maintained
+  * No security issues observed
+
+- **DEPLOYMENT STEPS**:
+  1. Build: `anchor build`
+  2. Deploy: `anchor deploy --provider.cluster devnet`
+  3. Cleanup: `ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/close-user-nodes-devnet.ts`
+  4. Test: `ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/protocol-core.ts'`
+
+- **IMPACT**:
+  * Multiple users can now open troves on devnet
+  * Emergency recovery tool for corrupted Node accounts
+  * Test suite can run cleanly on devnet after cleanup
+  * Eliminates AccountDiscriminatorMismatch errors on Node initialization
