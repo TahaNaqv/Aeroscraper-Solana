@@ -64,11 +64,11 @@ pub fn insert_trove(
             
             let next_node_account = &remaining_accounts[0];
             let mut next_data = next_node_account.try_borrow_mut_data()?;
-            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[..])?;
             require!(next_node.id == next, AerospacerProtocolError::InvalidList);
             
             next_node.prev_id = Some(user);
-            let mut writer = &mut next_data[8..];
+            let mut writer = &mut next_data[..];
             next_node.try_serialize(&mut writer)?;
             
             sorted_troves_state.head = Some(user);
@@ -81,15 +81,15 @@ pub fn insert_trove(
             for i in (0..remaining_accounts.len()).step_by(2) {
                 let node_account = &remaining_accounts[i];
                 let node_data = node_account.try_borrow_data()?;
-                let node = Node::try_deserialize(&mut &node_data[8..])?;
+                let node = Node::try_deserialize(&mut &node_data[..])?;
                 
                 if node.id == prev {
                     drop(node_data); // Release immutable borrow
                     
                     let mut mut_data = node_account.try_borrow_mut_data()?;
-                    let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    let mut prev_node = Node::try_deserialize(&mut &mut_data[..])?;
                     prev_node.next_id = Some(user);
-                    let mut writer = &mut mut_data[8..];
+                    let mut writer = &mut mut_data[..];
                     prev_node.try_serialize(&mut writer)?;
                     
                     found_prev = true;
@@ -109,22 +109,22 @@ pub fn insert_trove(
             for i in (0..remaining_accounts.len()).step_by(2) {
                 let node_account = &remaining_accounts[i];
                 let node_data = node_account.try_borrow_data()?;
-                let node = Node::try_deserialize(&mut &node_data[8..])?;
+                let node = Node::try_deserialize(&mut &node_data[..])?;
                 let node_id = node.id;
                 drop(node_data);
                 
                 if node_id == prev && !found_prev {
                     let mut mut_data = node_account.try_borrow_mut_data()?;
-                    let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    let mut prev_node = Node::try_deserialize(&mut &mut_data[..])?;
                     prev_node.next_id = Some(user);
-                    let mut writer = &mut mut_data[8..];
+                    let mut writer = &mut mut_data[..];
                     prev_node.try_serialize(&mut writer)?;
                     found_prev = true;
                 } else if node_id == next && !found_next {
                     let mut mut_data = node_account.try_borrow_mut_data()?;
-                    let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                    let mut next_node = Node::try_deserialize(&mut &mut_data[..])?;
                     next_node.prev_id = Some(user);
-                    let mut writer = &mut mut_data[8..];
+                    let mut writer = &mut mut_data[..];
                     next_node.try_serialize(&mut writer)?;
                     found_next = true;
                 }
@@ -160,7 +160,7 @@ pub fn remove_trove(
     require!(remaining_accounts.len() >= 1, AerospacerProtocolError::InvalidList);
     let user_node_account_info = &remaining_accounts[0];
     let user_node_data = user_node_account_info.try_borrow_data()?;
-    let user_node = Node::try_deserialize(&mut &user_node_data[8..])?;
+    let user_node = Node::try_deserialize(&mut &user_node_data[..])?;
     
     require!(user_node.id == user, AerospacerProtocolError::InvalidList);
     
@@ -189,13 +189,13 @@ pub fn remove_trove(
         
         let prev_node_account_info = &remaining_accounts[account_idx];
         let mut prev_node_data = prev_node_account_info.try_borrow_mut_data()?;
-        let mut prev_node = Node::try_deserialize(&mut &prev_node_data[8..])?;
+        let mut prev_node = Node::try_deserialize(&mut &prev_node_data[..])?;
         
         require!(prev_node.id == prev, AerospacerProtocolError::InvalidList);
         prev_node.next_id = next_id;
         
         // Serialize back
-        let mut writer = &mut prev_node_data[8..];
+        let mut writer = &mut prev_node_data[..];
         prev_node.try_serialize(&mut writer)?;
         
         account_idx += 1;
@@ -214,13 +214,13 @@ pub fn remove_trove(
         
         let next_node_account_info = &remaining_accounts[account_idx];
         let mut next_node_data = next_node_account_info.try_borrow_mut_data()?;
-        let mut next_node = Node::try_deserialize(&mut &next_node_data[8..])?;
+        let mut next_node = Node::try_deserialize(&mut &next_node_data[..])?;
         
         require!(next_node.id == next, AerospacerProtocolError::InvalidList);
         next_node.prev_id = prev_id;
         
         // Serialize back
-        let mut writer = &mut next_node_data[8..];
+        let mut writer = &mut next_node_data[..];
         next_node.try_serialize(&mut writer)?;
         
         msg!("Updated next node {} -> prev_id = {:?}", next, prev_id);
@@ -310,20 +310,20 @@ pub fn reinsert_trove(
             // Update prev node
             let prev_account = &remaining_accounts[1];
             let mut prev_data = prev_account.try_borrow_mut_data()?;
-            let mut prev_node = Node::try_deserialize(&mut &prev_data[8..])?;
+            let mut prev_node = Node::try_deserialize(&mut &prev_data[..])?;
             require!(prev_node.id == prev, AerospacerProtocolError::InvalidList);
             prev_node.next_id = old_next_id;
-            let mut writer = &mut prev_data[8..];
+            let mut writer = &mut prev_data[..];
             prev_node.try_serialize(&mut writer)?;
             drop(prev_data);
             
             // Update next node
             let next_account = &remaining_accounts[2];
             let mut next_data = next_account.try_borrow_mut_data()?;
-            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[..])?;
             require!(next_node.id == next, AerospacerProtocolError::InvalidList);
             next_node.prev_id = old_prev_id;
-            let mut writer = &mut next_data[8..];
+            let mut writer = &mut next_data[..];
             next_node.try_serialize(&mut writer)?;
             
             traversal_start_idx = 3; // Traversal starts after both neighbors
@@ -335,10 +335,10 @@ pub fn reinsert_trove(
             
             let prev_account = &remaining_accounts[1];
             let mut prev_data = prev_account.try_borrow_mut_data()?;
-            let mut prev_node = Node::try_deserialize(&mut &prev_data[8..])?;
+            let mut prev_node = Node::try_deserialize(&mut &prev_data[..])?;
             require!(prev_node.id == prev, AerospacerProtocolError::InvalidList);
             prev_node.next_id = None;
-            let mut writer = &mut prev_data[8..];
+            let mut writer = &mut prev_data[..];
             prev_node.try_serialize(&mut writer)?;
             
             sorted_troves_state.tail = Some(prev);
@@ -351,10 +351,10 @@ pub fn reinsert_trove(
             
             let next_account = &remaining_accounts[1];
             let mut next_data = next_account.try_borrow_mut_data()?;
-            let mut next_node = Node::try_deserialize(&mut &next_data[8..])?;
+            let mut next_node = Node::try_deserialize(&mut &next_data[..])?;
             require!(next_node.id == next, AerospacerProtocolError::InvalidList);
             next_node.prev_id = None;
-            let mut writer = &mut next_data[8..];
+            let mut writer = &mut next_data[..];
             next_node.try_serialize(&mut writer)?;
             
             sorted_troves_state.head = Some(next);
@@ -394,14 +394,14 @@ pub fn reinsert_trove(
             let mut found = false;
             for node_account in search_accounts.iter() {
                 if let Ok(node_data) = node_account.try_borrow_data() {
-                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[..]) {
                         if node.id == next {
                             drop(node_data);
                             
                             let mut mut_data = node_account.try_borrow_mut_data()?;
-                            let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            let mut next_node = Node::try_deserialize(&mut &mut_data[..])?;
                             next_node.prev_id = Some(user);
-                            let mut writer = &mut mut_data[8..];
+                            let mut writer = &mut mut_data[..];
                             next_node.try_serialize(&mut writer)?;
                             
                             found = true;
@@ -420,14 +420,14 @@ pub fn reinsert_trove(
             let mut found = false;
             for node_account in search_accounts.iter() {
                 if let Ok(node_data) = node_account.try_borrow_data() {
-                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[..]) {
                         if node.id == prev {
                             drop(node_data);
                             
                             let mut mut_data = node_account.try_borrow_mut_data()?;
-                            let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            let mut prev_node = Node::try_deserialize(&mut &mut_data[..])?;
                             prev_node.next_id = Some(user);
-                            let mut writer = &mut mut_data[8..];
+                            let mut writer = &mut mut_data[..];
                             prev_node.try_serialize(&mut writer)?;
                             
                             found = true;
@@ -448,22 +448,22 @@ pub fn reinsert_trove(
             
             for node_account in search_accounts.iter() {
                 if let Ok(node_data) = node_account.try_borrow_data() {
-                    if let Ok(node) = Node::try_deserialize(&mut &node_data[8..]) {
+                    if let Ok(node) = Node::try_deserialize(&mut &node_data[..]) {
                         let node_id = node.id;
                         drop(node_data);
                         
                         if node_id == prev && !found_prev {
                             let mut mut_data = node_account.try_borrow_mut_data()?;
-                            let mut prev_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            let mut prev_node = Node::try_deserialize(&mut &mut_data[..])?;
                             prev_node.next_id = Some(user);
-                            let mut writer = &mut mut_data[8..];
+                            let mut writer = &mut mut_data[..];
                             prev_node.try_serialize(&mut writer)?;
                             found_prev = true;
                         } else if node_id == next && !found_next {
                             let mut mut_data = node_account.try_borrow_mut_data()?;
-                            let mut next_node = Node::try_deserialize(&mut &mut_data[8..])?;
+                            let mut next_node = Node::try_deserialize(&mut &mut_data[..])?;
                             next_node.prev_id = Some(user);
-                            let mut writer = &mut mut_data[8..];
+                            let mut writer = &mut mut_data[..];
                             next_node.try_serialize(&mut writer)?;
                             found_next = true;
                         }
@@ -546,7 +546,7 @@ pub fn find_insert_position(
         
         // Load Node to get next_id
         let node_data = node_account.try_borrow_data()?;
-        let node = Node::try_deserialize(&mut &node_data[8..])?;
+        let node = Node::try_deserialize(&mut &node_data[..])?;
         require!(node.id == current, AerospacerProtocolError::InvalidList);
         let next_id = node.next_id;
         drop(node_data); // Release borrow
@@ -576,7 +576,7 @@ pub fn find_insert_position(
 fn get_icr_from_account(account: &AccountInfo, expected_owner: Pubkey) -> Result<u64> {
     // Deserialize LiquidityThreshold account
     let threshold_data = account.try_borrow_data()?;
-    let threshold = LiquidityThreshold::try_deserialize(&mut &threshold_data[8..])?;
+    let threshold = LiquidityThreshold::try_deserialize(&mut &threshold_data[..])?;
     
     // Verify it's for the correct owner
     require!(
@@ -639,7 +639,7 @@ pub fn get_liquidatable_troves(
         
         // Deserialize Node to get next_id and verify identity
         let node_data = node_account.try_borrow_data()?;
-        let node = Node::try_deserialize(&mut &node_data[8..])?;
+        let node = Node::try_deserialize(&mut &node_data[..])?;
         require!(node.id == current, AerospacerProtocolError::InvalidList);
         
         // Get ICR from LiquidityThreshold account
