@@ -22,17 +22,10 @@ pub fn insert_trove(
     // Validate ICR is non-zero
     require!(icr > 0, AerospacerProtocolError::InvalidAmount);
     
-    // Initialize the user's node
-    // Properly initialize the user's node using Anchor's serialization
-    // The discriminator is already set by Anchor's #[account(init, ...)]
-    // We just need to set the data fields correctly
-    *user_node = Node {
-        id: user,
-        prev_id: None,
-        next_id: None,
-    };
-    
-    // Handle first trove (empty list)
+    user_node.id = user;
+    user_node.prev_id = None;
+    user_node.next_id = None;
+
     if sorted_troves_state.size == 0 {
         sorted_troves_state.head = Some(user);
         sorted_troves_state.tail = Some(user);

@@ -69,7 +69,7 @@ async function main() {
           state: statePDA,
           authority: admin.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
-        })
+        } as any)
         .rpc();
 
       console.log(`  ✅ Success! Transaction: ${tx}`);
