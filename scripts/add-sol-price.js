@@ -3,7 +3,7 @@ const { PublicKey } = require("@solana/web3.js");
 
 async function addSolPrice() {
   console.log("🔧 Adding SOL price data to oracle...");
-  
+
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
@@ -23,7 +23,7 @@ async function addSolPrice() {
   const SOL_DECIMALS = 9;
   const SOL_PRICE_ID = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
   // Use the correct Pyth price feed address from oracle tests (this works on devnet)
-  const PYTH_ORACLE_ADDRESS = "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix";
+  const PYTH_ORACLE_ADDRESS = "gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s"; // "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix";
 
   try {
     // Add SOL price data
@@ -51,7 +51,7 @@ async function addSolPrice() {
       console.log("\n📊 Oracle State:");
       console.log("- Admin:", state.admin.toString());
       console.log("- Collateral Data Count:", state.collateralData.length);
-      
+
       if (state.collateralData.length > 0) {
         console.log("- First Collateral Data:");
         console.log("  - Denom:", state.collateralData[0].denom);

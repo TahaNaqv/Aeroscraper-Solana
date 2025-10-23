@@ -2,7 +2,8 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { AerospacerFees } from "../target/types/aerospacer_fees";
+import { Keypair, PublicKey, AccountInfo } from "@solana/web3.js";
 import { expect } from "chai";
 import {
   setupTestEnvironment,
@@ -11,9 +12,122 @@ import {
   derivePDAs,
   SOL_DENOM,
   MIN_LOAN_AMOUNT,
-  PYTH_ORACLE_ADDRESS,
   TestContext,
 } from "./protocol-test-utils";
+
+// Use the same Pyth oracle address as protocol-core.ts
+const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+
+// Helper function to get existing troves accounts for sorted troves traversal
+async function getExistingTrovesAccounts(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  sortedTrovesStatePDA: PublicKey
+): Promise<any[]> {
+  try {
+    // Try to fetch the sorted troves state
+    const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
+
+    if (!sortedTrovesStateInfo) {
+      console.log("SortedTrovesState account doesn't exist yet");
+      return []; // Account doesn't exist yet
+    }
+
+    const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
+
+    if (sortedTrovesState.size.eq(new BN(0))) {
+      console.log("SortedTrovesState is empty (size = 0)");
+      return []; // No existing troves
+    }
+
+    console.log(`SortedTrovesState has ${sortedTrovesState.size} troves, head: ${sortedTrovesState.head?.toString()}`);
+
+    const remainingAccounts: any[] = [];
+    let currentId = sortedTrovesState.head;
+    let processedCount = 0;
+    const maxIterations = sortedTrovesState.size.toNumber(); // Prevent infinite loops
+
+    while (currentId && processedCount < maxIterations) {
+      // Derive Node and LiquidityThreshold PDAs for current trove
+      const [nodePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+      const [liquidityThresholdPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+
+      // Get account info
+      const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
+      const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
+
+      if (!nodeAccountInfo || !ltAccountInfo) {
+        console.log(`⚠️ Warning: Missing accounts for trove ${currentId.toString()}, stopping traversal`);
+        break;
+      }
+
+      try {
+        // CRITICAL: Validate account discriminators before using them
+        // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
+        try {
+          // Try to decode the accounts to validate they have correct discriminators
+          const nodeData = nodeAccountInfo.data;
+          const ltData = ltAccountInfo.data;
+
+          // Attempt to decode - this will fail if discriminator is wrong
+          const _node = protocolProgram.coder.accounts.decode("node", nodeData);
+          const _lt = protocolProgram.coder.accounts.decode("liquidityThreshold", ltData);
+        } catch (decodeError) {
+          console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
+          console.log(`Node account ${currentId.toString()} has invalid discriminator`);
+          console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
+          console.log(`\n⚠️ SOLUTION: Return current valid accounts without corrupted ones`);
+          console.log(`   Stopping traversal at corrupted node\n`);
+
+          // Break out - can't safely get nextId from corrupted account
+          break;
+        }
+
+        remainingAccounts.push({
+          ...nodeAccountInfo,
+          pubkey: nodePDA,
+          isSigner: false,
+          isWritable: true,
+        });
+        remainingAccounts.push({
+          ...ltAccountInfo,
+          pubkey: liquidityThresholdPDA,
+          isSigner: false,
+          isWritable: true,
+        });
+
+        // Get next node ID from the current node
+        const nodeData = nodeAccountInfo.data;
+        const node = protocolProgram.coder.accounts.decode("node", nodeData);
+
+        console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
+
+        currentId = node.nextId;
+        processedCount++;
+      } catch (decodeError) {
+        console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
+        console.log(`   Stopping traversal at corrupted node`);
+
+        // Break out - can't safely get nextId from node we failed to decode
+        break;
+      }
+    }
+
+    console.log(`✅ Fetched ${remainingAccounts.length / 2} valid trove accounts for traversal`);
+    return remainingAccounts;
+  } catch (error) {
+    // Re-throw any errors - do NOT silently return empty array
+    // Returning [] when size > 0 would just trigger InvalidList error in contract
+    console.log("Error fetching existing troves:", error);
+    throw error;
+  }
+}
 
 describe("Protocol Contract - Oracle Integration Tests", () => {
   let ctx: TestContext;
@@ -21,15 +135,81 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
 
   before(async () => {
     console.log("\n🔮 Setting up Oracle Integration Tests...");
-    ctx = await setupTestEnvironment();
-    
+
+    // Use the same approach as protocol-core.ts to get existing mints
+    const provider = anchor.AnchorProvider.env();
+    anchor.setProvider(provider);
+
+    const protocolProgram = anchor.workspace.AerospacerProtocol as Program<AerospacerProtocol>;
+    const oracleProgram = anchor.workspace.AerospacerOracle as Program<AerospacerOracle>;
+    const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
+
+    const admin = provider.wallet as anchor.Wallet;
+
+    // Get existing stablecoin mint from protocol state (same as protocol-core.ts)
+    const [protocolStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      protocolProgram.programId
+    );
+    const [oracleStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("state")],
+      oracleProgram.programId
+    );
+    const [feesStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_state")],
+      feesProgram.programId
+    );
+
+    const existingState = await provider.connection.getAccountInfo(protocolStatePda);
+    if (!existingState) {
+      throw new Error("Protocol state not found - please run protocol-core.ts first");
+    }
+
+    const stateAccount = await protocolProgram.account.stateAccount.fetch(protocolStatePda);
+    const stablecoinMint = stateAccount.stableCoinAddr;
+    console.log("Using existing stablecoin mint:", stablecoinMint.toString());
+
+    // Get existing collateral mint from protocol vault (same as protocol-core.ts)
+    const [protocolCollateralVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_collateral_vault"), Buffer.from(SOL_DENOM)],
+      protocolProgram.programId
+    );
+
+    const vaultAccountInfo = await provider.connection.getAccountInfo(protocolCollateralVaultPda);
+    if (!vaultAccountInfo) {
+      throw new Error("Protocol collateral vault not found - please run protocol-core.ts first");
+    }
+
+    const vaultAccount = await provider.connection.getParsedAccountInfo(protocolCollateralVaultPda);
+    if (!vaultAccount.value || !('parsed' in vaultAccount.value.data)) {
+      throw new Error("Failed to parse vault account data");
+    }
+
+    const collateralMint = new PublicKey(vaultAccount.value.data.parsed.info.mint);
+    console.log("Using existing collateral mint:", collateralMint.toString());
+
+    // Create test context with existing mints
+    ctx = {
+      provider,
+      protocolProgram,
+      oracleProgram,
+      feesProgram,
+      admin,
+      stablecoinMint,
+      collateralMint,
+      protocolState: protocolStatePda,
+      oracleState: oracleStatePda,
+      feeState: feesStatePda,
+      sortedTrovesState: derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState,
+    };
+
     const userSetup = await createTestUser(
       ctx.provider,
       ctx.collateralMint,
       new BN(20_000_000_000) // 20 SOL
     );
     user = userSetup.user;
-    
+
     console.log("✅ Setup complete");
   });
 
@@ -38,19 +218,27 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
       console.log("📋 Testing oracle CPI price query...");
 
       // Oracle get_price is called internally by open_trove
+      // Get existing troves accounts for sorted troves traversal
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        ctx.provider,
+        ctx.protocolProgram,
+        ctx.sortedTrovesState
+      );
+
       await openTroveForUser(
         ctx,
         user,
         new BN(10_000_000_000), // 10 SOL collateral
         MIN_LOAN_AMOUNT,
-        SOL_DENOM
+        SOL_DENOM,
+        existingTrovesAccounts
       );
 
       const pdas = derivePDAs(SOL_DENOM, user.publicKey, ctx.protocolProgram.programId);
       const liquidityThreshold = await ctx.protocolProgram.account.liquidityThreshold.fetch(pdas.liquidityThreshold);
-      
-      expect(liquidityThreshold.individualCollateralRatio.toNumber()).to.be.greaterThan(0);
-      console.log(`  ✅ ICR calculated: ${liquidityThreshold.individualCollateralRatio.toNumber()}%`);
+
+      expect(liquidityThreshold.ratio.toNumber()).to.be.greaterThan(0);
+      console.log(`  ✅ ICR calculated: ${liquidityThreshold.ratio.toNumber()}%`);
       console.log("  ✅ Oracle CPI successfully returned price data");
     });
   });
@@ -66,9 +254,9 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
 
       console.log(`  Collateral: ${userCollateral.amount.toString()} lamports`);
       console.log(`  Debt: ${userDebt.amount.toString()} base units`);
-      console.log(`  ICR: ${liquidityThreshold.individualCollateralRatio.toNumber()}%`);
-      
-      expect(liquidityThreshold.individualCollateralRatio.toNumber()).to.be.greaterThan(100);
+      console.log(`  ICR: ${liquidityThreshold.ratio.toNumber()}%`);
+
+      expect(liquidityThreshold.ratio.toNumber()).to.be.greaterThan(100);
       console.log("✅ ICR calculation verified with live Pyth prices");
     });
   });
@@ -80,13 +268,13 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
       const pdas = derivePDAs(SOL_DENOM, user.publicKey, ctx.protocolProgram.programId);
       const liquidityThreshold = await ctx.protocolProgram.account.liquidityThreshold.fetch(pdas.liquidityThreshold);
 
-      const icr = liquidityThreshold.individualCollateralRatio.toNumber();
+      const icr = liquidityThreshold.ratio.toNumber();
       const isLiquidatable = icr < 110; // Liquidation threshold is 110%
 
       console.log(`  ICR: ${icr}%`);
       console.log(`  Liquidation Threshold: 110%`);
       console.log(`  Is Liquidatable: ${isLiquidatable}`);
-      
+
       expect(icr).to.be.greaterThan(110);
       console.log("✅ Liquidation threshold logic verified");
     });
@@ -95,7 +283,7 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
   describe("Test 7.4: Multi-Collateral Price Queries", () => {
     it("Should support multiple collateral types", async () => {
       console.log("📋 Testing multi-collateral support...");
-      
+
       // Protocol supports multiple collateral denoms
       // Each denom has separate Pyth price feed
       console.log("  ✅ SOL: Supported via Pyth feed");
@@ -108,7 +296,7 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
   describe("Test 7.5: Price Staleness Handling", () => {
     it("Should handle price staleness validation", async () => {
       console.log("📋 Testing price staleness...");
-      
+
       // Note: In local testing, staleness checks are disabled via get_price_unchecked
       // In production/devnet, get_price validates staleness < 5 minutes
       console.log("  ✅ Local: Uses get_price_unchecked for testing");
@@ -121,7 +309,7 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
   describe("Test 7.6: Invalid Oracle Account Rejection", () => {
     it("Should reject invalid oracle accounts", async () => {
       console.log("📋 Testing oracle account validation...");
-      
+
       // This is tested in protocol-cpi-security.ts
       // Oracle program ID must match state.oracle_helper_addr
       // Oracle state must match state.oracle_state_addr
@@ -137,10 +325,10 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
       console.log("📋 Testing oracle state validation...");
 
       const state = await ctx.protocolProgram.account.stateAccount.fetch(ctx.protocolState);
-      
+
       expect(state.oracleStateAddr.toString()).to.equal(ctx.oracleState.toString());
       expect(state.oracleHelperAddr.toString()).to.equal(ctx.oracleProgram.programId.toString());
-      
+
       console.log("  ✅ Oracle state address matches protocol state");
       console.log("  ✅ Oracle program ID matches protocol state");
       console.log("✅ Oracle state validation verified");
@@ -153,8 +341,8 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
 
       // Pyth returns prices with expo (decimals)
       // Protocol normalizes to 18 decimals for calculations
-      const oracleState = await ctx.oracleProgram.account.oracleState.fetch(ctx.oracleState);
-      
+      const oracleState = await ctx.oracleProgram.account.oracleStateAccount.fetch(ctx.oracleState);
+
       console.log(`  Oracle Address: ${oracleState.oracleAddress.toString()}`);
       console.log("  ✅ Pyth prices have varying exponents");
       console.log("  ✅ Protocol normalizes to 18 decimals");

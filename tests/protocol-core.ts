@@ -17,7 +17,7 @@ import { assert } from "chai";
 import { loadTestUsers } from "./protocol-test-utils";
 
 // Constants
-const PYTH_ORACLE_ADDRESS = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
+const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
 
 // Add this function after the imports and before the describe block
 async function getExistingTrovesAccounts(

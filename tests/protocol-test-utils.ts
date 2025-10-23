@@ -8,6 +8,7 @@ import {
   PublicKey,
   SystemProgram,
   LAMPORTS_PER_SOL,
+  AccountInfo,
 } from "@solana/web3.js";
 import {
   createMint,
@@ -157,7 +158,7 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
 // Setup test environment
 export async function setupTestEnvironment(): Promise<TestContext> {
   console.log("🚀 Setting up test environment for devnet...");
-  
+
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
@@ -315,7 +316,7 @@ export async function createTestUser(
       lamports: transferAmount,
     })
   );
-  
+
   await provider.sendAndConfirm(transferTx, [provider.wallet.payer]);
 
   // Create token account and fund it
@@ -345,7 +346,8 @@ export async function openTroveForUser(
   user: Keypair,
   collateralAmount: BN,
   loanAmount: BN,
-  collateralDenom: string
+  collateralDenom: string,
+  remainingAccounts?: any[]
 ): Promise<void> {
   const pdas = derivePDAs(collateralDenom, user.publicKey, ctx.protocolProgram.programId);
 
@@ -371,7 +373,7 @@ export async function openTroveForUser(
     // Account might already exist
   }
 
-  await ctx.protocolProgram.methods
+  const instruction = ctx.protocolProgram.methods
     .openTrove({
       loanAmount,
       collateralDenom,
@@ -404,8 +406,14 @@ export async function openTroveForUser(
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
-    .signers([user])
-    .rpc();
+    .signers([user]);
+
+  // Add remaining accounts if provided
+  if (remainingAccounts && remainingAccounts.length > 0) {
+    instruction.remainingAccounts(remainingAccounts);
+  }
+
+  await instruction.rpc();
 }
 
 // Helper to check account balance
@@ -452,7 +460,7 @@ export async function stakeInStabilityPool(
   ausdAmount: BN
 ): Promise<void> {
   const pdas = derivePDAs(SOL_DENOM, user.publicKey, ctx.protocolProgram.programId);
-  
+
   const userStablecoinAccount = await getAssociatedTokenAddress(
     ctx.stablecoinMint,
     user.publicKey
@@ -498,7 +506,7 @@ export async function createLiquidatableTrove(
   // - Fees accrue over time
   const collateralAmount = new BN(6_000_000_000); // 6 SOL
   const loanAmount = SCALE_FACTOR.mul(new BN(100)); // 100 aUSD
-  
+
   // At $200/SOL: 6 SOL * $200 = $1200 collateral, $100 debt = 120% ICR
   // This passes the 115% minimum but is close to liquidation threshold
   await openTroveForUser(ctx, user, collateralAmount, loanAmount, collateralDenom);

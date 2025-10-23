@@ -19,17 +19,22 @@ async function main() {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.AerospacerOracle as Program<AerospacerOracle>;
-  
-  // Create new state account keypair
-  const stateAccount = Keypair.generate();
-  
+
+  const adminKeypair = provider.wallet.payer;
+
+  // Use PDA for oracle state (same as protocol)
+  const [oracleStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    program.programId
+  );
+
   // Pyth oracle program address on Solana devnet
   const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
-  
+
   console.log("📋 Configuration:");
   console.log("  Network: Solana Devnet");
   console.log("  Oracle Program:", program.programId.toString());
-  console.log("  State Account:", stateAccount.publicKey.toString());
+  console.log("  State Account:", oracleStatePDA.toString());
   console.log("  Admin:", provider.wallet.publicKey.toString());
   console.log("  Pyth Oracle:", PYTH_ORACLE_ADDRESS.toString());
   console.log("");
@@ -40,12 +45,12 @@ async function main() {
         oracleAddress: PYTH_ORACLE_ADDRESS,
       })
       .accounts({
-        state: stateAccount.publicKey,
+        state: oracleStatePDA,
         admin: provider.wallet.publicKey,
         systemProgram: SystemProgram.programId,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       } as any)
-      .signers([stateAccount])
+      .signers([adminKeypair])
       .rpc();
 
     console.log("✅ Oracle initialized successfully!");
@@ -54,14 +59,14 @@ async function main() {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("📝 IMPORTANT - Save this state account address:");
     console.log("");
-    console.log("  STATE_ACCOUNT =", stateAccount.publicKey.toString());
+    console.log("  STATE_ACCOUNT =", oracleStatePDA.toString());
     console.log("");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("");
 
     // Save state account to file for other scripts to use
     const config = {
-      stateAccount: stateAccount.publicKey.toString(),
+      stateAccount: oracleStatePDA.toString(),
       admin: provider.wallet.publicKey.toString(),
       oracleAddress: PYTH_ORACLE_ADDRESS.toString(),
       network: "devnet",
