@@ -140,8 +140,28 @@ After fixing the mint mismatch, 3 more failures appeared:
 - `PYTH_ORACLE_ADDRESS`: Oracle program initialization (general oracle address)
 - `SOL_PRICE_FEED`: SOL/USD price feed for actual price queries
 
+**Additional Fix - Fee Token Account Architecture (October 23, 2025)**
+
+After fixing the Pyth price feed address, Test 7.1 still failed with `AccountNotInitialized` for `stability_pool_token_account`.
+
+**Root Cause**: The `derivePDAs()` function was incorrectly deriving fee-related accounts (`stabilityPoolTokenAccount`, `feeAddress1TokenAccount`, `feeAddress2TokenAccount`) as PDAs using `PublicKey.findProgramAddressSync()`, but these should be **associated token accounts (ATAs)**. The fees program's `distribute_fee` instruction expects real token accounts that can hold stablecoins, not PDAs.
+
+**Fix**: Updated `protocol-test-utils.ts` to:
+1. Added fee token accounts to `TestContext` interface
+2. Updated `setupTestEnvironment()` to create these accounts as ATAs:
+   - `stabilityPoolTokenAccount` = ATA for admin with stablecoinMint
+   - `feeAddress1TokenAccount` = ATA for fee address 1 (8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR)
+   - `feeAddress2TokenAccount` = ATA for fee address 2 (GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX)
+   - Transfer SOL to fee addresses if needed for account rent
+   - Create token accounts on devnet if they don't exist
+3. Updated `openTroveForUser()` to use fee accounts from `ctx` instead of from `pdas`
+
+This mirrors the approach used in `protocol-core.ts` (lines 448-496).
+
+**Note**: The incorrect PDA derivations for fee accounts remain in `derivePDAs()` but are no longer used. They can be removed in future cleanup.
+
 **Next Steps:**
 - User to run `protocol-oracle-integration.ts` tests on their local machine with configured Solana wallet
-- Tests 7.1, 7.2, 7.3, 7.8 should now pass (5 passing total)
+- All oracle integration tests should now pass
 - Continue fixing other test files one at a time
 - Ensure all 158 tests pass on devnet
