@@ -106,7 +106,24 @@ Fixed "Provided owner is not allowed" errors in test suite by adding existence c
 - Fixed 6+ error coverage assertion failures (flexible error matching)
 - Created loadTestUsers() utility to prevent future Node PDA collisions
 
+### Protocol-Oracle-Integration Test Fixes (October 23, 2025)
+
+**Issue**: `protocol-oracle-integration.ts` had 4 test failures due to `ConstraintTokenMint` error:
+- Test 7.1: Get Price via CPI Call
+- Test 7.2: ICR Calculation with Real Pyth Prices
+- Test 7.3: Liquidation Threshold with Oracle Prices
+- Test 7.8: Price Decimal Conversion
+
+**Root Cause**: The `setupTestEnvironment()` function always created a new `collateralMint`, but on devnet the `protocol_collateral_vault` PDA persists between test runs with a different mint. Anchor's `token::mint = collateral_mint` constraint rejected the new mint.
+
+**Fix**: Updated `setupTestEnvironment()` in `protocol-test-utils.ts` to:
+1. Check if `protocol_collateral_vault` PDA exists on devnet
+2. Extract the existing mint from the vault's parsed account data if it exists
+3. Fallback to creating a new mint if the vault doesn't exist (localnet scenario)
+
+This mirrors the logic in `protocol-core.ts` which already handled this correctly.
+
 **Next Steps:**
-- Run full protocol test suite to verify fixes resolved the 39 failures
-- Address any remaining issues identified by test run
+- User to run `protocol-oracle-integration.ts` tests on their local machine with configured Solana wallet
+- Continue fixing other test files one at a time
 - Ensure all 158 tests pass on devnet
