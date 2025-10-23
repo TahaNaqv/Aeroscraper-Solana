@@ -17,13 +17,6 @@ import {
 } from "./protocol-test-utils";
 
 describe("Protocol Contract - Fees Integration Tests", () => {
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
-
-  const protocolProgram = anchor.workspace.AerospacerProtocol as Program<AerospacerProtocol>;
-  const oracleProgram = anchor.workspace.AerospacerOracle as Program<AerospacerOracle>;
-  const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
-
   let ctx: TestContext;
   let testUser: Keypair;
 
@@ -53,12 +46,12 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("\n📋 Testing fee distribution CPI...");
       
       // Verify fee program is accessible
-      const feeStateInfo = await provider.connection.getAccountInfo(feesProgram.programId);
+      const feeStateInfo = await ctx.provider.connection.getAccountInfo(ctx.feesProgram.programId);
       expect(feeStateInfo).to.not.be.null;
-      console.log("  ✅ Fees program:", feesProgram.programId.toString());
+      console.log("  ✅ Fees program:", ctx.feesProgram.programId.toString());
       
       // Fetch protocol state and verify it references the fee program correctly
-      const protocolState = await protocolProgram.account.stateAccount.fetch(ctx.protocolState);
+      const protocolState = await ctx.protocolProgram.account.stateAccount.fetch(ctx.protocolState);
       expect(protocolState.feeStateAddr.toString()).to.equal(ctx.feeState.toString());
       console.log("  ✅ Protocol state references correct fee_state_addr:", protocolState.feeStateAddr.toString());
       
@@ -166,7 +159,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       
       // Get initial stability pool balance
       const initialStabilityPoolAccount = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.stabilityPoolTokenAccount
       );
       const initialBalance = initialStabilityPoolAccount.amount;
@@ -191,7 +184,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       
       // Get updated stability pool balance
       const updatedStabilityPoolAccount = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.stabilityPoolTokenAccount
       );
       const balanceDelta = updatedStabilityPoolAccount.amount - initialBalance;
@@ -250,11 +243,11 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       
       // Get initial balances
       const initialFee1Account = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.feeAddress1TokenAccount
       );
       const initialFee2Account = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.feeAddress2TokenAccount
       );
       const initialBalance1 = initialFee1Account.amount;
@@ -280,11 +273,11 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       
       // Get updated balances
       const updatedFee1Account = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.feeAddress1TokenAccount
       );
       const updatedFee2Account = await getAccount(
-        provider.connection,
+        ctx.provider.connection,
         ctx.feeAddress2TokenAccount
       );
       const balanceDelta1 = updatedFee1Account.amount - initialBalance1;
@@ -337,7 +330,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       
       // This test verifies the architectural design:
       // The protocol state stores fee_state_addr to prevent fake fee contract injection
-      const protocolState = await protocolProgram.account.stateAccount.fetch(ctx.protocolState);
+      const protocolState = await ctx.protocolProgram.account.stateAccount.fetch(ctx.protocolState);
       
       console.log("  Protocol state fee_state_addr:", protocolState.feeStateAddr.toString());
       console.log("  Expected fee state PDA:", ctx.feeState.toString());
