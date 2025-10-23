@@ -49,8 +49,8 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
       // Execute query instruction
       const tx = await ctx.protocolProgram.methods
         .queryLiquidatableTroves({
+          liquidationThreshold: new BN(110),
           maxTroves: 10,
-          denom: SOL_DENOM,
         })
         .accounts({
           state: ctx.protocolState,
@@ -112,8 +112,8 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
       try {
         const tx = await ctx.protocolProgram.methods
           .liquidateTroves({
+            liquidationList: [borrower.user.publicKey],
             collateralDenom: SOL_DENOM,
-            troveAddresses: [borrower.user.publicKey],
           })
           .accounts({
             liquidator: liquidator.user.publicKey,
@@ -217,8 +217,10 @@ describe("Protocol Contract - Critical Instructions (Full Functional Tests)", ()
       const redeemAmount = MIN_LOAN_AMOUNT.mul(new BN(100));
       const tx = await ctx.protocolProgram.methods
         .redeem({
-          ausdAmount: redeemAmount,
+          amount: redeemAmount,
           collateralDenom: SOL_DENOM,
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           user: redeemer.user.publicKey,

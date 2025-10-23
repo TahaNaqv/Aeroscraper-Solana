@@ -17,6 +17,8 @@ import {
   TOKEN_PROGRAM_ID,
   getAccount,
 } from "@solana/spl-token";
+import * as fs from "fs";
+import * as path from "path";
 
 // Constants
 export const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
@@ -25,6 +27,21 @@ export const SCALE_FACTOR = new BN("1000000000000000000"); // 10^18
 export const MIN_LOAN_AMOUNT = SCALE_FACTOR; // 1 aUSD
 export const MIN_COLLATERAL_RATIO = 115; // 115%
 export const LIQUIDATION_THRESHOLD = 110; // 110%
+
+// Load fixed test user keypairs (avoids Node PDA collision on devnet)
+export function loadFixedKeypair(filename: string): Keypair {
+  const keypairPath = path.join(__dirname, "..", "keys", filename);
+  const keypairData = JSON.parse(fs.readFileSync(keypairPath, "utf8"));
+  return Keypair.fromSecretKey(new Uint8Array(keypairData));
+}
+
+// Load user1 and user2 keypairs (standardized across all tests)
+export function loadTestUsers(): { user1: Keypair; user2: Keypair } {
+  return {
+    user1: loadFixedKeypair("user1-keypair.json"),
+    user2: loadFixedKeypair("user2-keypair.json"),
+  };
+}
 
 // Test context for protocol testing
 export interface TestContext {
@@ -269,8 +286,9 @@ export async function createTestUser(
 ): Promise<{ user: Keypair; collateralAccount: PublicKey }> {
   const user = Keypair.generate();
 
-  // Transfer minimal SOL for transaction fees and account creation (0.001 SOL)
-  const transferAmount = 1000000; // 0.001 SOL in lamports
+  // Transfer enough SOL for transaction fees and account rent (0.02 SOL = 20M lamports)
+  // Node account creation requires ~1.28M lamports rent-exempt minimum + transaction fees
+  const transferAmount = 20_000_000; // 0.02 SOL in lamports (was 0.001 SOL, increased for buffer)
   const transferTx = new anchor.web3.Transaction().add(
     anchor.web3.SystemProgram.transfer({
       fromPubkey: provider.wallet.publicKey,

@@ -14,7 +14,7 @@ import {
   transfer
 } from "@solana/spl-token";
 import { assert } from "chai";
-import * as fs from "fs";
+import { loadTestUsers } from "./protocol-test-utils";
 
 // Constants
 const PYTH_ORACLE_ADDRESS = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
@@ -144,12 +144,8 @@ describe("Aeroscraper Protocol Core Operations", () => {
   const admin = provider.wallet as anchor.Wallet;
   const adminKeypair = admin.payer;
 
-  const user1 = Keypair.fromSecretKey(
-    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/user1-keypair.json", "utf8")))
-  );
-  const user2 = Keypair.fromSecretKey(
-    new Uint8Array(JSON.parse(fs.readFileSync("/home/taha/Documents/Projects/Aeroscraper/aerospacer-solana/keys/user2-keypair.json", "utf8")))
-  );
+  // Load fixed test users (same keypairs used across all protocol tests)
+  const { user1, user2 } = loadTestUsers();
   const USER1 = user1.publicKey;
   const USER2 = user2.publicKey;
 

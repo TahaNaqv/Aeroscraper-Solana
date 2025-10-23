@@ -63,3 +63,31 @@ Fixed "Provided owner is not allowed" errors in test suite by adding existence c
 4. Calls `close_node` instruction to properly cleanup accounts
 
 **Important**: The `close-user-nodes-devnet.ts` script derives Node PDAs from hardcoded user public keys, but may not match actual devnet state if different keypairs were used in previous test runs. Always use `close-specific-nodes-devnet.ts` with actual failing PDA addresses from error logs for reliable cleanup.
+
+### Test Suite Improvements (October 23, 2025)
+
+**Identified Issues from 39 Failing Tests:**
+1. **BN Encoding Errors (3 failures)**: Tests passed incorrect parameter names to `queryLiquidatableTroves`, `liquidateTroves`, and `redeem` instructions
+2. **Insufficient SOL (10+ failures)**: `createTestUser` transferred only 0.001 SOL, but Node account rent requires ~1.28M lamports
+3. **Node PDA Collisions (2 failures)**: Different test files using different keypairs create Node accounts at different addresses
+4. **Hardcoded Paths**: `protocol-core.ts` used absolute paths for loading test user keypairs
+
+**Fixes Applied:**
+1. **Fixed parameter names** in `protocol-critical-instructions.ts`:
+   - `queryLiquidatableTroves`: Changed `{ maxTroves, denom }` → `{ liquidationThreshold, maxTroves }`
+   - `liquidateTroves`: Changed `{ troveAddresses, collateralDenom }` → `{ liquidationList, collateralDenom }`
+   - `redeem`: Changed `{ ausdAmount, collateralDenom }` → `{ amount, collateralDenom, prevNodeId, nextNodeId }`
+
+2. **Created `loadTestUsers()` utility** in `protocol-test-utils.ts`:
+   - Uses relative paths: `path.join(__dirname, "..", "keys", filename)`
+   - Provides consistent user1/user2 keypairs across all test files
+   - Updated `protocol-core.ts` to use this utility instead of hardcoded absolute paths
+
+3. **Increased SOL transfer** in `createTestUser`:
+   - Changed from 0.001 SOL (1M lamports) → 0.02 SOL (20M lamports)
+   - Ensures sufficient balance for Node account rent (~1.28M lamports) + transaction fees + buffer
+
+**Next Steps:**
+- Run full test suite to validate fixes
+- Address remaining CPI security and error coverage assertion mismatches
+- Ensure all 158 tests pass on devnet
