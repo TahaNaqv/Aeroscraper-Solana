@@ -3,7 +3,7 @@ import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, AccountInfo } from "@solana/web3.js";
 import { getAccount } from "@solana/spl-token";
 import { expect } from "chai";
 import {
@@ -15,6 +15,123 @@ import {
   MIN_LOAN_AMOUNT,
   TestContext,
 } from "./protocol-test-utils";
+
+// Add this function after the imports and before the describe block
+async function getExistingTrovesAccounts(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  sortedTrovesStatePDA: PublicKey
+): Promise<AccountInfo<Buffer>[]> {
+  try {
+    // Try to fetch the sorted troves state
+    const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
+
+    if (!sortedTrovesStateInfo) {
+      console.log("SortedTrovesState account doesn't exist yet");
+      return []; // Account doesn't exist yet
+    }
+
+    const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
+
+    if (sortedTrovesState.size.eq(new BN(0))) {
+      console.log("SortedTrovesState is empty (size = 0)");
+      return []; // No existing troves
+    }
+
+    console.log(`SortedTrovesState has ${sortedTrovesState.size} troves, head: ${sortedTrovesState.head?.toString()}`);
+
+    const maxTrovesToProcess = sortedTrovesState.size.toNumber();
+    console.log(`Processing all ${maxTrovesToProcess} troves for proper sorted troves validation`);
+
+    const remainingAccounts: AccountInfo<Buffer>[] = [];
+    let currentId = sortedTrovesState.head;
+    let processedCount = 0;
+
+    while (currentId && processedCount < maxTrovesToProcess) {
+      // Derive Node and LiquidityThreshold PDAs for current trove
+      const [nodePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+      const [liquidityThresholdPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), currentId.toBuffer()],
+        protocolProgram.programId
+      );
+
+      // Get account info
+      const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
+      const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
+
+      if (!nodeAccountInfo || !ltAccountInfo) {
+        console.log(`⚠️ Warning: Missing accounts for trove ${currentId.toString()}, stopping traversal`);
+        break;
+      }
+
+      try {
+        // CRITICAL: Validate account discriminators before using them
+        // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
+        // Try to decode the accounts to validate they have correct discriminators
+        try {
+          protocolProgram.coder.accounts.decode("node", nodeAccountInfo.data);
+          protocolProgram.coder.accounts.decode("liquidityThreshold", ltAccountInfo.data);
+        } catch (decodeError) {
+          console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
+          console.log(`Node account ${currentId.toString()} has invalid discriminator`);
+          console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
+          console.log(`\n⚠️ SOLUTION: Return current valid accounts without corrupted ones`);
+          console.log(`   Stopping traversal at corrupted node\n`);
+
+          // Break out - can't safely get nextId from corrupted account
+          break;
+        }
+
+        remainingAccounts.push({
+          pubkey: nodePDA,
+          isSigner: false,
+          isWritable: true,
+          data: nodeAccountInfo.data,
+          executable: nodeAccountInfo.executable,
+          lamports: nodeAccountInfo.lamports,
+          owner: nodeAccountInfo.owner,
+          rentEpoch: nodeAccountInfo.rentEpoch,
+        } as any);
+        remainingAccounts.push({
+          pubkey: liquidityThresholdPDA,
+          isSigner: false,
+          isWritable: true,
+          data: ltAccountInfo.data,
+          executable: ltAccountInfo.executable,
+          lamports: ltAccountInfo.lamports,
+          owner: ltAccountInfo.owner,
+          rentEpoch: ltAccountInfo.rentEpoch,
+        } as any);
+
+        // Get next node ID from the current node
+        const nodeData = nodeAccountInfo.data;
+        const node = protocolProgram.coder.accounts.decode("node", nodeData);
+
+        console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
+
+        currentId = node.nextId;
+        processedCount++;
+      } catch (decodeError) {
+        console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
+        console.log(`   Stopping traversal at corrupted node`);
+
+        // Break out - can't safely get nextId from node we failed to decode
+        break;
+      }
+    }
+
+    console.log(`✅ Fetched ${remainingAccounts.length / 2} valid trove accounts for traversal`);
+    return remainingAccounts;
+  } catch (error) {
+    // Re-throw any errors - do NOT silently return empty array
+    // Returning [] when size > 0 would just trigger InvalidList error in contract
+    console.log("Error fetching existing troves:", error);
+    throw error;
+  }
+}
 
 describe("Protocol Contract - Fees Integration Tests", () => {
   let ctx: TestContext;
@@ -66,12 +183,21 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       const loanAmount = new BN(MIN_LOAN_AMOUNT);
 
       console.log("  📝 Opening trove to test CPI fee distribution...");
+
+      // Get existing troves accounts for sorted troves traversal
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        ctx.provider,
+        ctx.protocolProgram,
+        ctx.sortedTrovesState
+      );
+
       await openTroveForUser(
         ctx,
         testUser,
         collateralAmount,
         loanAmount,
-        SOL_DENOM
+        SOL_DENOM,
+        existingTrovesAccounts
       );
 
       // Fetch updated fee state
@@ -110,12 +236,20 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("  Loan amount:", testLoanAmount.toString(), "aUSD");
       console.log("  Expected fee (5%):", testLoanAmount.muln(5).divn(100).toString(), "aUSD");
 
+      // Get existing troves accounts for sorted troves traversal
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        ctx.provider,
+        ctx.protocolProgram,
+        ctx.sortedTrovesState
+      );
+
       await openTroveForUser(
         ctx,
         testUser2,
         collateralAmount,
         testLoanAmount,
-        SOL_DENOM
+        SOL_DENOM,
+        existingTrovesAccounts
       );
 
       // Get updated fee state
@@ -141,13 +275,24 @@ describe("Protocol Contract - Fees Integration Tests", () => {
 
       // Ensure stability pool mode is ENABLED
       if (!currentFeeState.isStakeEnabled) {
+        console.log("  🔄 Setting stake contract address...");
+        await ctx.feesProgram.methods
+          .setStakeContractAddress({
+            address: ctx.admin.publicKey.toString()
+          })
+          .accounts({
+            admin: ctx.admin.publicKey,
+            state: ctx.feeState,
+          } as any)
+          .rpc();
+
         console.log("  🔄 Toggling stake contract to ENABLE stability pool mode...");
         await ctx.feesProgram.methods
           .toggleStakeContract()
           .accounts({
             admin: ctx.admin.publicKey,
             state: ctx.feeState,
-          })
+          } as any)
           .rpc();
       }
 
@@ -174,12 +319,20 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       const collateralAmount = new BN(2_000_000_000);
       const loanAmount = new BN(MIN_LOAN_AMOUNT);
 
+      // Get existing troves accounts for sorted troves traversal
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        ctx.provider,
+        ctx.protocolProgram,
+        ctx.sortedTrovesState
+      );
+
       await openTroveForUser(
         ctx,
         testUser3,
         collateralAmount,
         loanAmount,
-        SOL_DENOM
+        SOL_DENOM,
+        existingTrovesAccounts
       );
 
       // Get updated stability pool balance
@@ -207,7 +360,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
           .accounts({
             admin: ctx.admin.publicKey,
             state: ctx.feeState,
-          })
+          } as any)
           .rpc();
       }
 
@@ -231,7 +384,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
           .accounts({
             admin: ctx.admin.publicKey,
             state: ctx.feeState,
-          })
+          } as any)
           .rpc();
       }
 
@@ -263,12 +416,20 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       const collateralAmount = new BN(2_000_000_000);
       const loanAmount = new BN(MIN_LOAN_AMOUNT);
 
+      // Get existing troves accounts for sorted troves traversal
+      const existingTrovesAccounts = await getExistingTrovesAccounts(
+        ctx.provider,
+        ctx.protocolProgram,
+        ctx.sortedTrovesState
+      );
+
       await openTroveForUser(
         ctx,
         testUser4,
         collateralAmount,
         loanAmount,
-        SOL_DENOM
+        SOL_DENOM,
+        existingTrovesAccounts
       );
 
       // Get updated balances
@@ -316,7 +477,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
           .accounts({
             admin: ctx.admin.publicKey,
             state: ctx.feeState,
-          })
+          } as any)
           .rpc();
       }
 
