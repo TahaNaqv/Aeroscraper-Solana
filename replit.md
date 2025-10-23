@@ -6,6 +6,31 @@ The Aerospacer Protocol is a decentralized lending platform on Solana. Its core 
 ## User Preferences
 *This section will be updated as you work with the project*
 
+## Recent Changes (2025-01-23)
+
+### Protocol Fee Integration Tests Fixed
+Implemented comprehensive fee integration tests in `tests/protocol-fees-integration.ts` following code reuse principles:
+
+**Code Reuse Implementation:**
+- Migrated from duplicate setup code to using `setupTestEnvironment()` from `protocol-test-utils.ts`
+- Follows same pattern as `protocol-oracle-integration.ts` (established reference implementation)
+- Uses shared helper functions: `createTestUser()`, `openTroveForUser()`, `derivePDAs()`
+
+**Test Coverage (6 tests total):**
+1. **Test 8.1 - Fee Distribution via CPI**: Opens real trove, verifies fee CPI works, checks protocol state references correct fee program
+2. **Test 8.2 - Protocol Fee Calculation (5%)**: Opens trove with 1000 aUSD loan, verifies 5% fee calculation is correct
+3. **Test 8.3 - Stability Pool Mode Distribution**: Explicitly toggles to enable stability pool mode, verifies 100% of fees distributed to stability pool (strict validation with ±1 lamport tolerance), restores original mode
+4. **Test 8.4 - Treasury Mode Distribution**: Explicitly toggles to disable stability pool mode, verifies 100% of fees split 50/50 to treasury addresses (strict validation with ±1 lamport tolerance), restores original mode
+5. **Test 8.5 - Fee State Validation**: Architectural verification - validates fee_state_addr in protocol state prevents fake fee contract injection
+6. **Test 8.6 - Fee Account Owner Validation**: Architectural verification - validates payer token account ownership enforced at runtime
+
+**Key Implementation Details:**
+- **Deterministic Mode Testing**: Tests 8.3 and 8.4 explicitly toggle `isStakeEnabled` flag via `toggleStakeContract()` instruction to force specific distribution modes, then restore original state
+- **Strict 100% Validation**: Uses BigInt comparisons with ±1 lamport tolerance to verify exact fee amounts distributed (not just >= checks)
+- **BigInt-Safe Comparisons**: All token balance comparisons use BigInt throughout to avoid Number precision loss for large loan amounts
+- **50/50 Split Validation**: Treasury mode uses BigInt-safe 1% tolerance check for split verification
+- **Fee Account Architecture**: Confirmed stabilityPoolTokenAccount, feeAddress1TokenAccount, feeAddress2TokenAccount are ATAs (Associated Token Accounts), not PDAs
+
 ## System Architecture
 
 **Core Programs:**
