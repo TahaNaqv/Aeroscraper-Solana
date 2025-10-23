@@ -58,6 +58,10 @@ export interface TestContext {
   oracleState: PublicKey;
   feeState: PublicKey;
   sortedTrovesState: PublicKey;
+  // Fee-related token accounts (ATAs, not PDAs)
+  stabilityPoolTokenAccount: PublicKey;
+  feeAddress1TokenAccount: PublicKey;
+  feeAddress2TokenAccount: PublicKey;
 }
 
 // Helper to derive PDA addresses
@@ -284,6 +288,72 @@ export async function setupTestEnvironment(): Promise<TestContext> {
 
   const sortedTrovesState = derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState;
 
+  // Create fee-related token accounts (ATAs, not PDAs)
+  // Use the same fee addresses as protocol-core.ts
+  const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
+  const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
+  
+  const stabilityPoolTokenAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
+  const feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);
+  const feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2);
+
+  // Create the fee token accounts if they don't exist
+  try {
+    const stabilityPoolInfo = await provider.connection.getAccountInfo(stabilityPoolTokenAccount);
+    if (!stabilityPoolInfo) {
+      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, admin.publicKey);
+      console.log("✅ Created stability pool token account");
+    } else {
+      console.log("✅ Stability pool token account already exists");
+    }
+  } catch (error) {
+    console.log("Note: Could not check/create stability pool token account");
+  }
+
+  try {
+    const fee1Info = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
+    if (!fee1Info) {
+      // Transfer some SOL to fee address first
+      const transferTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: feeAddress1,
+          lamports: 1_000_000, // 0.001 SOL for account rent
+        })
+      );
+      await provider.sendAndConfirm(transferTx, [admin.payer]);
+      
+      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress1);
+      console.log("✅ Created feeAddress1 token account");
+    } else {
+      console.log("✅ FeeAddress1 token account already exists");
+    }
+  } catch (error) {
+    console.log("Note: Could not check/create feeAddress1 token account");
+  }
+
+  try {
+    const fee2Info = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
+    if (!fee2Info) {
+      // Transfer some SOL to fee address first
+      const transferTx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: admin.publicKey,
+          toPubkey: feeAddress2,
+          lamports: 1_000_000, // 0.001 SOL for account rent
+        })
+      );
+      await provider.sendAndConfirm(transferTx, [admin.payer]);
+      
+      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress2);
+      console.log("✅ Created feeAddress2 token account");
+    } else {
+      console.log("✅ FeeAddress2 token account already exists");
+    }
+  } catch (error) {
+    console.log("Note: Could not check/create feeAddress2 token account");
+  }
+
   return {
     provider,
     protocolProgram,
@@ -296,6 +366,9 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     oracleState: oracleStatePDA,
     feeState: feesStatePDA,
     sortedTrovesState,
+    stabilityPoolTokenAccount,
+    feeAddress1TokenAccount,
+    feeAddress2TokenAccount,
   };
 }
 
@@ -401,9 +474,9 @@ export async function openTroveForUser(
       clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       feesProgram: ctx.feesProgram.programId,
       feesState: ctx.feeState,
-      stabilityPoolTokenAccount: pdas.stabilityPoolTokenAccount,
-      feeAddress1TokenAccount: pdas.feeAddress1TokenAccount,
-      feeAddress2TokenAccount: pdas.feeAddress2TokenAccount,
+      stabilityPoolTokenAccount: ctx.stabilityPoolTokenAccount,
+      feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
+      feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
