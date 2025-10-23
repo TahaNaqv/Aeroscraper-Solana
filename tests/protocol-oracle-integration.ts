@@ -12,11 +12,9 @@ import {
   derivePDAs,
   SOL_DENOM,
   MIN_LOAN_AMOUNT,
+  SOL_PRICE_FEED,
   TestContext,
 } from "./protocol-test-utils";
-
-// Use the same Pyth oracle address as protocol-core.ts
-const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
 
 // Helper function to get existing troves accounts for sorted troves traversal
 async function getExistingTrovesAccounts(

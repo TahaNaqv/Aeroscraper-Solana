@@ -22,7 +22,8 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Constants
-export const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+export const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s"); // Oracle contract address
+export const SOL_PRICE_FEED = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"); // SOL/USD Pyth price feed on devnet
 export const SOL_DENOM = "SOL";
 export const SCALE_FACTOR = new BN("1000000000000000000"); // 10^18
 export const MIN_LOAN_AMOUNT = SCALE_FACTOR; // 1 aUSD
@@ -396,7 +397,7 @@ export async function openTroveForUser(
       stableCoinMint: ctx.stablecoinMint,
       oracleProgram: ctx.oracleProgram.programId,
       oracleState: ctx.oracleState,
-      pythPriceAccount: PYTH_ORACLE_ADDRESS,
+      pythPriceAccount: SOL_PRICE_FEED,
       clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       feesProgram: ctx.feesProgram.programId,
       feesState: ctx.feeState,
