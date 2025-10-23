@@ -133,73 +133,10 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
 
   before(async () => {
     console.log("\n🔮 Setting up Oracle Integration Tests...");
-
-    // Use the same approach as protocol-core.ts to get existing mints
-    const provider = anchor.AnchorProvider.env();
-    anchor.setProvider(provider);
-
-    const protocolProgram = anchor.workspace.AerospacerProtocol as Program<AerospacerProtocol>;
-    const oracleProgram = anchor.workspace.AerospacerOracle as Program<AerospacerOracle>;
-    const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
-
-    const admin = provider.wallet as anchor.Wallet;
-
-    // Get existing stablecoin mint from protocol state (same as protocol-core.ts)
-    const [protocolStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
-      protocolProgram.programId
-    );
-    const [oracleStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("state")],
-      oracleProgram.programId
-    );
-    const [feesStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("fee_state")],
-      feesProgram.programId
-    );
-
-    const existingState = await provider.connection.getAccountInfo(protocolStatePda);
-    if (!existingState) {
-      throw new Error("Protocol state not found - please run protocol-core.ts first");
-    }
-
-    const stateAccount = await protocolProgram.account.stateAccount.fetch(protocolStatePda);
-    const stablecoinMint = stateAccount.stableCoinAddr;
-    console.log("Using existing stablecoin mint:", stablecoinMint.toString());
-
-    // Get existing collateral mint from protocol vault (same as protocol-core.ts)
-    const [protocolCollateralVaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("protocol_collateral_vault"), Buffer.from(SOL_DENOM)],
-      protocolProgram.programId
-    );
-
-    const vaultAccountInfo = await provider.connection.getAccountInfo(protocolCollateralVaultPda);
-    if (!vaultAccountInfo) {
-      throw new Error("Protocol collateral vault not found - please run protocol-core.ts first");
-    }
-
-    const vaultAccount = await provider.connection.getParsedAccountInfo(protocolCollateralVaultPda);
-    if (!vaultAccount.value || !('parsed' in vaultAccount.value.data)) {
-      throw new Error("Failed to parse vault account data");
-    }
-
-    const collateralMint = new PublicKey(vaultAccount.value.data.parsed.info.mint);
-    console.log("Using existing collateral mint:", collateralMint.toString());
-
-    // Create test context with existing mints
-    ctx = {
-      provider,
-      protocolProgram,
-      oracleProgram,
-      feesProgram,
-      admin,
-      stablecoinMint,
-      collateralMint,
-      protocolState: protocolStatePda,
-      oracleState: oracleStatePda,
-      feeState: feesStatePda,
-      sortedTrovesState: derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState,
-    };
+    
+    // Use shared setupTestEnvironment() from protocol-test-utils.ts
+    // This ensures consistent setup across all test files and reduces code duplication
+    ctx = await setupTestEnvironment();
 
     const userSetup = await createTestUser(
       ctx.provider,

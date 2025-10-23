@@ -173,23 +173,48 @@ export async function setupTestEnvironment(): Promise<TestContext> {
 
   const admin = provider.wallet as anchor.Wallet;
 
-  // Create stablecoin mint
-  const stablecoinMint = await createMint(
-    provider.connection,
-    admin.payer,
-    admin.publicKey,
-    null,
-    18
+  // STEP 1: Derive state PDAs first (match protocol-core.ts lines 217-233)
+  const [protocolStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    protocolProgram.programId
+  );
+  const [oracleStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("state")],
+    oracleProgram.programId
+  );
+  const [feesStatePDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("fee_state")],
+    feesProgram.programId
   );
 
-  // Check if protocol_collateral_vault exists on devnet and extract mint if so
+  // STEP 2: Get existing stablecoin mint from state account (match protocol-core.ts lines 235-244)
+  let stablecoinMint: PublicKey;
+  const existingProtocolState = await provider.connection.getAccountInfo(protocolStatePDA);
+  if (existingProtocolState) {
+    const stateAccount = await protocolProgram.account.stateAccount.fetch(protocolStatePDA);
+    stablecoinMint = stateAccount.stableCoinAddr;
+    console.log("✅ Using existing stablecoin mint:", stablecoinMint.toString());
+  } else {
+    stablecoinMint = await createMint(
+      provider.connection,
+      admin.payer,
+      admin.publicKey,
+      null,
+      18
+    );
+    console.log("✅ Created new stablecoin mint:", stablecoinMint.toString());
+  }
+
+  // STEP 3: Check if protocol_collateral_vault exists on devnet and extract mint (match protocol-core.ts lines 246-268)
   let collateralMint: PublicKey;
   const [protocolCollateralVaultPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("protocol_collateral_vault"), Buffer.from(SOL_DENOM)],
     protocolProgram.programId
   );
 
-  try {
+  const vaultAccountInfo = await provider.connection.getAccountInfo(protocolCollateralVaultPda);
+  if (vaultAccountInfo) {
+    // Vault exists on devnet - fetch its mint address
     const vaultAccount = await provider.connection.getParsedAccountInfo(protocolCollateralVaultPda);
     if (vaultAccount.value && 'parsed' in vaultAccount.value.data) {
       collateralMint = new PublicKey(vaultAccount.value.data.parsed.info.mint);
@@ -197,7 +222,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     } else {
       throw new Error("Failed to parse vault account data");
     }
-  } catch (error) {
+  } else {
     // Vault doesn't exist - create a new mint (localnet scenario)
     collateralMint = await createMint(
       provider.connection,
@@ -209,41 +234,31 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     console.log("✅ Created new collateral mint for localnet:", collateralMint.toString());
   }
 
-  // Initialize oracle using PDA
-  const [oracleStatePDA] = PublicKey.findProgramAddressSync(
-    [Buffer.from("state")],
-    oracleProgram.programId
-  );
-
-  try {
-    const existingState = await oracleProgram.account.oracleStateAccount.fetch(oracleStatePDA);
-    console.log("✅ Oracle already initialized on devnet");
-  } catch (error) {
-    console.log("Initializing oracle...");
-    await oracleProgram.methods
-      .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
-      .accounts({
-        state: oracleStatePDA,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-      })
-      .signers([admin.payer])
-      .rpc();
-    console.log("✅ Oracle initialized");
+  // STEP 4: Initialize Oracle (match protocol-core.ts lines 516-539)
+  const existingOracleState = await provider.connection.getAccountInfo(oracleStatePDA);
+  if (existingOracleState) {
+    console.log("✅ Oracle already initialized");
+  } else {
+    try {
+      await oracleProgram.methods
+        .initialize({ oracleAddress: PYTH_ORACLE_ADDRESS })
+        .accounts({
+          state: oracleStatePDA,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Oracle initialized successfully");
+    } catch (e) {
+      console.log("Oracle initialization failed:", e);
+      throw e;
+    }
   }
 
-  // Initialize fees using PDA
-  const [feesStatePDA] = PublicKey.findProgramAddressSync(
-    [Buffer.from("fee_state")],
-    feesProgram.programId
-  );
-
+  // STEP 5: Initialize Fees (match protocol-core.ts lines 541-554)
   try {
-    const existingState = await feesProgram.account.feeStateAccount.fetch(feesStatePDA);
-    console.log("✅ Fees already initialized on devnet");
-  } catch (error) {
-    console.log("Initializing fees...");
     await feesProgram.methods
       .initialize()
       .accounts({
@@ -253,105 +268,87 @@ export async function setupTestEnvironment(): Promise<TestContext> {
       })
       .signers([admin.payer])
       .rpc();
-    console.log("✅ Fees initialized");
+    console.log("✅ Fees initialized successfully");
+  } catch (e) {
+    console.log("✅ Fees already initialized");
   }
 
-  // Initialize protocol using PDA
-  const [protocolStatePDA] = PublicKey.findProgramAddressSync(
-    [Buffer.from("state")],
-    protocolProgram.programId
-  );
-
-  try {
-    const existingState = await protocolProgram.account.stateAccount.fetch(protocolStatePDA);
-    console.log("✅ Protocol already initialized on devnet");
-  } catch (error) {
-    console.log("Initializing protocol...");
-    await protocolProgram.methods
-      .initialize({
-        stableCoinCodeId: new anchor.BN(1),
-        oracleHelperAddr: oracleProgram.programId,
-        oracleStateAddr: oracleStatePDA,
-        feeDistributorAddr: feesProgram.programId,
-        feeStateAddr: feesStatePDA,
-      })
-      .accounts({
-        state: protocolStatePDA,
-        admin: admin.publicKey,
-        stableCoinMint: stablecoinMint,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([admin.payer])
-      .rpc();
-    console.log("✅ Protocol initialized");
+  // STEP 6: Initialize Protocol (match protocol-core.ts lines 556-583)
+  if (existingProtocolState) {
+    console.log("✅ Protocol already initialized");
+  } else {
+    try {
+      await protocolProgram.methods
+        .initialize({
+          stableCoinCodeId: new anchor.BN(1),
+          oracleHelperAddr: oracleProgram.programId,
+          oracleStateAddr: oracleStatePDA,
+          feeDistributorAddr: feesProgram.programId,
+          feeStateAddr: feesStatePDA,
+        })
+        .accounts({
+          state: protocolStatePDA,
+          admin: admin.publicKey,
+          stableCoinMint: stablecoinMint,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin.payer])
+        .rpc();
+      console.log("✅ Protocol initialized successfully");
+    } catch (e) {
+      console.log("Protocol initialization failed:", e);
+      throw e;
+    }
   }
 
   const sortedTrovesState = derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState;
 
-  // Create fee-related token accounts (ATAs, not PDAs)
-  // Use the same fee addresses as protocol-core.ts
+  // STEP 7: Create fee-related token accounts (ATAs, not PDAs) - match protocol-core.ts lines 446-496
   const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
   const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
   
-  const stabilityPoolTokenAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
+  // Transfer SOL to fee addresses (0.1 SOL each, match protocol-core.ts line 456)
+  const feeTransferAmount = 100_000_000; // 0.1 SOL in lamports
+  
+  const fee1Tx = new anchor.web3.Transaction().add(
+    anchor.web3.SystemProgram.transfer({
+      fromPubkey: admin.publicKey,
+      toPubkey: feeAddress1,
+      lamports: feeTransferAmount,
+    })
+  );
+  await provider.sendAndConfirm(fee1Tx, [admin.payer]);
+  
+  const fee2Tx = new anchor.web3.Transaction().add(
+    anchor.web3.SystemProgram.transfer({
+      fromPubkey: admin.publicKey,
+      toPubkey: feeAddress2,
+      lamports: feeTransferAmount,
+    })
+  );
+  await provider.sendAndConfirm(fee2Tx, [admin.payer]);
+  
+  // Create token accounts for fee addresses
   const feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);
   const feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2);
+  const stabilityPoolTokenAccount = await getAssociatedTokenAddress(stablecoinMint, admin.publicKey);
 
-  // Create the fee token accounts if they don't exist
-  try {
-    const stabilityPoolInfo = await provider.connection.getAccountInfo(stabilityPoolTokenAccount);
-    if (!stabilityPoolInfo) {
-      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, admin.publicKey);
-      console.log("✅ Created stability pool token account");
-    } else {
-      console.log("✅ Stability pool token account already exists");
-    }
-  } catch (error) {
-    console.log("Note: Could not check/create stability pool token account");
+  // Check if token accounts already exist
+  const fee1TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
+  const fee2TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
+  
+  if (!fee1TokenAccountInfo) {
+    await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress1);
+    console.log("✅ Created feeAddress1 token account:", feeAddress1TokenAccount.toString());
+  } else {
+    console.log("✅ FeeAddress1 token account already exists:", feeAddress1TokenAccount.toString());
   }
-
-  try {
-    const fee1Info = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
-    if (!fee1Info) {
-      // Transfer some SOL to fee address first
-      const transferTx = new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: admin.publicKey,
-          toPubkey: feeAddress1,
-          lamports: 1_000_000, // 0.001 SOL for account rent
-        })
-      );
-      await provider.sendAndConfirm(transferTx, [admin.payer]);
-      
-      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress1);
-      console.log("✅ Created feeAddress1 token account");
-    } else {
-      console.log("✅ FeeAddress1 token account already exists");
-    }
-  } catch (error) {
-    console.log("Note: Could not check/create feeAddress1 token account");
-  }
-
-  try {
-    const fee2Info = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
-    if (!fee2Info) {
-      // Transfer some SOL to fee address first
-      const transferTx = new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: admin.publicKey,
-          toPubkey: feeAddress2,
-          lamports: 1_000_000, // 0.001 SOL for account rent
-        })
-      );
-      await provider.sendAndConfirm(transferTx, [admin.payer]);
-      
-      await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress2);
-      console.log("✅ Created feeAddress2 token account");
-    } else {
-      console.log("✅ FeeAddress2 token account already exists");
-    }
-  } catch (error) {
-    console.log("Note: Could not check/create feeAddress2 token account");
+  
+  if (!fee2TokenAccountInfo) {
+    await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress2);
+    console.log("✅ Created feeAddress2 token account:", feeAddress2TokenAccount.toString());
+  } else {
+    console.log("✅ FeeAddress2 token account already exists:", feeAddress2TokenAccount.toString());
   }
 
   return {
