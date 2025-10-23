@@ -123,7 +123,25 @@ Fixed "Provided owner is not allowed" errors in test suite by adding existence c
 
 This mirrors the logic in `protocol-core.ts` which already handled this correctly.
 
+**Additional Fix - Pyth Price Feed Address (October 23, 2025)**
+
+After fixing the mint mismatch, 3 more failures appeared:
+- Test 7.1: `PythPriceFeedLoadFailed` - Oracle couldn't load the Pyth price feed
+- Tests 7.2 & 7.3: Cascade failures (account doesn't exist)
+
+**Root Cause**: Tests were using `PYTH_ORACLE_ADDRESS` (oracle contract address) instead of `SOL_PRICE_FEED` (SOL/USD price feed address) for price queries.
+
+**Fix**:
+1. Added `SOL_PRICE_FEED = J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix` constant to `protocol-test-utils.ts`
+2. Updated `openTroveForUser()` to use `SOL_PRICE_FEED` for `pythPriceAccount` parameter
+3. Removed incorrect local `PYTH_ORACLE_ADDRESS` definition from `protocol-oracle-integration.ts`
+
+**Key Distinction**:
+- `PYTH_ORACLE_ADDRESS`: Oracle program initialization (general oracle address)
+- `SOL_PRICE_FEED`: SOL/USD price feed for actual price queries
+
 **Next Steps:**
 - User to run `protocol-oracle-integration.ts` tests on their local machine with configured Solana wallet
+- Tests 7.1, 7.2, 7.3, 7.8 should now pass (5 passing total)
 - Continue fixing other test files one at a time
 - Ensure all 158 tests pass on devnet
