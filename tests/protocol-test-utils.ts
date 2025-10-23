@@ -167,7 +167,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
 
   const admin = provider.wallet as anchor.Wallet;
 
-  // Create mints
+  // Create stablecoin mint
   const stablecoinMint = await createMint(
     provider.connection,
     admin.payer,
@@ -176,13 +176,32 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     18
   );
 
-  const collateralMint = await createMint(
-    provider.connection,
-    admin.payer,
-    admin.publicKey,
-    null,
-    9
+  // Check if protocol_collateral_vault exists on devnet and extract mint if so
+  let collateralMint: PublicKey;
+  const [protocolCollateralVaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("protocol_collateral_vault"), Buffer.from(SOL_DENOM)],
+    protocolProgram.programId
   );
+
+  try {
+    const vaultAccount = await provider.connection.getParsedAccountInfo(protocolCollateralVaultPda);
+    if (vaultAccount.value && 'parsed' in vaultAccount.value.data) {
+      collateralMint = new PublicKey(vaultAccount.value.data.parsed.info.mint);
+      console.log("✅ Using existing devnet collateral mint from vault:", collateralMint.toString());
+    } else {
+      throw new Error("Failed to parse vault account data");
+    }
+  } catch (error) {
+    // Vault doesn't exist - create a new mint (localnet scenario)
+    collateralMint = await createMint(
+      provider.connection,
+      admin.payer,
+      admin.publicKey,
+      null,
+      9
+    );
+    console.log("✅ Created new collateral mint for localnet:", collateralMint.toString());
+  }
 
   // Initialize oracle using PDA
   const [oracleStatePDA] = PublicKey.findProgramAddressSync(
