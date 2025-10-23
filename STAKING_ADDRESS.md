@@ -24,6 +24,7 @@ ticket thrive grocery sphere youth luggage found oxygen promote tiger hospital f
 ## Testing
 Use this address in tests to verify fee distribution to the stability pool functionality.
 
+
 taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ cd /home/taha/Documents/Projects/Aeroscraper/aerospacer-solana
 solana-keygen new --no-bip39-passphrase --outfile user1-keypair.json
 solana-keygen new --no-bip39-passphrase --outfile user2-keypair.json
@@ -42,5 +43,28 @@ pubkey: HdvpoRLcVAtNQgEeH62ypLycCuncGvWCn4DVA8Xgq8FY
 ============================================================================
 Save this seed phrase to recover your new keypair:
 opinion business torch pool system shock want clinic fat manage bicycle rose
+============================================================================
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 
+
+
+taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ cd keys/
+solana-keygen new --no-bip39-passphrase --outfile user1-keypair.json --force
+solana-keygen new --no-bip39-passphrase --outfile user2-keypair.json --force
+cd ..
+Generating a new keypair
+Wrote new keypair to user1-keypair.json
+=====================================================================================
+pubkey: GLThBB9YBHJgQMVj2wGpbLwKwEMfjr1ieVHaqgueYxUn
+=====================================================================================
+Save this seed phrase to recover your new keypair:
+oppose resource hockey athlete vendor balance clinic play elephant suspect law cruise
+=====================================================================================
+Generating a new keypair
+Wrote new keypair to user2-keypair.json
+============================================================================
+pubkey: H6jcCMEZJvBsyd16VizDF9E6aosUpzuTvjuhk1JWWavw
+============================================================================
+Save this seed phrase to recover your new keypair:
+bitter young grit ticket fork spice vintage reflect aunt anger unaware power
 ============================================================================
 taha@HP-Probook:~/Documents/Projects/Aeroscraper/aerospacer-solana$ 
