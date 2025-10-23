@@ -63,7 +63,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("  ✅ Protocol state references correct fee_state_addr:", protocolState.feeStateAddr.toString());
       
       // Fetch fee state to confirm it's initialized
-      const feeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const feeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       console.log("  ✅ Fee state initialized:");
       console.log("    - Total fees collected:", feeState.totalFeesCollected.toString());
       console.log("    - Stake enabled:", feeState.isStakeEnabled);
@@ -82,7 +82,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       );
       
       // Fetch updated fee state
-      const updatedFeeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const updatedFeeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       console.log("  ✅ Fee state after trove opening:");
       console.log("    - Total fees collected:", updatedFeeState.totalFeesCollected.toString());
       
@@ -99,7 +99,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("\n📋 Testing fee calculation...");
       
       // Get initial fee state
-      const initialFeeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const initialFeeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       const initialFeesCollected = initialFeeState.totalFeesCollected;
       
       // Create another test user
@@ -126,7 +126,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       );
       
       // Get updated fee state
-      const updatedFeeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const updatedFeeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       const feesCollectedDelta = updatedFeeState.totalFeesCollected.sub(initialFeesCollected);
       
       const expectedFee = testLoanAmount.muln(5).divn(100);
@@ -143,13 +143,13 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("\n📋 Testing stability pool mode...");
       
       // Get current fee state
-      const currentFeeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const currentFeeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       const wasStakeEnabled = currentFeeState.isStakeEnabled;
       
       // Ensure stability pool mode is ENABLED
       if (!currentFeeState.isStakeEnabled) {
         console.log("  🔄 Toggling stake contract to ENABLE stability pool mode...");
-        await feesProgram.methods
+        await ctx.feesProgram.methods
           .toggleStakeContract()
           .accounts({
             admin: ctx.admin.publicKey,
@@ -159,7 +159,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       }
       
       // Verify mode is now enabled
-      const feeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const feeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       expect(feeState.isStakeEnabled).to.be.true;
       console.log("  ✅ Stability pool mode is ENABLED");
       console.log("  100% of fees should go to stability pool");
@@ -209,7 +209,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       // Restore original mode if we changed it
       if (!wasStakeEnabled) {
         console.log("  🔄 Restoring original fee distribution mode...");
-        await feesProgram.methods
+        await ctx.feesProgram.methods
           .toggleStakeContract()
           .accounts({
             admin: ctx.admin.publicKey,
@@ -227,13 +227,13 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("\n📋 Testing treasury mode...");
       
       // Get current fee state
-      const currentFeeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const currentFeeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       const wasStakeEnabled = currentFeeState.isStakeEnabled;
       
       // Ensure treasury mode is ENABLED (stake disabled)
       if (currentFeeState.isStakeEnabled) {
         console.log("  🔄 Toggling stake contract to DISABLE (enable treasury mode)...");
-        await feesProgram.methods
+        await ctx.feesProgram.methods
           .toggleStakeContract()
           .accounts({
             admin: ctx.admin.publicKey,
@@ -243,7 +243,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       }
       
       // Verify mode is now disabled (treasury mode)
-      const feeState = await feesProgram.account.feeState.fetch(ctx.feeState);
+      const feeState = await ctx.feesProgram.account.feeState.fetch(ctx.feeState);
       expect(feeState.isStakeEnabled).to.be.false;
       console.log("  ✅ Treasury mode is ENABLED");
       console.log("  50% to fee_address_1, 50% to fee_address_2");
@@ -318,7 +318,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       // Restore original mode if we changed it
       if (wasStakeEnabled) {
         console.log("  🔄 Restoring original fee distribution mode...");
-        await feesProgram.methods
+        await ctx.feesProgram.methods
           .toggleStakeContract()
           .accounts({
             admin: ctx.admin.publicKey,
