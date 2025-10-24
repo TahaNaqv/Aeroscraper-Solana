@@ -6,9 +6,43 @@ The Aerospacer Protocol is a decentralized lending platform on Solana. Its core 
 ## User Preferences
 *This section will be updated as you work with the project*
 
-## Recent Changes (2025-01-23)
+## Recent Changes
 
-### Protocol Fee Integration Tests Fixed
+### Off-Chain Sorting Architecture (2025-01-24)
+
+**CRITICAL SCALABILITY FIX**: Resolved transaction size limit that prevented production deployment beyond 3-4 troves.
+
+**Problem Identified:**
+- On-chain linked list required ALL nodes in `remainingAccounts` for traversal
+- Transaction size: 3-4 troves = 1287 bytes > 1232 byte limit ❌
+- Protocol could not scale beyond handful of users
+
+**Solution Implemented:**
+- **Removed on-chain storage**: Deleted `Node` and `SortedTrovesState` structs (eliminated ~300 lines of state management)
+- **Simplified sorted_troves.rs**: Reduced from 668 lines → 217 lines (68% reduction)
+- **Off-chain sorting + on-chain validation**: Client fetches all troves via RPC, sorts by ICR, passes only 2-3 neighbor hints (~6-9 accounts = ~200 bytes)
+- **Contract validates ordering**: Checks `prev_icr <= trove_icr <= next_icr` without storing anything
+
+**Benefits:**
+- ✅ No transaction size limits (can handle 1000+ troves)
+- ✅ Reduced on-chain storage costs (no Node accounts)
+- ✅ Simpler contract logic (validation-only)
+- ✅ Flexible client-side sorting strategies
+
+**Architecture Changes:**
+- **Removed**: `insert_trove()`, `remove_trove()`, `reinsert_trove()`, `find_insert_position()` functions
+- **Kept**: `get_liquidatable_troves()` (simplified to accept pre-sorted list via remainingAccounts)
+- **New**: `validate_icr_ordering()` function for neighbor validation
+- **New**: `tests/trove-indexer.ts` - Client-side utility for fetching, sorting, and finding neighbors
+- **Updated**: All instructions (open_trove, close_trove, add_collateral, etc.) to remove linked list operations
+- **Removed**: Admin cleanup instructions (`reset_sorted_troves`, `close_node`) - no longer needed
+
+**Testing Impact:**
+- All tests updated to use off-chain sorting pattern
+- Helper functions added to `protocol-test-utils.ts`: `fetchAllTrovesSimple()`, `sortTrovesByICR()`, `findNeighborAccountsSimple()`
+
+### Protocol Fee Integration Tests Fixed (2025-01-23)
+
 Implemented comprehensive fee integration tests in `tests/protocol-fees-integration.ts` following code reuse principles:
 
 **Code Reuse Implementation:**
@@ -51,10 +85,9 @@ The design prioritizes transparent and auditable on-chain interactions, ensuring
 *   **Oracle Integration**: Uses Pyth Network for real-time price feeds for all collateral assets, with dynamic collateral discovery via CPI.
 *   **Cross-Program Communication (CPI)**: Utilizes CPI for secure and atomic interactions between sub-programs.
 *   **SPL Token Integration**: Full support for Solana Program Library (SPL) tokens for collateral and stablecoin operations.
-*   **Sorted Troves**: Implemented as a doubly-linked list for efficient CDP management, supporting ICR-based positioning and auto-discovery of liquidatable troves.
+*   **Sorted Troves (Off-Chain Architecture)**: Uses off-chain sorting with on-chain ICR validation. Client fetches all troves via RPC, sorts by ICR, and passes only neighbor hints for validation. No on-chain linked list storage, enabling unlimited scalability.
 *   **Individual Collateral Ratio (ICR)**: Real-time ICR calculations are implemented across the protocol, supporting multi-collateral types and ensuring solvency checks.
-*   **Redemption System**: Integrates with the sorted troves list, supporting both full and partial redemptions.
-*   **Admin State Recovery**: Includes instructions for recovering from corrupted sorted troves state on devnet and emergency cleanup of individual user Node accounts.
+*   **Redemption System**: Accepts pre-sorted trove lists from client, validates ICR ordering, supports both full and partial redemptions.
 
 **System Design Choices:**
 *   **Anchor Framework**: Used for Solana smart contract development.
