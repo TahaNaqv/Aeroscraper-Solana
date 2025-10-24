@@ -15,116 +15,76 @@ import {
   SOL_PRICE_FEED,
   TestContext,
 } from "./protocol-test-utils";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
-// Helper function to get existing troves accounts for sorted troves traversal
-async function getExistingTrovesAccounts(
+// Helper function to get neighbor hints for trove mutations using off-chain sorting
+async function getNeighborHints(
   provider: anchor.AnchorProvider,
   protocolProgram: Program<AerospacerProtocol>,
-  sortedTrovesStatePDA: PublicKey
-): Promise<any[]> {
-  try {
-    // Try to fetch the sorted troves state
-    const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
+  user: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string
+): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+  // Fetch and sort all existing troves
+  const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
 
-    if (!sortedTrovesStateInfo) {
-      console.log("SortedTrovesState account doesn't exist yet");
-      return []; // Account doesn't exist yet
-    }
+  // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+  // In production, this would fetch actual oracle price
+  // ICR = (collateral_value / debt) * 100
+  const estimatedSolPrice = 100n; // $100 per SOL
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
 
-    const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
+  // Create a temporary TroveData object for this trove
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), user.toBuffer()],
+    protocolProgram.programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+    protocolProgram.programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), user.toBuffer()],
+    protocolProgram.programId
+  );
 
-    if (sortedTrovesState.size.eq(new BN(0))) {
-      console.log("SortedTrovesState is empty (size = 0)");
-      return []; // No existing troves
-    }
+  const thisTrove: TroveData = {
+    owner: user,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
 
-    console.log(`SortedTrovesState has ${sortedTrovesState.size} troves, head: ${sortedTrovesState.head?.toString()}`);
+  // Insert this trove into sorted position to find neighbors
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
 
-    const remainingAccounts: any[] = [];
-    let currentId = sortedTrovesState.head;
-    let processedCount = 0;
-    const maxIterations = sortedTrovesState.size.toNumber(); // Prevent infinite loops
+  // Find neighbors
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
 
-    while (currentId && processedCount < maxIterations) {
-      // Derive Node and LiquidityThreshold PDAs for current trove
-      const [nodePDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("node"), currentId.toBuffer()],
-        protocolProgram.programId
-      );
-      const [liquidityThresholdPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("liquidity_threshold"), currentId.toBuffer()],
-        protocolProgram.programId
-      );
-
-      // Get account info
-      const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
-      const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
-
-      if (!nodeAccountInfo || !ltAccountInfo) {
-        console.log(`⚠️ Warning: Missing accounts for trove ${currentId.toString()}, stopping traversal`);
-        break;
-      }
-
-      try {
-        // CRITICAL: Validate account discriminators before using them
-        // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
-        try {
-          // Try to decode the accounts to validate they have correct discriminators
-          const nodeData = nodeAccountInfo.data;
-          const ltData = ltAccountInfo.data;
-
-          // Attempt to decode - this will fail if discriminator is wrong
-          const _node = protocolProgram.coder.accounts.decode("node", nodeData);
-          const _lt = protocolProgram.coder.accounts.decode("liquidityThreshold", ltData);
-        } catch (decodeError) {
-          console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
-          console.log(`Node account ${currentId.toString()} has invalid discriminator`);
-          console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
-          console.log(`\n⚠️ SOLUTION: Return current valid accounts without corrupted ones`);
-          console.log(`   Stopping traversal at corrupted node\n`);
-
-          // Break out - can't safely get nextId from corrupted account
-          break;
-        }
-
-        remainingAccounts.push({
-          ...nodeAccountInfo,
-          pubkey: nodePDA,
-          isSigner: false,
-          isWritable: true,
-        });
-        remainingAccounts.push({
-          ...ltAccountInfo,
-          pubkey: liquidityThresholdPDA,
-          isSigner: false,
-          isWritable: true,
-        });
-
-        // Get next node ID from the current node
-        const nodeData = nodeAccountInfo.data;
-        const node = protocolProgram.coder.accounts.decode("node", nodeData);
-
-        console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
-
-        currentId = node.nextId;
-        processedCount++;
-      } catch (decodeError) {
-        console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
-        console.log(`   Stopping traversal at corrupted node`);
-
-        // Break out - can't safely get nextId from node we failed to decode
-        break;
-      }
-    }
-
-    console.log(`✅ Fetched ${remainingAccounts.length / 2} valid trove accounts for traversal`);
-    return remainingAccounts;
-  } catch (error) {
-    // Re-throw any errors - do NOT silently return empty array
-    // Returning [] when size > 0 would just trigger InvalidList error in contract
-    console.log("Error fetching existing troves:", error);
-    throw error;
-  }
+  // Build remainingAccounts array
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  // Convert PublicKey[] to AccountMeta format
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
 }
 
 describe("Protocol Contract - Oracle Integration Tests", () => {
@@ -153,20 +113,26 @@ describe("Protocol Contract - Oracle Integration Tests", () => {
       console.log("📋 Testing oracle CPI price query...");
 
       // Oracle get_price is called internally by open_trove
-      // Get existing troves accounts for sorted troves traversal
-      const existingTrovesAccounts = await getExistingTrovesAccounts(
+      // Get neighbor hints using off-chain sorting
+      const collateralAmount = new BN(10_000_000_000); // 10 SOL collateral
+      const loanAmount = MIN_LOAN_AMOUNT;
+      
+      const neighborHints = await getNeighborHints(
         ctx.provider,
         ctx.protocolProgram,
-        ctx.sortedTrovesState
+        user.publicKey,
+        collateralAmount,
+        loanAmount,
+        SOL_DENOM
       );
 
       await openTroveForUser(
         ctx,
         user,
-        new BN(10_000_000_000), // 10 SOL collateral
-        MIN_LOAN_AMOUNT,
+        collateralAmount,
+        loanAmount,
         SOL_DENOM,
-        existingTrovesAccounts
+        neighborHints
       );
 
       const pdas = derivePDAs(SOL_DENOM, user.publicKey, ctx.protocolProgram.programId);

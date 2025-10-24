@@ -15,10 +15,80 @@ import {
   TestContext,
 } from "./protocol-test-utils";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+import type { AccountMeta } from '@solana/web3.js';
 
 describe("Protocol Contract - Security Tests", () => {
   let ctx: TestContext;
   const nonAdmin = Keypair.generate();
+
+  // Helper function to get neighbor hints for trove mutations
+  async function getNeighborHints(
+    user: PublicKey,
+    collateralAmount: BN,
+    loanAmount: BN,
+    denom: string
+  ): Promise<AccountMeta[]> {
+    // Fetch and sort all existing troves
+    const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, denom);
+    const sortedTroves = sortTrovesByICR(allTroves);
+
+    // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+    // In production, this would fetch actual oracle price
+    // ICR = (collateral_value / debt) * 100
+    const estimatedSolPrice = 100n; // $100 per SOL
+    const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+    const debtValue = BigInt(loanAmount.toString());
+    const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+    // Create a temporary TroveData object for this trove
+    const [userDebtAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_debt_amount"), user.toBuffer()],
+      ctx.protocolProgram.programId
+    );
+    const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+      ctx.protocolProgram.programId
+    );
+    const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidity_threshold"), user.toBuffer()],
+      ctx.protocolProgram.programId
+    );
+
+    const thisTrove: TroveData = {
+      owner: user,
+      debt: BigInt(loanAmount.toString()),
+      collateralAmount: BigInt(collateralAmount.toString()),
+      collateralDenom: denom,
+      icr: newICR,
+      debtAccount: userDebtAccount,
+      collateralAccount: userCollateralAccount,
+      liquidityThresholdAccount: liquidityThresholdAccount,
+    };
+
+    // Insert this trove into sorted position to find neighbors
+    let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+    if (insertIndex === -1) insertIndex = sortedTroves.length;
+    
+    const newSortedTroves = [
+      ...sortedTroves.slice(0, insertIndex),
+      thisTrove,
+      ...sortedTroves.slice(insertIndex),
+    ];
+
+    // Find neighbors
+    const neighbors = findNeighbors(thisTrove, newSortedTroves);
+
+    // Build remainingAccounts array
+    const neighborAccounts = buildNeighborAccounts(neighbors);
+    
+    // Convert PublicKey[] to AccountMeta format
+    return neighborAccounts.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: false,
+    }));
+  }
 
   before(async () => {
     console.log("\n🔒 Setting up Security Tests for devnet...");
@@ -54,7 +124,10 @@ describe("Protocol Contract - Security Tests", () => {
       console.log("📋 Testing non-admin rejection...");
 
       const fakeStateKeypair = Keypair.generate();
-      const sortedTrovesState = derivePDAs(SOL_DENOM, nonAdmin.publicKey, ctx.protocolProgram.programId).sortedTrovesState;
+      const [sortedTrovesState] = PublicKey.findProgramAddressSync(
+        [Buffer.from("sorted_troves_state")],
+        ctx.protocolProgram.programId
+      );
 
       try {
         await ctx.protocolProgram.methods
@@ -94,12 +167,27 @@ describe("Protocol Contract - Security Tests", () => {
       const pdas = derivePDAs(SOL_DENOM, userSetup.user.publicKey, ctx.protocolProgram.programId);
       const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, userSetup.user.publicKey);
 
+      // Derive node and sortedTrovesState PDAs (no longer in derivePDAs helper)
+      const [node] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), userSetup.user.publicKey.toBuffer()],
+        ctx.protocolProgram.programId
+      );
+      const [sortedTrovesState] = PublicKey.findProgramAddressSync(
+        [Buffer.from("sorted_troves_state")],
+        ctx.protocolProgram.programId
+      );
+
+      // Calculate neighbor hints for off-chain sorting
+      const collateralAmount = new BN(1_000_000_000); // 1 SOL
+      const loanAmount = new BN("2000000000000000000000"); // 2000 aUSD (way too high for 1 SOL)
+      const neighborHints = await getNeighborHints(userSetup.user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         // Try to open trove with ICR below MCR (115%)
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(1_000_000_000), // 1 SOL
-            loanAmount: new BN("2000000000000000000000"), // 2000 aUSD (way too high for 1 SOL)
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -108,8 +196,8 @@ describe("Protocol Contract - Security Tests", () => {
             userDebtAmount: pdas.userDebtAmount,
             userCollateralAmount: pdas.userCollateralAmount,
             liquidityThreshold: pdas.liquidityThreshold,
-            node: pdas.node,
-            sortedTrovesState: pdas.sortedTrovesState,
+            node,
+            sortedTrovesState,
             totalCollateralAmount: pdas.totalCollateralAmount,
             stableCoinMint: ctx.stablecoinMint,
             collateralMint: ctx.collateralMint,
@@ -126,6 +214,7 @@ describe("Protocol Contract - Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([userSetup.user])
           .rpc();
 
@@ -145,11 +234,26 @@ describe("Protocol Contract - Security Tests", () => {
       const pdas = derivePDAs(SOL_DENOM, userSetup.user.publicKey, ctx.protocolProgram.programId);
       const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, userSetup.user.publicKey);
 
+      // Derive node and sortedTrovesState PDAs (no longer in derivePDAs helper)
+      const [node] = PublicKey.findProgramAddressSync(
+        [Buffer.from("node"), userSetup.user.publicKey.toBuffer()],
+        ctx.protocolProgram.programId
+      );
+      const [sortedTrovesState] = PublicKey.findProgramAddressSync(
+        [Buffer.from("sorted_troves_state")],
+        ctx.protocolProgram.programId
+      );
+
+      // Calculate neighbor hints for off-chain sorting
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = new BN(100); // Below minimum!
+      const neighborHints = await getNeighborHints(userSetup.user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: new BN(100), // Below minimum!
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -158,8 +262,8 @@ describe("Protocol Contract - Security Tests", () => {
             userDebtAmount: pdas.userDebtAmount,
             userCollateralAmount: pdas.userCollateralAmount,
             liquidityThreshold: pdas.liquidityThreshold,
-            node: pdas.node,
-            sortedTrovesState: pdas.sortedTrovesState,
+            node,
+            sortedTrovesState,
             totalCollateralAmount: pdas.totalCollateralAmount,
             stableCoinMint: ctx.stablecoinMint,
             collateralMint: ctx.collateralMint,
@@ -176,6 +280,7 @@ describe("Protocol Contract - Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([userSetup.user])
           .rpc();
 
