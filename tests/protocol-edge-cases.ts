@@ -1,7 +1,68 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
+import { PublicKey } from "@solana/web3.js";
 import { assert } from "chai";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+
+async function getNeighborHints(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  user: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string
+): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+  const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
+
+  const estimatedSolPrice = 100n;
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), user.toBuffer()],
+    protocolProgram.programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+    protocolProgram.programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), user.toBuffer()],
+    protocolProgram.programId
+  );
+
+  const thisTrove: TroveData = {
+    owner: user,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
+
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
+
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+}
 
 describe("Protocol Contract - Edge Cases Tests", () => {
   const provider = anchor.AnchorProvider.env();

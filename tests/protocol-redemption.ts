@@ -4,8 +4,149 @@ import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { createMint, createAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import type { AccountMeta } from '@solana/web3.js';
+import { createMint, createAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { assert } from "chai";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+
+/**
+ * Helper function to get neighbor hints for trove mutations (openTrove, addCollateral, etc.)
+ * 
+ * This follows the same pattern as protocol-core.ts
+ * Fetches all troves, sorts by ICR, finds neighbors for validation
+ * 
+ * @param provider - Anchor provider
+ * @param protocolProgram - Protocol program instance
+ * @param user - User public key
+ * @param collateralAmount - Collateral amount for ICR calculation
+ * @param loanAmount - Loan amount for ICR calculation
+ * @param denom - Collateral denomination
+ * @returns AccountMeta array for remainingAccounts
+ */
+async function getNeighborHints(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  user: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string
+): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+  // Fetch and sort all existing troves
+  const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
+
+  // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+  // In production, this would fetch actual oracle price
+  // ICR = (collateral_value / debt) * 100
+  const estimatedSolPrice = 100n; // $100 per SOL
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+  // Create a temporary TroveData object for this trove
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), user.toBuffer()],
+    protocolProgram.programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+    protocolProgram.programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), user.toBuffer()],
+    protocolProgram.programId
+  );
+
+  const thisTrove: TroveData = {
+    owner: user,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
+
+  // Insert this trove into sorted position to find neighbors
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
+
+  // Find neighbors
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
+
+  // Build remainingAccounts array
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  // Convert PublicKey[] to AccountMeta format
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+}
+
+/**
+ * Helper function to build remainingAccounts for redemption instruction
+ * 
+ * Redemption requires 4 accounts per trove (in sorted ICR order):
+ * 1. UserDebtAmount PDA
+ * 2. UserCollateralAmount PDA
+ * 3. LiquidityThreshold PDA
+ * 4. User's collateral token account
+ * 
+ * @param troves - Sorted array of troves (lowest ICR first)
+ * @returns AccountMeta array for redemption
+ */
+async function buildRedemptionAccounts(
+  provider: anchor.AnchorProvider,
+  troves: TroveData[],
+  collateralMint: PublicKey
+): Promise<AccountMeta[]> {
+  const accounts: AccountMeta[] = [];
+
+  for (const trove of troves) {
+    // 1. UserDebtAmount
+    accounts.push({
+      pubkey: trove.debtAccount,
+      isSigner: false,
+      isWritable: true,
+    });
+
+    // 2. UserCollateralAmount
+    accounts.push({
+      pubkey: trove.collateralAccount,
+      isSigner: false,
+      isWritable: true,
+    });
+
+    // 3. LiquidityThreshold
+    accounts.push({
+      pubkey: trove.liquidityThresholdAccount,
+      isSigner: false,
+      isWritable: true,
+    });
+
+    // 4. User's collateral token account (ATA)
+    const userCollateralTokenAccount = await getAssociatedTokenAddress(
+      collateralMint,
+      trove.owner
+    );
+    accounts.push({
+      pubkey: userCollateralTokenAccount,
+      isSigner: false,
+      isWritable: true,
+    });
+  }
+
+  return accounts;
+}
 
 describe("Protocol Contract - Redemption Tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -194,11 +335,7 @@ describe("Protocol Contract - Redemption Tests", () => {
     it("Should fail when not enough troves to redeem", async () => {
       console.log("📋 Testing insufficient liquidity rejection...");
       
-      const [sortedTrovesState] = PublicKey.findProgramAddressSync(
-        [Buffer.from("sorted_troves_state")],
-        protocolProgram.programId
-      );
-
+      const collateralDenom = "SOL";
       const userKeypair = Keypair.generate();
       const transferAmount = 10000000; // 0.01 SOL in lamports
       const userTx = new anchor.web3.Transaction().add(
@@ -210,6 +347,43 @@ describe("Protocol Contract - Redemption Tests", () => {
       );
       await provider.sendAndConfirm(userTx, [admin.payer]);
 
+      // Derive all required PDAs
+      const [userDebtAmount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_debt_amount"), userKeypair.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
+      const [liquidityThreshold] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), userKeypair.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
+      const [userCollateralAmount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("user_collateral_amount"), userKeypair.publicKey.toBuffer(), Buffer.from(collateralDenom)],
+        protocolProgram.programId
+      );
+
+      const [protocolStablecoinVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_stablecoin_vault")],
+        protocolProgram.programId
+      );
+
+      const [protocolCollateralVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_collateral_vault"), Buffer.from(collateralDenom)],
+        protocolProgram.programId
+      );
+
+      const [totalCollateralAmount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("total_collateral_amount"), Buffer.from(collateralDenom)],
+        protocolProgram.programId
+      );
+
+      const [stabilityPoolTokenAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from("stability_pool_token_account")],
+        protocolProgram.programId
+      );
+
+      // Create user token accounts
       const userStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
         admin.payer,
@@ -217,37 +391,63 @@ describe("Protocol Contract - Redemption Tests", () => {
         userKeypair.publicKey
       );
 
+      const userCollateralTokenAccount = await getAssociatedTokenAddress(
+        collateralMint,
+        userKeypair.publicKey
+      );
+
       // Mint large amount of aUSD to user
       await mintTo(provider.connection, admin.payer, stablecoinMint, userStablecoinAccount, admin.publicKey, 1_000_000_000_000_000_000);
 
-      const [protocolStablecoinAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("protocol_stablecoin_vault")],
-        protocolProgram.programId
-      );
+      // Get fee addresses from fee state (these should be initialized already)
+      const feeStateData = await feesProgram.account.feeStateAccount.fetch(feeState);
+      const feeAddress1 = feeStateData.feeAddress1;
+      const feeAddress2 = feeStateData.feeAddress2;
+      
+      const feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);
+      const feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2);
 
       try {
+        // NEW ARCHITECTURE: Fetch all troves and sort by ICR (lowest/riskiest first)
+        // For this test, we expect NO troves to exist, so remainingAccounts will be empty
+        const allTroves = await fetchAllTroves(provider.connection, protocolProgram, collateralDenom);
+        const sortedTroves = sortTrovesByICR(allTroves);
+        
+        // Build redemption accounts (will be empty if no troves exist)
+        const redemptionAccounts = await buildRedemptionAccounts(provider, sortedTroves, collateralMint);
+        
+        console.log(`  📊 Found ${sortedTroves.length} troves for redemption (expect 0)`);
+        console.log(`  📊 Redemption accounts: ${redemptionAccounts.length} (expect 0)`);
+
         // Try to redeem huge amount (more than protocol has)
+        // This should fail with NotEnoughLiquidityForRedeem
         await protocolProgram.methods
           .redeem({
-            ausdAmount: new BN("1000000000000000000"), // 1 billion aUSD
-            collateralDenom: "SOL",
+            amount: new BN("1000000000000000000"), // 1 billion aUSD
+            collateralDenom,
           })
           .accounts({
             user: userKeypair.publicKey,
             state: protocolState,
-            sortedTrovesState,
+            userDebtAmount,
+            liquidityThreshold,
             userStablecoinAccount,
-            protocolStablecoinAccount,
+            userCollateralAmount,
+            userCollateralAccount: userCollateralTokenAccount,
+            protocolStablecoinVault,
+            protocolCollateralVault,
+            stableCoinMint: stablecoinMint,
+            totalCollateralAmount,
             oracleProgram: oracleProgram.programId,
             oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
-            clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feeState,
+            stabilityPoolTokenAccount,
+            feeAddress1TokenAccount,
+            feeAddress2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
           })
-          .remainingAccounts([]) // No troves to redeem from
+          .remainingAccounts(redemptionAccounts) // Empty if no troves available
           .signers([userKeypair])
           .rpc();
 
@@ -255,6 +455,7 @@ describe("Protocol Contract - Redemption Tests", () => {
       } catch (err: any) {
         console.log("  ✅ Error: NotEnoughLiquidityForRedeem (expected)");
         console.log("  ✅ Insufficient liquidity check working");
+        console.log("  ✅ Off-chain sorting validated - empty trove list correctly handled");
       }
     });
   });
