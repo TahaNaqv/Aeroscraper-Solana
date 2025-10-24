@@ -299,10 +299,10 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   // STEP 7: Create fee-related token accounts (ATAs, not PDAs) - match protocol-core.ts lines 446-496
   const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
   const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
-  
+
   // Transfer SOL to fee addresses (0.1 SOL each, match protocol-core.ts line 456)
   const feeTransferAmount = 100_000_000; // 0.1 SOL in lamports
-  
+
   const fee1Tx = new anchor.web3.Transaction().add(
     anchor.web3.SystemProgram.transfer({
       fromPubkey: admin.publicKey,
@@ -311,7 +311,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     })
   );
   await provider.sendAndConfirm(fee1Tx, [admin.payer]);
-  
+
   const fee2Tx = new anchor.web3.Transaction().add(
     anchor.web3.SystemProgram.transfer({
       fromPubkey: admin.publicKey,
@@ -320,7 +320,7 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     })
   );
   await provider.sendAndConfirm(fee2Tx, [admin.payer]);
-  
+
   // Create token accounts for fee addresses
   const feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);
   const feeAddress2TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress2);
@@ -329,14 +329,14 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   // Check if token accounts already exist
   const fee1TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress1TokenAccount);
   const fee2TokenAccountInfo = await provider.connection.getAccountInfo(feeAddress2TokenAccount);
-  
+
   if (!fee1TokenAccountInfo) {
     await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress1);
     console.log("✅ Created feeAddress1 token account:", feeAddress1TokenAccount.toString());
   } else {
     console.log("✅ FeeAddress1 token account already exists:", feeAddress1TokenAccount.toString());
   }
-  
+
   if (!fee2TokenAccountInfo) {
     await createAssociatedTokenAccount(provider.connection, admin.payer, stablecoinMint, feeAddress2);
     console.log("✅ Created feeAddress2 token account:", feeAddress2TokenAccount.toString());
@@ -646,7 +646,7 @@ export function findNeighborAccountsSimple(
   sortedTroves: SimpleTroveData[]
 ): PublicKey[] {
   const index = sortedTroves.findIndex(t => t.owner.equals(troveOwner));
-  
+
   if (index === -1) {
     // Trove not in list yet (new trove) - return empty (contract will handle)
     return [];

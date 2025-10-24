@@ -14,7 +14,7 @@ import {
   MIN_LOAN_AMOUNT,
   SOL_PRICE_FEED,
   TestContext,
-} from "./protocol-test-utils";
+} from "./test-utils";
 import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 // Helper function to get neighbor hints for trove mutations using off-chain sorting

@@ -10,7 +10,7 @@ import {
   SOL_DENOM,
   MIN_LOAN_AMOUNT,
   TestContext,
-} from "./protocol-test-utils";
+} from "./test-utils";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 

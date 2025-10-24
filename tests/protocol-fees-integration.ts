@@ -14,7 +14,7 @@ import {
   SOL_DENOM,
   MIN_LOAN_AMOUNT,
   TestContext,
-} from "./protocol-test-utils";
+} from "./test-utils";
 
 // Add this function after the imports and before the describe block
 async function getExistingTrovesAccounts(

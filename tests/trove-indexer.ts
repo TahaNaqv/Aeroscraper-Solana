@@ -23,7 +23,7 @@ export interface TroveData {
   collateralAmount: bigint;
   collateralDenom: string;
   icr: bigint; // Individual Collateralization Ratio
-  
+
   // Account addresses for passing to contract
   debtAccount: PublicKey;
   collateralAccount: PublicKey;
@@ -142,11 +142,11 @@ export function sortTrovesByICR(troves: TroveData[]): TroveData[] {
     // Sort by ICR ascending (lowest/riskiest first)
     if (a.icr < b.icr) return -1;
     if (a.icr > b.icr) return 1;
-    
+
     // Tie-breaker: sort by debt descending (larger debt first)
     if (a.debt > b.debt) return -1;
     if (a.debt < b.debt) return 1;
-    
+
     return 0;
   });
 }

@@ -14,7 +14,7 @@ import {
   transfer
 } from "@solana/spl-token";
 import { assert } from "chai";
-import { loadTestUsers } from "./protocol-test-utils";
+import { loadTestUsers } from "./test-utils";
 import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 // Constants

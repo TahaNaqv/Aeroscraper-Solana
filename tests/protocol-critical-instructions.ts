@@ -18,7 +18,7 @@ import {
   PYTH_ORACLE_ADDRESS,
   SCALE_FACTOR,
   TestContext,
-} from "./protocol-test-utils";
+} from "./test-utils";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, getAccount } from "@solana/spl-token";
 
 describe("Protocol Contract - Critical Instructions (Full Functional Tests)", () => {

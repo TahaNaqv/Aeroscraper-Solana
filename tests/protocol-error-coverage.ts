@@ -12,7 +12,7 @@ import {
   MIN_LOAN_AMOUNT,
   PYTH_ORACLE_ADDRESS,
   TestContext,
-} from "./protocol-test-utils";
+} from "./test-utils";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 import type { AccountMeta } from '@solana/web3.js';
