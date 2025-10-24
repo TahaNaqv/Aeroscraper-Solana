@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Mint, Transfer, Burn};
 use crate::state::*;
 use crate::error::*;
-use crate::sorted_troves;
 
 /// Account management utilities for the protocol
 /// This module provides clean, type-safe account loading and management
