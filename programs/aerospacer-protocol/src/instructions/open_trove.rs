@@ -268,6 +268,53 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
         Ok::<_, Error>(result)
     }?;
     
+    // CRITICAL: Validate ICR ordering if neighbor hints provided
+    // Production clients MUST provide neighbor hints via remainingAccounts for proper sorted list maintenance
+    // Pattern: [prev_LiquidityThreshold, next_LiquidityThreshold] or [prev_LT] or [next_LT] or []
+    // Optional for backward compatibility with tests, but REQUIRED in production
+    if !ctx.remaining_accounts.is_empty() {
+        use crate::sorted_troves;
+        
+        msg!("Validating ICR ordering with {} neighbor account(s)", ctx.remaining_accounts.len());
+        
+        let prev_icr = if ctx.remaining_accounts.len() >= 1 {
+            // First account is previous neighbor's LiquidityThreshold
+            let prev_lt = &ctx.remaining_accounts[0];
+            let prev_data = prev_lt.try_borrow_data()?;
+            let prev_threshold = LiquidityThreshold::try_deserialize(&mut &prev_data[..])?;
+            let prev_owner = prev_threshold.owner;
+            let prev_ratio = prev_threshold.ratio;
+            drop(prev_data);
+            
+            msg!("Previous neighbor: owner={}, ICR={}", prev_owner, prev_ratio);
+            Some(prev_ratio)
+        } else {
+            None
+        };
+        
+        let next_icr = if ctx.remaining_accounts.len() >= 2 {
+            // Second account is next neighbor's LiquidityThreshold
+            let next_lt = &ctx.remaining_accounts[1];
+            let next_data = next_lt.try_borrow_data()?;
+            let next_threshold = LiquidityThreshold::try_deserialize(&mut &next_data[..])?;
+            let next_owner = next_threshold.owner;
+            let next_ratio = next_threshold.ratio;
+            drop(next_data);
+            
+            msg!("Next neighbor: owner={}, ICR={}", next_owner, next_ratio);
+            Some(next_ratio)
+        } else {
+            None
+        };
+        
+        // Validate ordering BEFORE updating state
+        sorted_troves::validate_icr_ordering(result.new_icr, prev_icr, next_icr)?;
+        msg!("✓ ICR ordering validated successfully");
+    } else {
+        msg!("⚠ WARNING: No neighbor hints provided - skipping ICR ordering validation");
+        msg!("⚠ Production clients MUST provide neighbor hints for sorted list integrity");
+    }
+    
     // Update the actual accounts with the results
     ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
@@ -283,10 +330,6 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
             .checked_add(params.collateral_amount)
             .ok_or(AerospacerProtocolError::OverflowError)?;
     }
-    
-    // NOTE: Sorted troves management moved off-chain
-    // Client can optionally validate ICR ordering via remainingAccounts
-    // containing neighbor LiquidityThreshold accounts for validation
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)
     // Use invoke_signed for PDA authority
