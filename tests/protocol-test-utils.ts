@@ -57,7 +57,7 @@ export interface TestContext {
   protocolState: PublicKey;
   oracleState: PublicKey;
   feeState: PublicKey;
-  sortedTrovesState: PublicKey;
+  // REMOVED: sortedTrovesState (obsolete with off-chain sorting)
   // Fee-related token accounts (ATAs, not PDAs)
   stabilityPoolTokenAccount: PublicKey;
   feeAddress1TokenAccount: PublicKey;
@@ -96,15 +96,9 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
     programId
   );
 
-  const [node] = PublicKey.findProgramAddressSync(
-    [Buffer.from("node"), user.toBuffer()],
-    programId
-  );
-
-  const [sortedTrovesState] = PublicKey.findProgramAddressSync(
-    [Buffer.from("sorted_troves_state")],
-    programId
-  );
+  // REMOVED: node and sortedTrovesState PDAs (obsolete with off-chain sorting)
+  // const [node] = PublicKey.findProgramAddressSync([Buffer.from("node"), user.toBuffer()], programId);
+  // const [sortedTrovesState] = PublicKey.findProgramAddressSync([Buffer.from("sorted_troves_state")], programId);
 
   const [userStakeAmount] = PublicKey.findProgramAddressSync(
     [Buffer.from("user_stake_amount"), user.toBuffer()],
@@ -148,8 +142,7 @@ export function derivePDAs(collateralDenom: string, user: PublicKey, programId: 
     userDebtAmount,
     userCollateralAmount,
     liquidityThreshold,
-    node,
-    sortedTrovesState,
+    // REMOVED: node, sortedTrovesState (obsolete with off-chain sorting)
     userStakeAmount,
     stabilityPoolSnapshot,
     userCollateralSnapshot,
@@ -459,8 +452,7 @@ export async function openTroveForUser(
       collateralMint: ctx.collateralMint,
       protocolCollateralAccount: pdas.protocolCollateralAccount,
       totalCollateralAmount: pdas.totalCollateralAmount,
-      sortedTrovesState: pdas.sortedTrovesState,
-      node: pdas.node,
+      // REMOVED: sortedTrovesState, node (obsolete with off-chain sorting)
       state: ctx.protocolState,
       userStablecoinAccount,
       protocolStablecoinAccount: pdas.protocolStablecoinAccount,
@@ -592,4 +584,85 @@ export async function createRedeemableTrove(
   collateralDenom: string
 ): Promise<void> {
   await openTroveForUser(ctx, user, collateralAmount, loanAmount, collateralDenom);
+}
+
+/**
+ * OFF-CHAIN SORTING HELPERS (NEW ARCHITECTURE)
+ * 
+ * These functions implement the off-chain sorting pattern that eliminates
+ * the transaction size limit problem (was 1287 bytes > 1232 limit at 3-4 troves).
+ * 
+ * Pattern:
+ * 1. Fetch all troves via RPC (no limits)
+ * 2. Sort by ICR off-chain  
+ * 3. Pass only 2-3 neighbors in remainingAccounts (~200 bytes)
+ * 4. Contract validates ordering without storing
+ */
+
+export interface SimpleTroveData {
+  owner: PublicKey;
+  icr: number;
+  liquidityThresholdAccount: PublicKey;
+}
+
+/**
+ * Fetch all active troves and their ICRs
+ * 
+ * NOTE: This is a simplified version for tests. Production should use trove-indexer.ts
+ */
+export async function fetchAllTrovesSimple(
+  ctx: TestContext
+): Promise<SimpleTroveData[]> {
+  const troves: SimpleTroveData[] = [];
+
+  // Fetch all LiquidityThreshold accounts (one per active trove)
+  const thresholdAccounts = await ctx.protocolProgram.account.liquidityThreshold.all();
+
+  for (const account of thresholdAccounts) {
+    troves.push({
+      owner: account.account.owner,
+      icr: account.account.ratio,
+      liquidityThresholdAccount: account.publicKey,
+    });
+  }
+
+  return troves;
+}
+
+/**
+ * Sort troves by ICR (ascending: riskiest first)
+ */
+export function sortTrovesByICR(troves: SimpleTroveData[]): SimpleTroveData[] {
+  return [...troves].sort((a, b) => a.icr - b.icr);
+}
+
+/**
+ * Find neighbor accounts for a specific trove (for ICR validation)
+ * 
+ * Returns empty array if no neighbors needed (e.g., first/only trove)
+ */
+export function findNeighborAccountsSimple(
+  troveOwner: PublicKey,
+  sortedTroves: SimpleTroveData[]
+): PublicKey[] {
+  const index = sortedTroves.findIndex(t => t.owner.equals(troveOwner));
+  
+  if (index === -1) {
+    // Trove not in list yet (new trove) - return empty (contract will handle)
+    return [];
+  }
+
+  const neighbors: PublicKey[] = [];
+
+  // Add previous neighbor's LiquidityThreshold if exists
+  if (index > 0) {
+    neighbors.push(sortedTroves[index - 1].liquidityThresholdAccount);
+  }
+
+  // Add next neighbor's LiquidityThreshold if exists
+  if (index < sortedTroves.length - 1) {
+    neighbors.push(sortedTroves[index + 1].liquidityThresholdAccount);
+  }
+
+  return neighbors;
 }
