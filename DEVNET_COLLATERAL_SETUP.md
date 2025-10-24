@@ -238,53 +238,35 @@ anchor build
 anchor deploy --provider.cluster devnet
 ```
 
-### Step 2: Run the Cleanup Script
+### ~~Step 2: Run the Cleanup Script~~ (OBSOLETE)
 
-This will close the corrupted SortedTrovesState account:
-
-```bash
-ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
-ANCHOR_WALLET=~/.config/solana/id.json \
-npx ts-node scripts/close-sorted-troves-devnet.ts
-```
-
-**What this does:**
-- Calls the `reset_sorted_troves` instruction
-- Closes the corrupted SortedTrovesState account (lamports refunded to admin)
-- Next `openTrove` call will automatically reinitialize fresh state
-
-**Requirements:**
-- You must be the protocol authority (admin wallet)
-- Program must be redeployed with the reset instruction
-
-### Step 3: Run Your Tests
-
-After cleanup, the sorted troves state is fresh and ready:
+~~This will close the corrupted SortedTrovesState account:~~
 
 ```bash
-ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
-ANCHOR_WALLET=~/.config/solana/id.json \
-npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/protocol-core.ts'
+# OBSOLETE - Script no longer exists
+# npx ts-node scripts/close-sorted-troves-devnet.ts
 ```
 
-The first `openTrove` in your tests will create a clean SortedTrovesState, and all subsequent troves will be inserted correctly.
+~~**What this does:**~~
+- ~~Calls the `reset_sorted_troves` instruction~~
+- ~~Closes the corrupted SortedTrovesState account (lamports refunded to admin)~~
+- ~~Next `openTrove` call will automatically reinitialize fresh state~~
 
-### Verification
+### ~~Step 3: Run Your Tests~~ (OBSOLETE)
 
-After running the cleanup script, you can verify the account is closed:
+~~After cleanup, the sorted troves state is fresh and ready~~
 
-```bash
-solana account <SortedTrovesState_PDA> --url devnet
-```
+~~The first `openTrove` in your tests will create a clean SortedTrovesState, and all subsequent troves will be inserted correctly.~~
 
-You should see either "Account not found" or a fresh account after running tests.
+### ~~Verification~~ (OBSOLETE)
+
+~~After running the cleanup script, you can verify the account is closed~~
 
 ## Summary
 
 The key takeaways for devnet testing:
 
 1. **Collateral mints are immutable** - Always fetch from existing vault, never create new
-2. **Sorted troves need traversal accounts** - Must provide existing troves via `.remainingAccounts()`
+2. **Off-chain sorting architecture** - Client fetches and sorts troves, passing only neighbor hints for validation
 3. **Token balances required** - Users need sufficient collateral tokens before testing
 4. **Mint authority detection** - Check carefully if you control the mint before attempting to mint tokens
-5. **State corruption recovery** - Use `scripts/close-sorted-troves-devnet.ts` to fix corrupted sorted troves
