@@ -57,13 +57,6 @@ pub struct LiquidateTroves<'info> {
     )]
     pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
 
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
-
     // Oracle context - integration with our aerospacer-oracle
     /// CHECK: Our oracle program - validated against state
     #[account(
@@ -133,14 +126,8 @@ pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> 
         protocol_stablecoin_vault: ctx.accounts.protocol_stablecoin_vault.clone(),
         protocol_collateral_vault: ctx.accounts.protocol_collateral_vault.clone(),
         total_collateral_amount: ctx.accounts.total_collateral_amount.clone(),
-        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
         token_program: ctx.accounts.token_program.clone(),
         system_program: ctx.accounts.system_program.clone(),
-    };
-
-    let sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: ctx.accounts.sorted_troves_state.clone(),
-        state: ctx.accounts.state.clone(),
     };
     
     let oracle_ctx = OracleContext {
@@ -161,8 +148,8 @@ pub fn handler(ctx: Context<LiquidateTroves>, params: LiquidateTrovesParams) -> 
     // Update the actual accounts with the results
     ctx.accounts.state.total_debt_amount = liquidation_ctx.state.total_debt_amount;
     ctx.accounts.state.total_stake_amount = liquidation_ctx.state.total_stake_amount;
-    ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
-
+    
+    // NOTE: Sorted troves management moved off-chain
     msg!("Troves liquidated successfully");
     msg!("Liquidator: {}", ctx.accounts.liquidator.key());
     msg!("Collateral denom: {}", params.collateral_denom);

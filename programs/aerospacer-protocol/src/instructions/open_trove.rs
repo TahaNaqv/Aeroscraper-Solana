@@ -8,7 +8,6 @@ use crate::trove_management::TroveManager;
 use crate::state::{MINIMUM_LOAN_AMOUNT, MINIMUM_COLLATERAL_AMOUNT};
 use crate::fees_integration::*;
 use crate::utils::*;
-use crate::sorted_troves;
 
 // Oracle integration is now handled via our aerospacer-oracle contract
 
@@ -82,26 +81,6 @@ pub struct OpenTrove<'info> {
         bump
     )]
     pub total_collateral_amount: Box<Account<'info, TotalCollateralAmount>>,
-    
-    // Sorted troves context accounts - Box<> to reduce stack usage
-    #[account(
-        init_if_needed,
-        payer = user,
-        space = 8 + SortedTrovesState::LEN,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
-    
-    // Node account for sorted troves linked list
-    #[account(
-        init,
-        payer = user,
-        space = 8 + Node::LEN,
-        seeds = [b"node", user.key().as_ref()],
-        bump
-    )]
-    pub node: Box<Account<'info, Node>>,
     
     // State account - Box<> to reduce stack usage
     #[account(mut)]
@@ -305,15 +284,9 @@ pub fn handler(ctx: Context<OpenTrove>, params: OpenTroveParams) -> Result<()> {
             .ok_or(AerospacerProtocolError::OverflowError)?;
     }
     
-    // Insert trove into sorted list using the Node account from context
-    // Pass remaining_accounts to update neighbor nodes (old_tail.next_id)
-    sorted_troves::insert_trove(
-        &mut *ctx.accounts.sorted_troves_state,
-        &mut *ctx.accounts.node,
-        ctx.accounts.user.key(),
-        result.new_icr,
-        ctx.remaining_accounts,
-    )?;
+    // NOTE: Sorted troves management moved off-chain
+    // Client can optionally validate ICR ordering via remainingAccounts
+    // containing neighbor LiquidityThreshold accounts for validation
     
     // Mint full loan amount to user first (user requested full amount, will pay fee from it)
     // Use invoke_signed for PDA authority

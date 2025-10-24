@@ -270,13 +270,9 @@ pub fn check_minimum_icr(icr: u64, minimum_collateral_ratio: u8) -> Result<()> {
     Ok(())
 }
 
-pub fn get_first_trove(storage: &Account<SortedTrovesState>) -> Option<Pubkey> {
-    storage.head
-}
-
-pub fn get_last_trove(storage: &Account<SortedTrovesState>) -> Option<Pubkey> {
-    storage.tail
-}
+// NOTE: Obsolete sorted list functions removed - using off-chain sorting architecture
+// - get_first_trove: No longer needed (no sorted list state)
+// - get_last_trove: No longer needed (no sorted list state)
 
 /// Calculate compounded stake using Liquity Product-Sum algorithm
 /// 

@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use crate::state::*;
 use crate::error::*;
 use crate::sorted_troves::get_liquidatable_troves;
 
@@ -12,13 +11,9 @@ pub struct QueryLiquidatableTrovesParams {
 
 /// Query context - read-only, no mutations
 #[derive(Accounts)]
-pub struct QueryLiquidatableTroves<'info> {
-    /// Sorted troves state (read-only)
-    #[account(
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+pub struct QueryLiquidatableTroves {
+    // NOTE: Sorted troves state removed - off-chain sorting architecture
+    // Client provides pre-sorted trove list via remainingAccounts
 }
 
 /// Handler for query_liquidatable_troves instruction
@@ -51,9 +46,8 @@ pub fn handler(ctx: Context<QueryLiquidatableTroves>, params: QueryLiquidatableT
     msg!("Querying liquidatable troves with threshold: {}%", params.liquidation_threshold);
     msg!("Max troves to return: {}", params.max_troves);
     
-    // Walk sorted list from head to find liquidatable troves
+    // Validate pre-sorted list provided by client via remainingAccounts
     let mut liquidatable = get_liquidatable_troves(
-        &ctx.accounts.sorted_troves_state,
         params.liquidation_threshold,
         ctx.remaining_accounts,
     )?;

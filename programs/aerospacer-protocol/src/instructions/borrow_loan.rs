@@ -58,21 +58,6 @@ pub struct BorrowLoan<'info> {
     )]
     pub protocol_stablecoin_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
-
-    // Node account for sorted troves linked list (for reinsertion with new ICR)
-    #[account(
-        mut,
-        seeds = [b"node", user.key().as_ref()],
-        bump
-    )]
-    pub node: Box<Account<'info, Node>>,
-
     // Collateral context accounts
     #[account(
         mut,
@@ -201,11 +186,6 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
         token_program: ctx.accounts.token_program.clone(),
     };
     
-    let sorted_ctx = SortedTrovesContext {
-        sorted_troves_state: (*ctx.accounts.sorted_troves_state).clone(),
-        state: (*ctx.accounts.state).clone(),
-    };
-    
     let oracle_ctx = OracleContext {
         oracle_program: ctx.accounts.oracle_program.clone(),
         oracle_state: ctx.accounts.oracle_state.clone(),
@@ -229,26 +209,10 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
     ctx.accounts.user_debt_amount.amount = result.new_debt_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.state.total_debt_amount = trove_ctx.state.total_debt_amount;
-    *ctx.accounts.sorted_troves_state = sorted_ctx.sorted_troves_state;
     
-    // Reinsert trove in sorted list based on new ICR (debt increases = lower ICR = riskier)
-    // Note: Caller must pass remaining_accounts for reinsert operation
-    if !ctx.remaining_accounts.is_empty() {
-        use crate::sorted_troves::reinsert_trove;
-        
-        reinsert_trove(
-            &mut ctx.accounts.sorted_troves_state,
-            &mut ctx.accounts.node,
-            ctx.accounts.user.key(),
-            result.new_icr,
-            ctx.remaining_accounts,
-        )?;
-        
-        msg!("Trove repositioned after borrowing");
-    } else {
-        msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
-    }
-
+    // NOTE: Sorted troves management moved off-chain
+    // Client can optionally validate ICR ordering via remainingAccounts
+    
     // Mint total loan amount (including fee)
     // Use invoke_signed for PDA authority
     let mint_seeds = &[

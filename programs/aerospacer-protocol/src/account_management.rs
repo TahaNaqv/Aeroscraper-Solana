@@ -65,19 +65,7 @@ pub struct CollateralContext<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Context for managing sorted troves operations
-#[derive(Accounts)]
-pub struct SortedTrovesContext<'info> {
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
-    
-    #[account(mut)]
-    pub state: Account<'info, StateAccount>,
-}
+// NOTE: SortedTrovesContext removed - using off-chain sorting architecture
 
 /// Context for managing liquidation operations
 #[derive(Accounts)]
@@ -115,12 +103,7 @@ pub struct LiquidationContext<'info> {
     )]
     pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
     
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
+    // NOTE: sorted_troves_state removed - using off-chain sorting
     
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -222,18 +205,7 @@ impl<'info> CollateralContext<'info> {
     }
 }
 
-/// Sorted troves management
-impl<'info> SortedTrovesContext<'info> {
-    /// Get the first (riskiest) trove
-    pub fn get_first_trove(&self) -> Option<Pubkey> {
-        sorted_troves::get_first_trove(&self.sorted_troves_state)
-    }
-    
-    /// Get the last (safest) trove
-    pub fn get_last_trove(&self) -> Option<Pubkey> {
-        sorted_troves::get_last_trove(&self.sorted_troves_state)
-    }
-}
+// NOTE: SortedTrovesContext implementation removed - using off-chain sorting architecture
 
 /// Liquidation management
 impl<'info> LiquidationContext<'info> {
@@ -308,26 +280,5 @@ impl<'info> LiquidationContext<'info> {
     }
 }
 
-// Mock SortedTrovesManager to replace the deleted sorted_troves module
-pub struct SortedTrovesManager;
-
-impl SortedTrovesManager {
-    pub fn reinsert_trove(
-        _storage: &mut Account<SortedTrovesState>,
-        _user: Pubkey,
-        _icr: u64,
-    ) -> Result<()> {
-        // Mock implementation - just log
-        msg!("Trove reinserted: user={}, icr={}", _user, _icr);
-        Ok(())
-    }
-    
-    pub fn remove_trove(
-        _storage: &mut Account<SortedTrovesState>,
-        _user: Pubkey,
-    ) -> Result<()> {
-        // Mock implementation - just log
-        msg!("Trove removed: user={}", _user);
-        Ok(())
-    }
-}
+// NOTE: SortedTrovesManager removed - using off-chain sorting architecture
+// All sorted list management logic has been moved to the client side

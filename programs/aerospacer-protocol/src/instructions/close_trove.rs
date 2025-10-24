@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer, Burn};
 use crate::state::*;
 use crate::error::*;
-use crate::sorted_troves;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct CloseTroveParams {
@@ -81,22 +80,6 @@ pub struct CloseTrove<'info> {
         bump
     )]
     pub total_collateral_amount: AccountInfo<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Box<Account<'info, SortedTrovesState>>,
-
-    // Node account for sorted troves linked list
-    #[account(
-        mut,
-        close = user,
-        seeds = [b"node", user.key().as_ref()],
-        bump
-    )]
-    pub node: Box<Account<'info, Node>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -183,17 +166,11 @@ pub fn handler(ctx: Context<CloseTrove>, params: CloseTroveParams) -> Result<()>
     ctx.accounts.user_debt_amount.amount = 0;
     ctx.accounts.user_collateral_amount.amount = 0;
     
-    // STEP 5: Remove from sorted troves list
-    sorted_troves::remove_trove(
-        &mut ctx.accounts.sorted_troves_state,
-        ctx.accounts.user.key(),
-        ctx.remaining_accounts,
-    )?;
-    
-    // STEP 6: Node and LiquidityThreshold accounts are automatically closed via Anchor's `close` constraint
+    // NOTE: Sorted troves management moved off-chain
+    // LiquidityThreshold account is automatically closed via Anchor's `close` constraint
     // This ensures proper lamport refund and account cleanup
     
-    msg!("Trove closed successfully - All accounts cleaned up and removed from sorted list");
+    msg!("Trove closed successfully - All accounts cleaned up");
     msg!("Final state:");
     msg!("  Debt repaid: {} aUSD", debt_amount);
     msg!("  Collateral returned: {} {}", collateral_amount, params.collateral_denom);

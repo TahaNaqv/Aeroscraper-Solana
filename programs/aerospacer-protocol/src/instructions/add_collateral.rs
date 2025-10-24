@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint, Transfer};
+use anchor_spl::token::{Token, TokenAccount, Mint};
 use crate::state::*;
 use crate::error::*;
 use crate::trove_management::*;
@@ -72,21 +72,6 @@ pub struct AddCollateral<'info> {
         bump
     )]
     pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
-
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
-
-    // Node account for sorted troves linked list (for reinsertion with new ICR)
-    #[account(
-        mut,
-        seeds = [b"node", user.key().as_ref()],
-        bump
-    )]
-    pub node: Account<'info, Node>,
 
     // Oracle context - UncheckedAccount to reduce stack usage
     /// CHECK: Our oracle program - validated against state in handler
@@ -183,25 +168,9 @@ pub fn handler(ctx: Context<AddCollateral>, params: AddCollateralParams) -> Resu
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     
-    // Reinsert trove in sorted list based on new ICR (collateral increases = higher ICR = safer)
-    // Note: Caller must pass remaining_accounts for reinsert operation
-    // Pattern: [user_lt, old_neighbors?, traversal_pairs...]
-    if !ctx.remaining_accounts.is_empty() {
-        use crate::sorted_troves::reinsert_trove;
-        
-        reinsert_trove(
-            &mut ctx.accounts.sorted_troves_state,
-            &mut ctx.accounts.node,
-            ctx.accounts.user.key(),
-            result.new_icr,
-            ctx.remaining_accounts,
-        )?;
-        
-        msg!("Trove repositioned after collateral addition");
-    } else {
-        msg!("Warning: No remaining_accounts provided, skipping trove reinsert");
-    }
-
+    // NOTE: Sorted troves management moved off-chain
+    // Client can optionally validate ICR ordering via remainingAccounts
+    
     msg!("Collateral added successfully");
     msg!("Added: {} {}", params.amount, params.collateral_denom);
     msg!("New collateral amount: {}", result.new_collateral_amount);

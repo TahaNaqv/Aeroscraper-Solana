@@ -102,13 +102,7 @@ pub mod aerospacer_protocol {
         instructions::redeem::handler(ctx, params)
     }
 
-    // ADMIN: Reset corrupted sorted troves state (emergency recovery)
-    pub fn reset_sorted_troves(ctx: Context<ResetSortedTroves>) -> Result<()> {
-        instructions::reset_sorted_troves::handler(ctx)
-    }
-
-    // ADMIN: Close corrupted Node account (emergency recovery)
-    pub fn close_node(ctx: Context<CloseNode>, user_pubkey: Pubkey) -> Result<()> {
-        instructions::close_node::handler(ctx, user_pubkey)
-    }
+    // NOTE: ADMIN functions removed - obsolete with off-chain sorting architecture
+    // - reset_sorted_troves: No longer needed (no sorted list state to reset)
+    // - close_node: No longer needed (no Node accounts to close)
 }

@@ -5,7 +5,6 @@ use crate::error::*;
 use crate::trove_management::*;
 use crate::account_management::*;
 use crate::oracle::*;
-use crate::sorted_troves;
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct RepayLoanParams {
@@ -80,21 +79,6 @@ pub struct RepayLoan<'info> {
         bump
     )]
     pub total_collateral_amount: Account<'info, TotalCollateralAmount>,
-
-    #[account(
-        mut,
-        seeds = [b"sorted_troves_state"],
-        bump
-    )]
-    pub sorted_troves_state: Account<'info, SortedTrovesState>,
-
-    // Node account for sorted troves linked list (manually closed if full repayment)
-    #[account(
-        mut,
-        seeds = [b"node", user.key().as_ref()],
-        bump
-    )]
-    pub node: Account<'info, Node>,
 
     // Oracle context - UncheckedAccount to reduce stack usage
     /// CHECK: Our oracle program - validated against state in handler
@@ -199,31 +183,10 @@ pub fn handler(ctx: Context<RepayLoan>, params: RepayLoanParams) -> Result<()> {
     ctx.accounts.liquidity_threshold.ratio = result.new_icr;
     ctx.accounts.user_collateral_amount.amount = result.new_collateral_amount;
 
-    // If debt is fully repaid, close the node account and remove from sorted list
+    // NOTE: Sorted troves management moved off-chain
+    // If debt is fully repaid, trove is automatically removed from off-chain sorted list
     if result.new_debt_amount == 0 {
-        // Remove from sorted troves using remaining_accounts for neighbor nodes
-        sorted_troves::remove_trove(
-            &mut *ctx.accounts.sorted_troves_state,
-            ctx.accounts.user.key(),
-            ctx.remaining_accounts,
-        )?;
-        
-        // Close the node account manually by zeroing data and transferring lamports
-        let node_account_info = ctx.accounts.node.to_account_info();
-        let user_account_info = ctx.accounts.user.to_account_info();
-        
-        // Transfer lamports to user (close account)
-        let dest_starting_lamports = user_account_info.lamports();
-        **user_account_info.lamports.borrow_mut() = dest_starting_lamports
-            .checked_add(node_account_info.lamports())
-            .unwrap();
-        **node_account_info.lamports.borrow_mut() = 0;
-        
-        // Zero out account data
-        let mut data = node_account_info.try_borrow_mut_data()?;
-        data.fill(0);
-        
-        msg!("Trove fully repaid - Node account closed and removed from sorted list");
+        msg!("Trove fully repaid - ready for off-chain list cleanup");
     }
 
     // Burn stablecoin
