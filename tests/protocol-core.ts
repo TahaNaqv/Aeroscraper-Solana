@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
@@ -15,121 +15,79 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { loadTestUsers } from "./protocol-test-utils";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 // Constants
 const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
 
-// Add this function after the imports and before the describe block
-async function getExistingTrovesAccounts(
+// Helper function to get neighbor hints for trove mutations
+async function getNeighborHints(
   provider: anchor.AnchorProvider,
   protocolProgram: Program<AerospacerProtocol>,
-  sortedTrovesStatePDA: PublicKey
-): Promise<AccountInfo[]> {
-  try {
-    // Try to fetch the sorted troves state
-    const sortedTrovesStateInfo = await provider.connection.getAccountInfo(sortedTrovesStatePDA);
+  user: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string
+): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+  // Fetch and sort all existing troves
+  const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
 
-    if (!sortedTrovesStateInfo) {
-      console.log("SortedTrovesState account doesn't exist yet");
-      return []; // Account doesn't exist yet
-    }
+  // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+  // In production, this would fetch actual oracle price
+  // ICR = (collateral_value / debt) * 100
+  const estimatedSolPrice = 100n; // $100 per SOL
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
 
-    const sortedTrovesState = await protocolProgram.account.sortedTrovesState.fetch(sortedTrovesStatePDA);
+  // Create a temporary TroveData object for this trove
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), user.toBuffer()],
+    protocolProgram.programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+    protocolProgram.programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), user.toBuffer()],
+    protocolProgram.programId
+  );
 
-    if (sortedTrovesState.size === 0) {
-      console.log("SortedTrovesState is empty (size = 0)");
-      return []; // No existing troves
-    }
+  const thisTrove: TroveData = {
+    owner: user,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
 
-    console.log(`SortedTrovesState has ${sortedTrovesState.size} troves, head: ${sortedTrovesState.head?.toString()}`);
+  // Insert this trove into sorted position to find neighbors
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
 
-    const remainingAccounts: AccountInfo[] = [];
-    let currentId = sortedTrovesState.head;
-    let processedCount = 0;
-    const maxIterations = sortedTrovesState.size; // Prevent infinite loops
+  // Find neighbors
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
 
-    while (currentId && processedCount < maxIterations) {
-      // Derive Node and LiquidityThreshold PDAs for current trove
-      const [nodePDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("node"), currentId.toBuffer()],
-        protocolProgram.programId
-      );
-      const [liquidityThresholdPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("liquidity_threshold"), currentId.toBuffer()],
-        protocolProgram.programId
-      );
-
-      // Get account info
-      const nodeAccountInfo = await provider.connection.getAccountInfo(nodePDA);
-      const ltAccountInfo = await provider.connection.getAccountInfo(liquidityThresholdPDA);
-
-      if (!nodeAccountInfo || !ltAccountInfo) {
-        console.log(`⚠️ Warning: Missing accounts for trove ${currentId.toString()}, stopping traversal`);
-        break;
-      }
-
-      try {
-        // CRITICAL: Validate account discriminators before using them
-        // This prevents AccountDiscriminatorMismatch errors from corrupted devnet state
-        const nodeDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("node");
-        const ltDiscriminator = protocolProgram.coder.accounts.accountDiscriminator("liquidityThreshold");
-
-        // Check if account has the correct discriminator (first 8 bytes)
-        const nodeAccountDiscriminator = nodeAccountInfo.data.slice(0, 8);
-        const ltAccountDiscriminator = ltAccountInfo.data.slice(0, 8);
-
-        const nodeMatches = nodeDiscriminator.every((byte, i) => byte === nodeAccountDiscriminator[i]);
-        const ltMatches = ltDiscriminator.every((byte, i) => byte === ltAccountDiscriminator[i]);
-
-        if (!nodeMatches || !ltMatches) {
-          console.log(`\n❌ CORRUPTED DEVNET STATE DETECTED ❌`);
-          console.log(`Node account ${currentId.toString()} has invalid discriminator`);
-          console.log(`SortedTrovesState.size=${sortedTrovesState.size} but accounts are corrupted`);
-          console.log(`\n⚠️ SOLUTION: Return current valid accounts without corrupted ones`);
-          console.log(`   Stopping traversal at corrupted node\n`);
-
-          // Break out - can't safely get nextId from corrupted account
-          break;
-        }
-
-        remainingAccounts.push({
-          pubkey: nodePDA,
-          isSigner: false,
-          isWritable: true,
-          ...nodeAccountInfo
-        });
-        remainingAccounts.push({
-          pubkey: liquidityThresholdPDA,
-          isSigner: false,
-          isWritable: true,
-          ...ltAccountInfo
-        });
-
-        // Get next node ID from the current node
-        const nodeData = nodeAccountInfo.data;
-        const node = protocolProgram.coder.accounts.decode("node", nodeData);
-
-        console.log(`✓ Processed trove ${currentId.toString()}, next: ${node.nextId?.toString() || 'null'}`);
-
-        currentId = node.nextId;
-        processedCount++;
-      } catch (decodeError) {
-        console.log(`⚠️ Error decoding node ${currentId.toString()}:`, decodeError);
-        console.log(`   Stopping traversal at corrupted node`);
-
-        // Break out - can't safely get nextId from node we failed to decode
-        break;
-      }
-    }
-
-    console.log(`✅ Fetched ${remainingAccounts.length / 2} valid trove accounts for traversal`);
-    return remainingAccounts;
-  } catch (error) {
-    // Re-throw any errors - do NOT silently return empty array
-    // Returning [] when size > 0 would just trigger InvalidList error in contract
-    console.log("Error fetching existing troves:", error);
-    throw error;
-  }
+  // Build remainingAccounts array
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  // Convert PublicKey[] to AccountMeta format
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
 }
 
 describe("Aeroscraper Protocol Core Operations", () => {
@@ -596,11 +554,14 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const loanAmount = "1100000000000000"; // 0.0011 aUSD with 18 decimals (above minimum after 5% fee)
       const collateralDenom = "SOL"; // Use SOL for price feed
 
-      // Get existing troves accounts
-      const existingTrovesAccounts = await getExistingTrovesAccounts(
+      // Get neighbor hints for off-chain sorted trove insertion
+      const neighborHints = await getNeighborHints(
         provider,
         protocolProgram,
-        sortedTrovesStatePDA
+        user1.publicKey,
+        new BN(collateralAmount),
+        new BN(loanAmount),
+        collateralDenom
       );
 
       try {
@@ -609,7 +570,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log("- oracleState:", oracleState.toString());
         console.log("- feesProgram:", feesProgram.programId.toString());
         console.log("- feesState:", feesState.toString());
-        console.log("- Existing troves accounts:", existingTrovesAccounts.length);
+        console.log("- Neighbor hints:", neighborHints.length);
 
         await protocolProgram.methods
           .openTrove({
@@ -644,7 +605,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .remainingAccounts(existingTrovesAccounts)
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -696,6 +657,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
         console.log(`  User1 raw balance: ${actualBalance} units`);
         console.log(`  Required amount: ${requiredAmount} units`);
 
+        // Fetch current trove state to calculate new ICR
+        const currentDebt = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
+        const currentCollateral = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
+        const newTotalCollateral = currentCollateral.amount.add(new BN(additionalCollateral));
+
+        // Get neighbor hints for new ICR position
+        const neighborHints = await getNeighborHints(
+          provider,
+          protocolProgram,
+          user1.publicKey,
+          newTotalCollateral,
+          currentDebt.amount,
+          "SOL"
+        );
+
         await protocolProgram.methods
           .addCollateral({
             amount: new anchor.BN(additionalCollateral),
@@ -721,6 +697,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -735,6 +712,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const additionalLoan = "2000000000000000"; // 0.002 aUSD with 18 decimals (meets minimum)
 
       try {
+        // Fetch current trove state to calculate new ICR
+        const currentDebt = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
+        const currentCollateral = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
+        const newTotalDebt = currentDebt.amount.add(new BN(additionalLoan));
+
+        // Get neighbor hints for new ICR position
+        const neighborHints = await getNeighborHints(
+          provider,
+          protocolProgram,
+          user1.publicKey,
+          currentCollateral.amount,
+          newTotalDebt,
+          "SOL"
+        );
+
         await protocolProgram.methods
           .borrowLoan({
             loanAmount: new anchor.BN(additionalLoan),
@@ -769,6 +761,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -816,11 +809,14 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const loanAmount = "2000000000000000"; // 0.002 aUSD with 18 decimals (above minimum after fee)
       const collateralDenom = "SOL";
 
-      // Get existing troves accounts (including the one we just created)
-      const existingTrovesAccounts = await getExistingTrovesAccounts(
+      // Get neighbor hints for off-chain sorted trove insertion
+      const neighborHints = await getNeighborHints(
         provider,
         protocolProgram,
-        sortedTrovesStatePDA
+        user2.publicKey,
+        new BN(collateralAmount),
+        new BN(loanAmount),
+        collateralDenom
       );
 
       // Derive user2 PDAs
@@ -875,7 +871,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
-          .remainingAccounts(existingTrovesAccounts) // Add this line
+          .remainingAccounts(neighborHints)
           .signers([user2])
           .rpc();
 
@@ -890,6 +886,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const repayAmount = 2000000; // 2 stablecoins
 
       try {
+        // Fetch current trove state to calculate new ICR
+        const currentDebt = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
+        const currentCollateral = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
+        const newTotalDebt = currentDebt.amount.sub(new BN(repayAmount));
+
+        // Get neighbor hints for new ICR position
+        const neighborHints = await getNeighborHints(
+          provider,
+          protocolProgram,
+          user1.publicKey,
+          currentCollateral.amount,
+          newTotalDebt,
+          "SOL"
+        );
+
         await protocolProgram.methods
           .repayLoan({
             amount: new anchor.BN(repayAmount),
@@ -924,6 +935,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -938,6 +950,21 @@ describe("Aeroscraper Protocol Core Operations", () => {
       const removeAmount = 3000000; // 3 tokens
 
       try {
+        // Fetch current trove state to calculate new ICR
+        const currentDebt = await protocolProgram.account.userDebtAmount.fetch(user1DebtAmountPDA);
+        const currentCollateral = await protocolProgram.account.userCollateralAmount.fetch(user1CollateralAmountPDA);
+        const newTotalCollateral = currentCollateral.amount.sub(new BN(removeAmount));
+
+        // Get neighbor hints for new ICR position
+        const neighborHints = await getNeighborHints(
+          provider,
+          protocolProgram,
+          user1.publicKey,
+          newTotalCollateral,
+          currentDebt.amount,
+          "SOL"
+        );
+
         await protocolProgram.methods
           .removeCollateral({
             collateralAmount: new anchor.BN(removeAmount),
@@ -963,6 +990,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 

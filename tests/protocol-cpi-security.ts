@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, AccountMeta } from "@solana/web3.js";
 import { expect } from "chai";
 import {
   setupTestEnvironment,
@@ -12,6 +12,7 @@ import {
   TestContext,
 } from "./protocol-test-utils";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 describe("Protocol Contract - CPI Security Tests", () => {
   let ctx: TestContext;
@@ -33,6 +34,52 @@ describe("Protocol Contract - CPI Security Tests", () => {
     console.log("✅ Setup complete");
   });
 
+  async function getNeighborHints(
+    userPubkey: PublicKey,
+    collateralAmount: BN,
+    loanAmount: BN,
+    denom: string
+  ): Promise<AccountMeta[]> {
+    const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, denom);
+    const sortedTroves = sortTrovesByICR(allTroves);
+
+    const estimatedSolPrice = 100n;
+    const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+    const debtValue = BigInt(loanAmount.toString());
+    const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+    const pdas = derivePDAs(denom, userPubkey, ctx.protocolProgram.programId);
+
+    const thisTrove: TroveData = {
+      owner: userPubkey,
+      debt: BigInt(loanAmount.toString()),
+      collateralAmount: BigInt(collateralAmount.toString()),
+      collateralDenom: denom,
+      icr: newICR,
+      debtAccount: pdas.userDebtAmount,
+      collateralAccount: pdas.userCollateralAmount,
+      liquidityThresholdAccount: pdas.liquidityThreshold,
+    };
+
+    let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+    if (insertIndex === -1) insertIndex = sortedTroves.length;
+    
+    const newSortedTroves = [
+      ...sortedTroves.slice(0, insertIndex),
+      thisTrove,
+      ...sortedTroves.slice(insertIndex),
+    ];
+
+    const neighbors = findNeighbors(thisTrove, newSortedTroves);
+    const neighborAccounts = buildNeighborAccounts(neighbors);
+    
+    return neighborAccounts.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: false,
+    }));
+  }
+
   describe("Test 9.1: Reject Fake Oracle Program", () => {
     it("Should reject fake oracle program in CPI calls", async () => {
       console.log("📋 Testing fake oracle program rejection...");
@@ -45,11 +92,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000), // 5 SOL
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount, // 5 SOL
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -76,6 +127,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -103,11 +155,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -134,6 +190,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -161,11 +218,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -192,6 +253,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -219,11 +281,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -250,6 +316,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -277,11 +344,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -308,6 +379,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -339,11 +411,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -370,6 +446,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
@@ -396,11 +473,15 @@ describe("Protocol Contract - CPI Security Tests", () => {
         user.publicKey
       );
 
+      const collateralAmount = new BN(5_000_000_000);
+      const loanAmount = MIN_LOAN_AMOUNT;
+      const neighborHints = await getNeighborHints(user.publicKey, collateralAmount, loanAmount, SOL_DENOM);
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: MIN_LOAN_AMOUNT,
+            collateralAmount,
+            loanAmount,
             collateralDenom: SOL_DENOM,
           })
           .accounts({
@@ -427,6 +508,7 @@ describe("Protocol Contract - CPI Security Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user])
           .rpc();
 
