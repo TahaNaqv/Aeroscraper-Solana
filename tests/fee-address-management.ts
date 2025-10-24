@@ -75,6 +75,62 @@ describe("Fee Contract - Address Management Tests", () => {
         console.log("✅ Setup complete");
     });
 
+    // ADD THIS NEW TEST AT THE BEGINNING TO ENSURE ADDRESSES ARE SET
+    describe("Test 0: Ensure Key File Addresses Are Set", () => {
+        it("Should set the addresses from key files as the final state", async () => {
+            console.log("🎯 Setting final addresses from key files...");
+            console.log("  Setting Fee Address 1:", FEE_ADDR_1.toString());
+            console.log("  Setting Fee Address 2:", FEE_ADDR_2.toString());
+            console.log("  Setting Staking Address:", STAKING_ADDR.toString());
+
+            // Set fee addresses from key files
+            await feesProgram.methods
+                .setFeeAddresses({
+                    feeAddress1: FEE_ADDR_1.toString(),
+                    feeAddress2: FEE_ADDR_2.toString()
+                })
+                .accounts({
+                    admin: admin.publicKey,
+                    state: feeStateAccount,
+                })
+                .signers([admin])
+                .rpc();
+
+            // Set staking address from key file
+            await feesProgram.methods
+                .setStakeContractAddress({
+                    address: STAKING_ADDR.toString()
+                })
+                .accounts({
+                    admin: admin.publicKey,
+                    state: feeStateAccount,
+                })
+                .signers([admin])
+                .rpc();
+
+            // Verify the addresses are set correctly
+            const state = await feesProgram.account.feeStateAccount.fetch(feeStateAccount);
+
+            assert.equal(
+                state.feeAddress1.toString(),
+                FEE_ADDR_1.toString(),
+                "Fee address 1 should be set from key file"
+            );
+            assert.equal(
+                state.feeAddress2.toString(),
+                FEE_ADDR_2.toString(),
+                "Fee address 2 should be set from key file"
+            );
+            assert.equal(
+                state.stakeContractAddress.toString(),
+                STAKING_ADDR.toString(),
+                "Staking address should be set from key file"
+            );
+
+            console.log("✅ Key file addresses set and verified successfully");
+        });
+    });
+
     describe("Test 1: Set Fee Addresses - Valid Addresses", () => {
         it("Should set valid fee addresses successfully", async () => {
             console.log("📝 Setting fee addresses from key files...");
@@ -664,12 +720,68 @@ describe("Fee Contract - Address Management Tests", () => {
         });
     });
 
+    // ADD THIS NEW TEST AT THE END TO ENSURE FINAL STATE
+    describe("Test 10: Final State Verification", () => {
+        it("Should ensure key file addresses are set as final state", async () => {
+            console.log("🔍 Verifying final state matches key file addresses...");
+
+            // Set the final addresses from key files
+            await feesProgram.methods
+                .setFeeAddresses({
+                    feeAddress1: FEE_ADDR_1.toString(),
+                    feeAddress2: FEE_ADDR_2.toString()
+                })
+                .accounts({
+                    admin: admin.publicKey,
+                    state: feeStateAccount,
+                })
+                .signers([admin])
+                .rpc();
+
+            await feesProgram.methods
+                .setStakeContractAddress({
+                    address: STAKING_ADDR.toString()
+                })
+                .accounts({
+                    admin: admin.publicKey,
+                    state: feeStateAccount,
+                })
+                .signers([admin])
+                .rpc();
+
+            // Verify final state
+            const finalState = await feesProgram.account.feeStateAccount.fetch(feeStateAccount);
+
+            assert.equal(
+                finalState.feeAddress1.toString(),
+                FEE_ADDR_1.toString(),
+                "Final fee address 1 must match key file"
+            );
+            assert.equal(
+                finalState.feeAddress2.toString(),
+                FEE_ADDR_2.toString(),
+                "Final fee address 2 must match key file"
+            );
+            assert.equal(
+                finalState.stakeContractAddress.toString(),
+                STAKING_ADDR.toString(),
+                "Final staking address must match key file"
+            );
+
+            console.log("✅ Final state verification passed");
+            console.log("  Final Fee Address 1:", finalState.feeAddress1.toString());
+            console.log("  Final Fee Address 2:", finalState.feeAddress2.toString());
+            console.log("  Final Staking Address:", finalState.stakeContractAddress.toString());
+        });
+    });
+
     after(() => {
         console.log("\n✅ Fee Contract Address Management Tests Complete");
-        console.log("  Total Tests Passed: 15");
-        console.log("  Tests include: valid addresses, invalid addresses, authorization, combined operations, edge cases, validation logic");
-        console.log("  Fee Address 1:", FEE_ADDR_1.toString());
-        console.log("  Fee Address 2:", FEE_ADDR_2.toString());
-        console.log("  Staking Address:", STAKING_ADDR.toString());
+        console.log("  Total Tests Passed: 17");
+        console.log("  Tests include: valid addresses, invalid addresses, authorization, combined operations, edge cases, validation logic, final state verification");
+        console.log("  Final Fee Address 1:", FEE_ADDR_1.toString());
+        console.log("  Final Fee Address 2:", FEE_ADDR_2.toString());
+        console.log("  Final Staking Address:", STAKING_ADDR.toString());
+        console.log("  🎯 These addresses are now set in the contract and ready for use!");
     });
 });
