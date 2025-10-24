@@ -20,14 +20,14 @@ import type { AccountMeta } from '@solana/web3.js';
 // Helper function to get neighbor hints for trove mutations
 async function getNeighborHints(
   connection: Connection,
-  programId: PublicKey,
+  program: Program<AerospacerProtocol>,
   userPubkey: PublicKey,
   collateralAmount: BN,
   loanAmount: BN,
   denom: string
 ): Promise<AccountMeta[]> {
   // Fetch and sort all existing troves
-  const allTroves = await fetchAllTroves(connection, { programId } as Program<AerospacerProtocol>, denom);
+  const allTroves = await fetchAllTroves(connection, program, denom);
   const sortedTroves = sortTrovesByICR(allTroves);
 
   // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
@@ -40,15 +40,15 @@ async function getNeighborHints(
   // Derive PDAs for this trove
   const [userDebtAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("user_debt_amount"), userPubkey.toBuffer()],
-    programId
+    program.programId
   );
   const [userCollateralAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("user_collateral_amount"), userPubkey.toBuffer(), Buffer.from(denom)],
-    programId
+    program.programId
   );
   const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("liquidity_threshold"), userPubkey.toBuffer()],
-    programId
+    program.programId
   );
 
   // Create a temporary TroveData object for this trove
@@ -121,7 +121,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       // Get neighbor hints for second trove attempt
       const neighborHints = await getNeighborHints(
         ctx.provider.connection,
-        ctx.protocolProgram.programId,
+        ctx.protocolProgram,
         user.user.publicKey,
         new BN(5_000_000_000),
         MIN_LOAN_AMOUNT,
@@ -186,7 +186,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       // Get neighbor hints for non-existent trove
       const neighborHints = await getNeighborHints(
         ctx.provider.connection,
-        ctx.protocolProgram.programId,
+        ctx.protocolProgram,
         user.user.publicKey,
         new BN(1_000_000_000),
         MIN_LOAN_AMOUNT,
@@ -260,7 +260,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       // Get neighbor hints even for invalid amount (might fail for different reason)
       const neighborHints = await getNeighborHints(
         ctx.provider.connection,
-        ctx.protocolProgram.programId,
+        ctx.protocolProgram,
         user.user.publicKey,
         new BN(0),
         MIN_LOAN_AMOUNT,
@@ -325,7 +325,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       // Get neighbor hints for below-minimum collateral
       const neighborHints = await getNeighborHints(
         ctx.provider.connection,
-        ctx.protocolProgram.programId,
+        ctx.protocolProgram,
         user.user.publicKey,
         new BN(1_000_000_000),
         MIN_LOAN_AMOUNT,
@@ -393,7 +393,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       // Current: 6 SOL, trying to remove 10 SOL -> would be negative, use 0 for calculation
       const neighborHints = await getNeighborHints(
         ctx.provider.connection,
-        ctx.protocolProgram.programId,
+        ctx.protocolProgram,
         user.user.publicKey,
         new BN(0), // Would be negative, use 0
         MIN_LOAN_AMOUNT,
