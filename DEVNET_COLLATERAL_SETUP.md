@@ -218,11 +218,17 @@ The test file includes a `getExistingTrovesAccounts` helper that:
 
 ## Fixing Corrupted Sorted Troves State
 
-If you encounter `AccountDiscriminatorMismatch` errors, your devnet sorted troves state is corrupted. Here's how to fix it:
+**⚠️ OBSOLETE (2025-01-24):** This section is no longer applicable with the new off-chain sorting architecture.
 
-### Step 1: Redeploy Program with Reset Instruction
+The protocol now uses **off-chain sorting** with on-chain validation only. There are no longer any `SortedTrovesState` or `Node` accounts to manage or reset. All trove ordering is handled client-side by fetching troves via RPC, sorting by ICR, and passing only neighbor hints for validation.
 
-The program now includes a `reset_sorted_troves` admin instruction. Build and deploy it:
+If you need to clean up old accounts from before the architecture migration, you can manually close them using `solana program close-account` command.
+
+---
+
+### ~~Step 1: Redeploy Program with Reset Instruction~~ (OBSOLETE)
+
+~~The program now includes a `reset_sorted_troves` admin instruction. Build and deploy it:~~
 
 ```bash
 # Build the program

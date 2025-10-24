@@ -1,178 +1,37 @@
 # Aerospacer Protocol - Replit Development Environment
 
 ## Overview
-The Aerospacer Protocol is a decentralized lending platform on Solana. Its core purpose is to enable Collateralized Debt Positions (CDPs), mint the aUSD stablecoin, and manage an automated liquidation system. It integrates with Pyth Network for price feeds and features a robust fee distribution mechanism. The project aims to provide a secure and efficient on-chain lending solution within the Solana ecosystem, introducing a new primitive for decentralized finance.
+The Aerospacer Protocol is a decentralized lending platform on Solana, enabling Collateralized Debt Positions (CDPs), aUSD stablecoin minting, and automated liquidation. It integrates with Pyth Network for price feeds and features a robust fee distribution mechanism. The project aims to deliver a secure, efficient, and scalable on-chain lending solution within the Solana ecosystem, establishing a new primitive for decentralized finance.
 
 ## User Preferences
 *This section will be updated as you work with the project*
 
-## Recent Changes
-
-### Off-Chain Sorting Architecture (2025-01-24)
-
-**CRITICAL SCALABILITY FIX**: Resolved transaction size limit that prevented production deployment beyond 3-4 troves.
-
-**Problem Identified:**
-- On-chain linked list required ALL nodes in `remainingAccounts` for traversal
-- Transaction size: 3-4 troves = 1287 bytes > 1232 byte limit ❌
-- Protocol could not scale beyond handful of users
-
-**Solution Implemented:**
-- **Removed on-chain storage**: Deleted `Node` and `SortedTrovesState` structs (eliminated ~300 lines of state management)
-- **Simplified sorted_troves.rs**: Reduced from 668 lines → 217 lines (68% reduction)
-- **Off-chain sorting + on-chain validation**: Client fetches all troves via RPC, sorts by ICR, passes only 2-3 neighbor hints (~6-9 accounts = ~200 bytes)
-- **Contract validates ordering**: Checks `prev_icr <= trove_icr <= next_icr` without storing anything
-
-**Benefits:**
-- ✅ No transaction size limits (can handle 1000+ troves)
-- ✅ Reduced on-chain storage costs (no Node accounts)
-- ✅ Simpler contract logic (validation-only)
-- ✅ Flexible client-side sorting strategies
-
-**Architecture Changes:**
-- **Removed**: `insert_trove()`, `remove_trove()`, `reinsert_trove()`, `find_insert_position()` functions
-- **Kept**: `get_liquidatable_troves()` (simplified to accept pre-sorted list via remainingAccounts)
-- **New**: `validate_icr_ordering()` function for neighbor validation
-- **New**: `tests/trove-indexer.ts` - Client-side utility for fetching, sorting, and finding neighbors
-- **Updated**: All instructions (open_trove, close_trove, add_collateral, etc.) to remove linked list operations
-- **Removed**: Admin cleanup instructions (`reset_sorted_troves`, `close_node`) - no longer needed
-
-**Testing Impact:**
-- All tests updated to use off-chain sorting pattern
-- Helper functions added to `protocol-test-utils.ts`: `fetchAllTrovesSimple()`, `sortTrovesByICR()`, `findNeighborAccountsSimple()`
-
-### PDA Verification Security Fix (2025-01-24)
-
-**CRITICAL SECURITY FIX**: Prevented fake account injection attacks in neighbor hint validation.
-
-**Vulnerability Identified:**
-- Off-chain sorting architecture accepts neighbor hints via `remainingAccounts`
-- Previous implementation only checked if accounts could deserialize as `LiquidityThreshold`
-- Attackers could create fake accounts with arbitrary ICR values to bypass ordering validation
-- This allowed malicious trove insertion at any position in the sorted list ❌
-
-**Solution Implemented:**
-- **Added PDA verification helper**: `verify_liquidity_threshold_pda()` in `sorted_troves.rs`
-- **PDA derivation check**: Verifies each neighbor account matches expected PDA: `[b"liquidity_threshold", owner.as_ref()]`
-- **Placement**: Verification happens AFTER deserialization (to get owner) but BEFORE using ICR values
-- **Complete protection**: Applied to all four trove mutation instructions
-
-**Security Benefits:**
-- ✅ Only legitimate protocol-generated LiquidityThreshold PDAs accepted as neighbor hints
-- ✅ Fake account injection attack vector completely closed
-- ✅ Maintains off-chain sorting performance while adding on-chain security
-- ✅ No impact on valid use cases (real PDAs pass verification transparently)
-
-**Architecture Changes:**
-- **Added**: `verify_liquidity_threshold_pda()` helper function in `sorted_troves.rs` (lines 183-208)
-- **Updated**: `open_trove.rs` - PDA verification for prev/next neighbors before ICR validation
-- **Updated**: `add_collateral.rs` - PDA verification for prev/next neighbors before ICR validation
-- **Updated**: `remove_collateral.rs` - PDA verification for prev/next neighbors before ICR validation
-- **Updated**: `borrow_loan.rs` - PDA verification for prev/next neighbors before ICR validation
-
-**Architect Review Result:**
-- ✅ **PASS** - Implementation correctly blocks fake accounts
-- ✅ Security: No concerns observed
-- ✅ Fully closes previously exploitable attack surface
-- Recommendation: Add negative-path tests for forged accounts (future work)
-
-### Test Suite Migration to Off-Chain Sorting (2025-01-24)
-
-**COMPLETE MIGRATION**: Successfully migrated entire test suite (10 files, 41+ trove mutation calls) to use off-chain sorting architecture with neighbor hints and PDA verification.
-
-**Files Migrated:**
-1. **protocol-trove-management.ts** (17 calls) - Core trove management operations
-2. **protocol-cpi-security.ts** (7 calls) - Cross-program invocation security tests
-3. **protocol-core.ts** (6 calls) - Basic protocol operations
-4. **protocol-error-coverage.ts** (5 calls) - Error scenario testing
-5. **devnet-initialization.ts** (3 calls) - Devnet setup and initialization
-6. **protocol-security.ts** (2 calls) - Security feature testing
-7. **protocol-oracle-integration.ts** (1 call) - Oracle integration tests
-8. **protocol-redemption.ts** (1 redemption test + infrastructure) - Redemption system
-9. **protocol-edge-cases.ts** (infrastructure only) - Edge case testing framework
-10. **fee-integration.ts** (infrastructure only) - Fee contract integration
-
-**Migration Pattern Applied:**
-- Added imports from `trove-indexer.ts` (fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts)
-- Created `getNeighborHints()` helper function in each file to:
-  - Fetch all existing troves via RPC (`fetchAllTroves`)
-  - Sort by ICR off-chain (`sortTrovesByICR`)
-  - Calculate new trove's ICR position
-  - Find neighbor LiquidityThreshold accounts (`findNeighbors`)
-  - Return properly formatted AccountMeta[] for `remainingAccounts`
-- Updated all trove mutation calls to use `.remainingAccounts(neighborHints)`
-- Removed obsolete on-chain linked list traversal code
-- Derived `node` and `sortedTrovesState` PDAs locally where needed (removed from derivePDAs helper as obsolete)
-
-**Critical Bug Fix:**
-- Fixed `protocol-error-coverage.ts` where `getNeighborHints()` was passing mock Program object `{ programId } as Program<AerospacerProtocol>` instead of real Program instance
-- Would have caused runtime TypeError in `fetchAllTroves()`
-- Fixed by changing function signature to accept `program: Program<AerospacerProtocol>` and updating all 5 call sites
-
-**Architect Review Result:**
-- ✅ **PASS** - All test files properly migrated with correct pattern
-- ✅ No runtime failures expected
-- ✅ All `getNeighborHints()` functions use real Program instances
-- ✅ Migration coherent across entire test suite
-- ✅ Test suite ready for execution once environment setup complete
-
-**Benefits:**
-- Tests now work with scalable architecture (1000+ troves)
-- All error scenarios preserved (tests still expect correct errors)
-- All security assertions unchanged
-- All integration logic maintained
-- Transaction size now constant ~200 bytes regardless of total trove count
-
-### Protocol Fee Integration Tests Fixed (2025-01-23)
-
-Implemented comprehensive fee integration tests in `tests/protocol-fees-integration.ts` following code reuse principles:
-
-**Code Reuse Implementation:**
-- Migrated from duplicate setup code to using `setupTestEnvironment()` from `protocol-test-utils.ts`
-- Follows same pattern as `protocol-oracle-integration.ts` (established reference implementation)
-- Uses shared helper functions: `createTestUser()`, `openTroveForUser()`, `derivePDAs()`
-
-**Test Coverage (6 tests total):**
-1. **Test 8.1 - Fee Distribution via CPI**: Opens real trove, verifies fee CPI works, checks protocol state references correct fee program
-2. **Test 8.2 - Protocol Fee Calculation (5%)**: Opens trove with 1000 aUSD loan, verifies 5% fee calculation is correct
-3. **Test 8.3 - Stability Pool Mode Distribution**: Explicitly toggles to enable stability pool mode, verifies 100% of fees distributed to stability pool (strict validation with ±1 lamport tolerance), restores original mode
-4. **Test 8.4 - Treasury Mode Distribution**: Explicitly toggles to disable stability pool mode, verifies 100% of fees split 50/50 to treasury addresses (strict validation with ±1 lamport tolerance), restores original mode
-5. **Test 8.5 - Fee State Validation**: Architectural verification - validates fee_state_addr in protocol state prevents fake fee contract injection
-6. **Test 8.6 - Fee Account Owner Validation**: Architectural verification - validates payer token account ownership enforced at runtime
-
-**Key Implementation Details:**
-- **Deterministic Mode Testing**: Tests 8.3 and 8.4 explicitly toggle `isStakeEnabled` flag via `toggleStakeContract()` instruction to force specific distribution modes, then restore original state
-- **Strict 100% Validation**: Uses BigInt comparisons with ±1 lamport tolerance to verify exact fee amounts distributed (not just >= checks)
-- **BigInt-Safe Comparisons**: All token balance comparisons use BigInt throughout to avoid Number precision loss for large loan amounts
-- **50/50 Split Validation**: Treasury mode uses BigInt-safe 1% tolerance check for split verification
-- **Fee Account Architecture**: Confirmed stabilityPoolTokenAccount, feeAddress1TokenAccount, feeAddress2TokenAccount are ATAs (Associated Token Accounts), not PDAs
-
 ## System Architecture
 
 **Core Programs:**
-The project uses Anchor v0.28.0 in Rust and consists of three main Solana smart contract programs:
+The project utilizes Anchor v0.28.0 in Rust and comprises three main Solana smart contract programs:
 1.  **aerospacer-protocol**: Manages core lending logic, including CDPs, stablecoin minting, and liquidation.
 2.  **aerospacer-oracle**: Handles price feed management, primarily integrating with the Pyth Network.
 3.  **aerospacer-fees**: Manages fee collection and distribution.
 
 **UI/UX Decisions:**
-The design prioritizes transparent and auditable on-chain interactions, ensuring all state changes and operations are publicly verifiable on the Solana blockchain.
+The design emphasizes transparent and auditable on-chain interactions, ensuring all state changes and operations are publicly verifiable on the Solana blockchain.
 
 **Technical Implementations & Feature Specifications:**
-*   **Collateralized Debt Positions (CDPs)**: Allows users to lock collateral to mint aUSD stablecoins.
+*   **Collateralized Debt Positions (CDPs)**: Users can lock collateral to mint aUSD stablecoins.
 *   **Stablecoin (aUSD) Minting**: Supports the minting of its native stablecoin, aUSD.
 *   **Automated Liquidation System**: Ensures protocol solvency by liquidating undercollateralized positions.
 *   **Stability Pool**: Implements Liquity's Product-Sum algorithm for reward distribution.
-*   **Fee Distribution Mechanism**: A dual-mode system for distributing fees to the stability pool or splitting them between specified addresses.
-*   **Oracle Integration**: Uses Pyth Network for real-time price feeds for all collateral assets, with dynamic collateral discovery via CPI.
+*   **Fee Distribution Mechanism**: A dual-mode system for distributing fees to the stability pool or splitting them between specified addresses, with comprehensive validation for exact fee amounts and distribution modes.
+*   **Oracle Integration**: Uses Pyth Network for real-time price feeds with dynamic collateral discovery via CPI.
 *   **Cross-Program Communication (CPI)**: Utilizes CPI for secure and atomic interactions between sub-programs.
 *   **SPL Token Integration**: Full support for Solana Program Library (SPL) tokens for collateral and stablecoin operations.
-*   **Sorted Troves (Off-Chain Architecture)**: Uses off-chain sorting with on-chain ICR validation. Client fetches all troves via RPC, sorts by ICR, and passes only neighbor hints for validation. No on-chain linked list storage, enabling unlimited scalability.
+*   **Sorted Troves (Off-Chain Architecture)**: Employs off-chain sorting with on-chain ICR validation. The client fetches all troves via RPC, sorts by ICR, and passes only neighbor hints for validation, eliminating on-chain linked list storage for unlimited scalability. Includes critical PDA verification to prevent fake account injection attacks.
 *   **Individual Collateral Ratio (ICR)**: Real-time ICR calculations are implemented across the protocol, supporting multi-collateral types and ensuring solvency checks.
-*   **Redemption System**: Accepts pre-sorted trove lists from client, validates ICR ordering, supports both full and partial redemptions.
+*   **Redemption System**: Accepts pre-sorted trove lists from the client, validates ICR ordering, and supports both full and partial redemptions.
 
 **System Design Choices:**
-*   **Anchor Framework**: Used for Solana smart contract development.
+*   **Anchor Framework**: Utilized for Solana smart contract development.
 *   **Rust & TypeScript**: Rust for on-chain programs and TypeScript for off-chain tests and interactions.
 *   **Modular Architecture**: Separation of concerns into distinct programs (`protocol`, `oracle`, `fees`).
 *   **Security Features**: Includes safe math operations, access control, input validation, atomic state consistency, PDA validation, and optimization for Solana BPF stack limits.
