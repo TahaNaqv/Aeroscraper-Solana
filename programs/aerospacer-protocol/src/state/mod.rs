@@ -137,35 +137,12 @@ impl TotalLiquidationCollateralGain {
     }
 }
 
-// Node structure for sorted troves linked list (equivalent to INJECTIVE's NODES: Map<Addr, Node>)
-#[account]
-pub struct Node {
-    pub id: Pubkey, // The trove owner's address
-    pub prev_id: Option<Pubkey>,
-    pub next_id: Option<Pubkey>,
-}
-
-impl Node {
-    pub const LEN: usize = 8 + 32 + (1 + 32) + (1 + 32); // Option<Pubkey> = 1 + 32
-    pub fn seeds(id: &Pubkey) -> [&[u8]; 2] {
-        [b"node", id.as_ref()]
-    }
-}
-
-// Sorted troves state (equivalent to INJECTIVE's HEAD, TAIL, SIZE items)
-#[account]
-pub struct SortedTrovesState {
-    pub head: Option<Pubkey>,
-    pub tail: Option<Pubkey>,
-    pub size: u64,
-}
-
-impl SortedTrovesState {
-    pub const LEN: usize = 8 + (1 + 32) + (1 + 32) + 8;
-    pub fn seeds() -> [&'static [u8]; 1] {
-        [b"sorted_troves_state"]
-    }
-}
+// REMOVED: Node and SortedTrovesState structs
+// NEW ARCHITECTURE: Off-chain sorting with on-chain validation
+// - Client fetches all troves via RPC (no size limits)
+// - Client sorts by ICR off-chain
+// - Client passes 2-3 neighbor hints via remainingAccounts (~6-9 accounts)
+// - Contract validates ICR ordering without storing linked list
 
 // Stability Pool Snapshot - tracks cumulative collateral rewards per denomination
 // This is the global "S" factor from Liquity's Product-Sum algorithm
