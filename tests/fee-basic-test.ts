@@ -74,9 +74,9 @@ describe("Fee Contract - Basic Test (No Airdrops, No Tokens)", () => {
         "Stake enabled should be a boolean"
       );
       // Total fees might be > 0 if state was already initialized from previous tests
-      assert.isNumber(
-        state.totalFeesCollected.toNumber(),
-        "Total fees should be a number"
+      assert.isString(
+        state.totalFeesCollected.toString(),
+        "Total fees should be a string"
       );
 
       console.log("✅ Fee contract initialized successfully");

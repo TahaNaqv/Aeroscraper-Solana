@@ -184,7 +184,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
           state: feeStateAccount,
           admin: admin.publicKey,
           systemProgram: SystemProgram.programId,
-        })
+        } as any)
         .signers([admin])
         .rpc();
     }
@@ -198,7 +198,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       .accounts({
         admin: admin.publicKey,
         state: feeStateAccount,
-      })
+      } as any)
       .signers([admin])
       .rpc();
 
@@ -218,7 +218,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
         .accounts({
           admin: admin.publicKey,
           state: feeStateAccount,
-        })
+        } as any)
         .signers([admin])
         .rpc();
 
@@ -229,7 +229,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
         .accounts({
           admin: admin.publicKey,
           state: feeStateAccount,
-        })
+        } as any)
         .signers([admin])
         .rpc();
 
@@ -247,7 +247,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
           feeAddress1TokenAccount: feeAddr1TokenAccount,
           feeAddress2TokenAccount: feeAddr2TokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
+        } as any)
         .signers([protocolSim])
         .rpc();
 
@@ -258,10 +258,11 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
       );
 
       // Check that fees were tracked (incremented by the fee amount)
-      const expectedTotal = state.totalFeesCollected.toNumber() - feeAmount.toNumber();
-      assert.isAtLeast(
-        state.totalFeesCollected.toNumber(),
-        feeAmount.toNumber(),
+      const currentTotal = BigInt(state.totalFeesCollected.toString());
+      const feeAmountBigInt = BigInt(feeAmount.toString());
+      
+      assert.isTrue(
+        currentTotal >= feeAmountBigInt,
         "Fees should be tracked and incremented"
       );
     });
@@ -276,7 +277,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
         .accounts({
           admin: admin.publicKey,
           state: feeStateAccount,
-        })
+        } as any)
         .signers([admin])
         .rpc();
 
@@ -297,7 +298,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
           feeAddress1TokenAccount: feeAddr1TokenAccount,
           feeAddress2TokenAccount: feeAddr2TokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
+        } as any)
         .signers([protocolSim])
         .rpc();
 
@@ -333,7 +334,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
           feeAddress1TokenAccount: feeAddr1TokenAccount,
           feeAddress2TokenAccount: feeAddr2TokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
+        } as any)
         .signers([protocolSim])
         .rpc();
 
@@ -365,7 +366,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
         .getConfig()
         .accounts({
           state: feeStateAccount,
-        })
+        } as any)
         .view();
 
       console.log("📊 Config retrieved via CPI simulation:");
@@ -416,7 +417,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
             feeAddress1TokenAccount: feeAddr1TokenAccount,
             feeAddress2TokenAccount: feeAddr2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as any)
           .signers([protocolSim])
           .rpc();
 
@@ -468,7 +469,7 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
             feeAddress1TokenAccount: feeAddr1TokenAccount,
             feeAddress2TokenAccount: feeAddr2TokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as any)
           .signers([protocolSim])
           .rpc();
 

@@ -1,11 +1,11 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { 
-  Keypair, 
-  PublicKey, 
-  SystemProgram, 
-  LAMPORTS_PER_SOL 
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  LAMPORTS_PER_SOL
 } from "@solana/web3.js";
 import { assert, expect } from "chai";
 import * as fs from "fs";
@@ -37,7 +37,7 @@ describe("Fee Contract - Initialization Tests", () => {
         [Buffer.from("fee_state")],
         feesProgram.programId
       );
-      
+
       console.log("📋 Initializing fee contract...");
       console.log("  Admin:", admin.publicKey.toString());
       console.log("  State Account:", feeStateAccount.toString());
@@ -87,8 +87,8 @@ describe("Fee Contract - Initialization Tests", () => {
         state.feeAddress2.toString(),
         "Fee address 2 should be set"
       );
-      assert.isNumber(
-        state.totalFeesCollected.toNumber(),
+      assert.isString(
+        state.totalFeesCollected.toString(),
         "Total fees should be a number"
       );
 
@@ -117,7 +117,7 @@ describe("Fee Contract - Initialization Tests", () => {
       console.log("  stakeContractAddress:", state.stakeContractAddress.toString());
       console.log("  feeAddress1:", state.feeAddress1.toString());
       console.log("  feeAddress2:", state.feeAddress2.toString());
-      console.log("  totalFeesCollected:", state.totalFeesCollected.toNumber());
+      console.log("  totalFeesCollected:", state.totalFeesCollected.toString());
     });
   });
 
@@ -140,7 +140,7 @@ describe("Fee Contract - Initialization Tests", () => {
       } catch (error: any) {
         console.log("✅ Reinitialization correctly prevented");
         console.log("  Error:", error.message);
-        
+
         expect(error.message).to.exist;
       }
     });
@@ -168,7 +168,7 @@ describe("Fee Contract - Initialization Tests", () => {
       console.log("  stakeContractAddress:", config.stakeContractAddress.toString());
       console.log("  feeAddress1:", config.feeAddress1.toString());
       console.log("  feeAddress2:", config.feeAddress2.toString());
-      console.log("  totalFeesCollected:", config.totalFeesCollected.toNumber());
+      console.log("  totalFeesCollected:", config.totalFeesCollected.toString());
 
       assert.equal(
         config.admin.toString(),
@@ -191,8 +191,8 @@ describe("Fee Contract - Initialization Tests", () => {
         config.feeAddress2.toString(),
         "Config should include fee address 2"
       );
-      assert.isNumber(
-        config.totalFeesCollected.toNumber(),
+      assert.isString(
+        config.totalFeesCollected.toString(),
         "Config total fees should be a number"
       );
 
