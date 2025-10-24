@@ -1,11 +1,11 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { 
-  Keypair, 
-  PublicKey, 
-  SystemProgram, 
-  LAMPORTS_PER_SOL 
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  LAMPORTS_PER_SOL
 } from "@solana/web3.js";
 import { assert, expect } from "chai";
 import * as fs from "fs";
@@ -29,13 +29,13 @@ describe("Fee Contract - Admin Controls Tests", () => {
     console.log("\n🚀 Setting up Fee Contract Admin Controls Tests...");
     console.log("  Admin:", admin.publicKey.toString());
     console.log("  Using same wallet for all operations (no airdrops needed)");
-    
+
     // Derive the fee state PDA
     [feeStateAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from("fee_state")],
       feesProgram.programId
     );
-    
+
     // Check if state already exists
     try {
       const existingState = await feesProgram.account.feeStateAccount.fetch(feeStateAccount);
@@ -128,7 +128,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
   describe("Test 2.3: Admin Can Set Valid Stake Contract Address", () => {
     it("Should set stake contract address successfully", async () => {
       const stakeAddress = Keypair.generate().publicKey;
-      
+
       console.log("📝 Setting stake contract address...");
       console.log("  New Address:", stakeAddress.toString());
 
@@ -268,7 +268,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
   describe("Test 2.6: Non-Admin Cannot Set Stake Contract Address", () => {
     it("Should fail when non-admin tries to set address", async () => {
       const stakeAddress = Keypair.generate().publicKey;
-      
+
       console.log("🔒 Attempting to set address as non-admin...");
 
       try {
@@ -434,7 +434,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
     it("Should fail when non-admin tries to set fee addresses", async () => {
       const feeAddr1 = Keypair.generate().publicKey;
       const feeAddr2 = Keypair.generate().publicKey;
-      
+
       console.log("🔒 Attempting to set fee addresses as non-admin...");
 
       try {
@@ -488,7 +488,7 @@ describe("Fee Contract - Admin Controls Tests", () => {
           expectedValue,
           `Toggle ${i + 1} should have correct value`
         );
-        
+
         console.log(`  Toggle ${i + 1}: ${state.isStakeEnabled}`);
       }
 

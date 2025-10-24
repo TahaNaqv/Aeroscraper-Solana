@@ -19,6 +19,7 @@ import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, 
 
 // Constants
 const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
+const SOL_PRICE_FEED = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
 
 // Helper function to get neighbor hints for trove mutations
 async function getNeighborHints(
@@ -69,7 +70,7 @@ async function getNeighborHints(
   // Insert this trove into sorted position to find neighbors
   let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
   if (insertIndex === -1) insertIndex = sortedTroves.length;
-  
+
   const newSortedTroves = [
     ...sortedTroves.slice(0, insertIndex),
     thisTrove,
@@ -81,7 +82,7 @@ async function getNeighborHints(
 
   // Build remainingAccounts array
   const neighborAccounts = buildNeighborAccounts(neighbors);
-  
+
   // Convert PublicKey[] to AccountMeta format
   return neighborAccounts.map((pubkey) => ({
     pubkey,
@@ -595,7 +596,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
@@ -693,7 +694,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             node: user1NodePDA,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
@@ -751,7 +752,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
@@ -861,7 +862,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
@@ -925,7 +926,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             stableCoinMint: stablecoinMint,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feesState,
@@ -986,7 +987,7 @@ describe("Aeroscraper Protocol Core Operations", () => {
             node: user1NodePDA,
             oracleProgram: oracleProgram.programId,
             oracleState: oracleState,
-            pythPriceAccount: PYTH_ORACLE_ADDRESS,
+            pythPriceAccount: SOL_PRICE_FEED,
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })

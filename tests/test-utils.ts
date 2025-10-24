@@ -37,11 +37,20 @@ export function loadFixedKeypair(filename: string): Keypair {
   return Keypair.fromSecretKey(new Uint8Array(keypairData));
 }
 
-// Load user1 and user2 keypairs (standardized across all tests)
-export function loadTestUsers(): { user1: Keypair; user2: Keypair } {
+// Load user1, user2, user3, user4, and user5 keypairs (standardized across all tests)
+export function loadTestUsers(): {
+  user1: Keypair;
+  user2: Keypair;
+  user3: Keypair;
+  user4: Keypair;
+  user5: Keypair;
+} {
   return {
     user1: loadFixedKeypair("user1-keypair.json"),
     user2: loadFixedKeypair("user2-keypair.json"),
+    user3: loadFixedKeypair("user3-keypair.json"),
+    user4: loadFixedKeypair("user4-keypair.json"),
+    user5: loadFixedKeypair("user5-keypair.json"),
   };
 }
 
