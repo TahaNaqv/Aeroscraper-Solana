@@ -12,6 +12,78 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+
+// Helper function to get neighbor hints for trove mutations
+async function getNeighborHints(
+  provider: anchor.AnchorProvider,
+  protocolProgram: Program<AerospacerProtocol>,
+  user: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string,
+  isNewTrove: boolean = true
+): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+  // Fetch and sort all existing troves
+  const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
+
+  // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+  // In production, this would fetch actual oracle price
+  // ICR = (collateral_value / debt) * 100
+  const estimatedSolPrice = 100n; // $100 per SOL
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+  // Create a temporary TroveData object for this trove
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), user.toBuffer()],
+    protocolProgram.programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+    protocolProgram.programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), user.toBuffer()],
+    protocolProgram.programId
+  );
+
+  const thisTrove: TroveData = {
+    owner: user,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
+
+  // Insert this trove into sorted position to find neighbors
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
+
+  // Find neighbors
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
+
+  // Build remainingAccounts array
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  // Convert PublicKey[] to AccountMeta format
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+}
 
 describe("Protocol Contract - Trove Management Tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -224,6 +296,17 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Collateral:", collateralAmount.toString(), "lamports (10 SOL)");
       console.log("  Loan:", loanAmount.toString(), "base units (1 aUSD)");
 
+      // Fetch and sort all troves to find neighbors
+      const remainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        user1.publicKey,
+        collateralAmount,
+        loanAmount,
+        "SOL",
+        true
+      );
+
       const tx = await protocolProgram.methods
         .openTrove({
           collateralAmount,
@@ -257,6 +340,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(remainingAccounts)
         .signers([user1])
         .rpc();
 
@@ -303,10 +387,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // First trove opens successfully
+      const collateralAmount1 = new BN(10_000_000_000);
+      const loanAmount1 = new BN(1_000_000_000_000_000_000);
+      
+      const remainingAccounts1 = await getNeighborHints(
+        provider,
+        protocolProgram,
+        user2.publicKey,
+        collateralAmount1,
+        loanAmount1,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(10_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: collateralAmount1,
+          loanAmount: loanAmount1,
           denom: "SOL",
         })
         .accounts({
@@ -323,16 +420,30 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(remainingAccounts1)
         .signers([user2])
         .rpc();
 
       console.log("🔒 Attempting to open duplicate trove...");
 
       try {
+        const collateralAmount2 = new BN(5_000_000_000);
+        const loanAmount2 = new BN(500_000_000_000_000_000);
+        
+        const remainingAccounts2 = await getNeighborHints(
+          provider,
+          protocolProgram,
+          user2.publicKey,
+          collateralAmount2,
+          loanAmount2,
+          "SOL",
+          true
+        );
+
         await protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(5_000_000_000),
-            loanAmount: new BN(500_000_000_000_000_000),
+            collateralAmount: collateralAmount2,
+            loanAmount: loanAmount2,
             denom: "SOL",
           })
           .accounts({
@@ -349,6 +460,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(remainingAccounts2)
           .signers([user2])
           .rpc();
 
@@ -416,10 +528,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
+      const openCollateralAmount = new BN(10_000_000_000);
+      const openLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const openRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        openCollateralAmount,
+        openLoanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(10_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: openCollateralAmount,
+          loanAmount: openLoanAmount,
           denom: "SOL",
         })
         .accounts({
@@ -436,6 +561,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(openRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -447,9 +573,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial:", initialCollateral.amount.toString());
 
       // Add collateral
+      const addCollateralAmount = new BN(5_000_000_000);
+      const currentDebt = initialDebt || loanAmount;
+      const newTotalCollateral = openCollateralAmount.add(addCollateralAmount);
+      
+      const addCollateralRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        newTotalCollateral,
+        openLoanAmount,
+        "SOL",
+        false
+      );
+
       await protocolProgram.methods
         .addCollateral({
-          collateralAmount: new BN(5_000_000_000),
+          collateralAmount: addCollateralAmount,
           denom: "SOL",
         })
         .accounts({
@@ -463,6 +603,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(addCollateralRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -535,10 +676,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with high collateral
+      const highCollateralAmount = new BN(20_000_000_000);
+      const initialLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const highCollateralRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        highCollateralAmount,
+        initialLoanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(20_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: highCollateralAmount,
+          loanAmount: initialLoanAmount,
           denom: "SOL",
         })
         .accounts({
@@ -555,6 +709,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(highCollateralRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -564,6 +719,18 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Borrow more
       const additionalLoan = new BN(500_000_000_000_000_000);
+      const newTotalDebt = initialLoanAmount.add(additionalLoan);
+      
+      const borrowLoanRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        highCollateralAmount,
+        newTotalDebt,
+        "SOL",
+        false
+      );
+
       await protocolProgram.methods
         .borrowLoan({
           loanAmount: additionalLoan,
@@ -579,6 +746,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(borrowLoanRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -649,9 +817,21 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove
       const loanAmount = new BN(2_000_000_000_000_000_000);
+      const repayTestCollateralAmount = new BN(20_000_000_000);
+      
+      const repayTestRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        repayTestCollateralAmount,
+        loanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(20_000_000_000),
+          collateralAmount: repayTestCollateralAmount,
           loanAmount,
           denom: "SOL",
         })
@@ -669,6 +849,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(repayTestRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -761,9 +942,21 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove
       const loanAmount = new BN(1_000_000_000_000_000_000);
+      const fullRepayCollateralAmount = new BN(15_000_000_000);
+      
+      const fullRepayRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        fullRepayCollateralAmount,
+        loanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(15_000_000_000),
+          collateralAmount: fullRepayCollateralAmount,
           loanAmount,
           denom: "SOL",
         })
@@ -781,6 +974,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(fullRepayRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -869,6 +1063,16 @@ describe("Protocol Contract - Trove Management Tests", () => {
       const collateralAmount = new BN(15_000_000_000);
 
       // Open trove
+      const closeTroveRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        collateralAmount,
+        loanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
           collateralAmount,
@@ -889,6 +1093,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(closeTroveRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -983,10 +1188,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with excess collateral
+      const excessCollateralAmount = new BN(30_000_000_000);
+      const removeLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const excessCollateralRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        excessCollateralAmount,
+        removeLoanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(30_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: excessCollateralAmount,
+          loanAmount: removeLoanAmount,
           denom: "SOL",
         })
         .accounts({
@@ -1003,6 +1221,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(excessCollateralRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -1014,9 +1233,22 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial:", initialCollateral.amount.toString());
 
       // Remove some collateral (maintaining MCR)
+      const removeAmount = new BN(5_000_000_000);
+      const newCollateralAmount = excessCollateralAmount.sub(removeAmount);
+      
+      const removeCollateralRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        newCollateralAmount,
+        removeLoanAmount,
+        "SOL",
+        false
+      );
+
       await protocolProgram.methods
         .removeCollateral({
-          collateralAmount: new BN(5_000_000_000),
+          collateralAmount: removeAmount,
           denom: "SOL",
         })
         .accounts({
@@ -1031,6 +1263,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(removeCollateralRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -1103,10 +1336,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with minimal collateral
+      const minimalCollateralAmount = new BN(12_000_000_000);
+      const minimalLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const minimalCollateralRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        minimalCollateralAmount,
+        minimalLoanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(12_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: minimalCollateralAmount,
+          loanAmount: minimalLoanAmount,
           denom: "SOL",
         })
         .accounts({
@@ -1123,15 +1369,29 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(minimalCollateralRemainingAccounts)
         .signers([testUser])
         .rpc();
 
       console.log("🔒 Attempting to remove collateral below MCR...");
 
       try {
+        const invalidRemoveAmount = new BN(10_000_000_000);
+        const invalidNewCollateral = minimalCollateralAmount.sub(invalidRemoveAmount);
+        
+        const invalidRemoveRemainingAccounts = await getNeighborHints(
+          provider,
+          protocolProgram,
+          testUser.publicKey,
+          invalidNewCollateral,
+          minimalLoanAmount,
+          "SOL",
+          false
+        );
+
         await protocolProgram.methods
           .removeCollateral({
-            collateralAmount: new BN(10_000_000_000),
+            collateralAmount: invalidRemoveAmount,
             denom: "SOL",
           })
           .accounts({
@@ -1146,6 +1406,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(invalidRemoveRemainingAccounts)
           .signers([testUser])
           .rpc();
 
@@ -1215,10 +1476,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("🔒 Attempting to open trove with loan below minimum...");
 
       try {
+        const belowMinCollateralAmount = new BN(10_000_000_000);
+        const belowMinLoanAmount = new BN(100_000_000_000_000_000); // 0.1 aUSD (below 1 aUSD minimum)
+        
+        const belowMinRemainingAccounts = await getNeighborHints(
+          provider,
+          protocolProgram,
+          testUser.publicKey,
+          belowMinCollateralAmount,
+          belowMinLoanAmount,
+          "SOL",
+          true
+        );
+
         await protocolProgram.methods
           .openTrove({
-            collateralAmount: new BN(10_000_000_000),
-            loanAmount: new BN(100_000_000_000_000_000), // 0.1 aUSD (below 1 aUSD minimum)
+            collateralAmount: belowMinCollateralAmount,
+            loanAmount: belowMinLoanAmount,
             denom: "SOL",
           })
           .accounts({
@@ -1235,6 +1509,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(belowMinRemainingAccounts)
           .signers([testUser])
           .rpc();
 
@@ -1302,10 +1577,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
+      const closeWithDebtCollateralAmount = new BN(15_000_000_000);
+      const closeWithDebtLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const closeWithDebtRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        closeWithDebtCollateralAmount,
+        closeWithDebtLoanAmount,
+        "SOL",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(15_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: closeWithDebtCollateralAmount,
+          loanAmount: closeWithDebtLoanAmount,
           denom: "SOL",
         })
         .accounts({
@@ -1322,6 +1610,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(closeWithDebtRemainingAccounts)
         .signers([testUser])
         .rpc();
 
@@ -1414,10 +1703,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       console.log("📋 Opening trove with USDC collateral...");
 
+      const usdcCollateralAmount = new BN(10_000_000_000);
+      const usdcLoanAmount = new BN(1_000_000_000_000_000_000);
+      
+      const usdcRemainingAccounts = await getNeighborHints(
+        provider,
+        protocolProgram,
+        testUser.publicKey,
+        usdcCollateralAmount,
+        usdcLoanAmount,
+        "USDC",
+        true
+      );
+
       await protocolProgram.methods
         .openTrove({
-          collateralAmount: new BN(10_000_000_000),
-          loanAmount: new BN(1_000_000_000_000_000_000),
+          collateralAmount: usdcCollateralAmount,
+          loanAmount: usdcLoanAmount,
           denom: "USDC",
         })
         .accounts({
@@ -1434,6 +1736,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
+        .remainingAccounts(usdcRemainingAccounts)
         .signers([testUser])
         .rpc();
 
