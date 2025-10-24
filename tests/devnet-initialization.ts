@@ -3,9 +3,11 @@ import { Program } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { AerospacerOracle } from "../target/types/aerospacer_oracle";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
-import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY, Connection } from "@solana/web3.js";
+import type { AccountMeta } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, createMint, createAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { assert } from "chai";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 describe("Devnet Initialization and Core Testing", () => {
   const provider = anchor.AnchorProvider.env();
@@ -37,6 +39,64 @@ describe("Devnet Initialization and Core Testing", () => {
   // User troves and stakes
   let user1Trove: PublicKey;
   let user1Stake: PublicKey;
+
+  async function getNeighborHints(
+    connection: Connection,
+    programId: PublicKey,
+    userPubkey: PublicKey,
+    collateralAmount: anchor.BN,
+    loanAmount: anchor.BN,
+    denom: string
+  ): Promise<AccountMeta[]> {
+    const allTroves = await fetchAllTroves(connection, protocolProgram, denom);
+    const sortedTroves = sortTrovesByICR(allTroves);
+    
+    const collateralValue = BigInt(collateralAmount.toString()) * 100n;
+    const debtValue = BigInt(loanAmount.toString());
+    const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+    
+    const [userDebtAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_debt_amount"), userPubkey.toBuffer()],
+      programId
+    );
+    const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_collateral_amount"), userPubkey.toBuffer(), Buffer.from(denom)],
+      programId
+    );
+    const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidity_threshold"), userPubkey.toBuffer()],
+      programId
+    );
+
+    const thisTrove: TroveData = {
+      owner: userPubkey,
+      debt: BigInt(loanAmount.toString()),
+      collateralAmount: BigInt(collateralAmount.toString()),
+      collateralDenom: denom,
+      icr: newICR,
+      debtAccount: userDebtAccount,
+      collateralAccount: userCollateralAccount,
+      liquidityThresholdAccount: liquidityThresholdAccount,
+    };
+
+    let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+    if (insertIndex === -1) insertIndex = sortedTroves.length;
+    
+    const newSortedTroves = [
+      ...sortedTroves.slice(0, insertIndex),
+      thisTrove,
+      ...sortedTroves.slice(insertIndex),
+    ];
+
+    const neighbors = findNeighbors(thisTrove, newSortedTroves);
+    const neighborAccounts = buildNeighborAccounts(neighbors);
+    
+    return neighborAccounts.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: false,
+    }));
+  }
 
   before(async () => {
     console.log("🚀 Starting Devnet Initialization Test...");
@@ -313,10 +373,22 @@ describe("Devnet Initialization and Core Testing", () => {
   describe("Core Protocol Operations", () => {
     it("Should open a trove", async () => {
       try {
+        const collateralAmount = new anchor.BN(1000000000);
+        const loanAmount = new anchor.BN(100000000);
+        
+        const neighborHints = await getNeighborHints(
+          provider.connection,
+          protocolProgram.programId,
+          user1.publicKey,
+          collateralAmount,
+          loanAmount,
+          "SOL"
+        );
+        
         const tx = await protocolProgram.methods
           .openTrove({
-            loanAmount: new anchor.BN(100000000), // 100 aUSD
-            collateralAmount: new anchor.BN(1000000000), // 1 SOL
+            loanAmount: loanAmount, // 100 aUSD
+            collateralAmount: collateralAmount, // 1 SOL
             collateralDenom: "SOL"
           })
           .accounts({
@@ -332,6 +404,7 @@ describe("Devnet Initialization and Core Testing", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -356,9 +429,22 @@ describe("Devnet Initialization and Core Testing", () => {
 
     it("Should add collateral to trove", async () => {
       try {
+        const existingTrove = await protocolProgram.account.troveAccount.fetch(user1Trove);
+        const additionalCollateral = new anchor.BN(500000000);
+        const newTotalCollateral = existingTrove.collateralAmount.add(additionalCollateral);
+        
+        const neighborHints = await getNeighborHints(
+          provider.connection,
+          protocolProgram.programId,
+          user1.publicKey,
+          newTotalCollateral,
+          existingTrove.debtAmount,
+          "SOL"
+        );
+        
         const tx = await protocolProgram.methods
           .addCollateral({
-            amount: new anchor.BN(500000000), // 0.5 SOL
+            amount: additionalCollateral, // 0.5 SOL
             collateralDenom: "SOL"
           })
           .accounts({
@@ -370,6 +456,7 @@ describe("Devnet Initialization and Core Testing", () => {
             protocolCollateralAccount: adminCollateralAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 
@@ -390,9 +477,22 @@ describe("Devnet Initialization and Core Testing", () => {
 
     it("Should borrow additional loan", async () => {
       try {
+        const existingTrove = await protocolProgram.account.troveAccount.fetch(user1Trove);
+        const additionalLoan = new anchor.BN(50000000);
+        const newTotalDebt = existingTrove.debtAmount.add(additionalLoan);
+        
+        const neighborHints = await getNeighborHints(
+          provider.connection,
+          protocolProgram.programId,
+          user1.publicKey,
+          existingTrove.collateralAmount,
+          newTotalDebt,
+          "SOL"
+        );
+        
         const tx = await protocolProgram.methods
           .borrowLoan({
-            amount: new anchor.BN(50000000) // 50 aUSD
+            amount: additionalLoan // 50 aUSD
           })
           .accounts({
             user: user1.publicKey,
@@ -403,6 +503,7 @@ describe("Devnet Initialization and Core Testing", () => {
             stableCoinMint: stablecoinMint,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user1])
           .rpc();
 

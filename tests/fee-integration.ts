@@ -1,12 +1,15 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerFees } from "../target/types/aerospacer_fees";
+import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
 import { 
   Keypair, 
   PublicKey, 
   SystemProgram, 
-  LAMPORTS_PER_SOL 
+  LAMPORTS_PER_SOL,
+  Connection
 } from "@solana/web3.js";
+import type { AccountMeta } from '@solana/web3.js';
 import { 
   TOKEN_PROGRAM_ID,
   createMint,
@@ -14,8 +17,8 @@ import {
   mintTo
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
-import { BN } from "bn.js";
 import * as fs from "fs";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
 
 describe("Fee Contract - Protocol CPI Integration Tests", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -47,6 +50,73 @@ describe("Fee Contract - Protocol CPI Integration Tests", () => {
   let stabilityPoolTokenAccount: PublicKey;
   let feeAddr1TokenAccount: PublicKey;
   let feeAddr2TokenAccount: PublicKey;
+
+  // Helper function to get neighbor hints for trove mutations
+  async function getNeighborHints(
+    connection: Connection,
+    program: Program<AerospacerProtocol>,
+    userPubkey: PublicKey,
+    collateralAmount: BN,
+    loanAmount: BN,
+    denom: string
+  ): Promise<AccountMeta[]> {
+    // Fetch and sort all troves
+    const allTroves = await fetchAllTroves(connection, program, denom);
+    const sortedTroves = sortTrovesByICR(allTroves);
+    
+    // Calculate new ICR (use $100 for SOL price estimation)
+    const estimatedSolPrice = 100;
+    const collateralValue = collateralAmount.toNumber() * estimatedSolPrice;
+    const newICR = loanAmount.toNumber() > 0 
+      ? BigInt(Math.floor((collateralValue / loanAmount.toNumber()) * 100))
+      : BigInt(Number.MAX_SAFE_INTEGER);
+    
+    // Derive PDAs for this trove
+    const [userDebtAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_debt_amount"), userPubkey.toBuffer()],
+      program.programId
+    );
+    const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_collateral_amount"), userPubkey.toBuffer(), Buffer.from(denom)],
+      program.programId
+    );
+    const [liquidityThreshold] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidity_threshold"), userPubkey.toBuffer()],
+      program.programId
+    );
+    
+    // Create temp TroveData to find neighbors
+    const newTrove: TroveData = {
+      owner: userPubkey,
+      debt: BigInt(loanAmount.toString()),
+      collateralAmount: BigInt(collateralAmount.toString()),
+      collateralDenom: denom,
+      icr: newICR,
+      debtAccount: userDebtAccount,
+      collateralAccount: userCollateralAccount,
+      liquidityThresholdAccount: liquidityThreshold,
+    };
+    
+    // Insert trove into sorted position and find neighbors
+    let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+    if (insertIndex === -1) insertIndex = sortedTroves.length;
+    
+    const newSortedTroves = [
+      ...sortedTroves.slice(0, insertIndex),
+      newTrove,
+      ...sortedTroves.slice(insertIndex),
+    ];
+    
+    const neighbors = findNeighbors(newTrove, newSortedTroves);
+    const neighborAccounts = buildNeighborAccounts(neighbors);
+    
+    // Convert to AccountMeta format
+    return neighborAccounts.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: false,
+    }));
+  }
 
   before(async () => {
     console.log("\n🚀 Setting up Fee Contract CPI Integration Tests...");

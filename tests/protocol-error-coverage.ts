@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
 import { AerospacerProtocol } from "../target/types/aerospacer_protocol";
-import { Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Keypair, SystemProgram, LAMPORTS_PER_SOL, PublicKey, Connection } from "@solana/web3.js";
 import { expect } from "chai";
 import {
   setupTestEnvironment,
@@ -14,6 +14,78 @@ import {
   TestContext,
 } from "./protocol-test-utils";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+import type { AccountMeta } from '@solana/web3.js';
+
+// Helper function to get neighbor hints for trove mutations
+async function getNeighborHints(
+  connection: Connection,
+  programId: PublicKey,
+  userPubkey: PublicKey,
+  collateralAmount: BN,
+  loanAmount: BN,
+  denom: string
+): Promise<AccountMeta[]> {
+  // Fetch and sort all existing troves
+  const allTroves = await fetchAllTroves(connection, { programId } as Program<AerospacerProtocol>, denom);
+  const sortedTroves = sortTrovesByICR(allTroves);
+
+  // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+  // ICR = (collateral_value / debt) * 100
+  const estimatedSolPrice = 100n; // $100 per SOL
+  const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+  const debtValue = BigInt(loanAmount.toString());
+  const newICR = debtValue > 0n ? (collateralValue * 100n) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+  // Derive PDAs for this trove
+  const [userDebtAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_debt_amount"), userPubkey.toBuffer()],
+    programId
+  );
+  const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("user_collateral_amount"), userPubkey.toBuffer(), Buffer.from(denom)],
+    programId
+  );
+  const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from("liquidity_threshold"), userPubkey.toBuffer()],
+    programId
+  );
+
+  // Create a temporary TroveData object for this trove
+  const thisTrove: TroveData = {
+    owner: userPubkey,
+    debt: BigInt(loanAmount.toString()),
+    collateralAmount: BigInt(collateralAmount.toString()),
+    collateralDenom: denom,
+    icr: newICR,
+    debtAccount: userDebtAccount,
+    collateralAccount: userCollateralAccount,
+    liquidityThresholdAccount: liquidityThresholdAccount,
+  };
+
+  // Insert this trove into sorted position to find neighbors
+  let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+  if (insertIndex === -1) insertIndex = sortedTroves.length;
+  
+  const newSortedTroves = [
+    ...sortedTroves.slice(0, insertIndex),
+    thisTrove,
+    ...sortedTroves.slice(insertIndex),
+  ];
+
+  // Find neighbors
+  const neighbors = findNeighbors(thisTrove, newSortedTroves);
+
+  // Build remainingAccounts array
+  const neighborAccounts = buildNeighborAccounts(neighbors);
+  
+  // Convert PublicKey[] to AccountMeta format
+  return neighborAccounts.map((pubkey) => ({
+    pubkey,
+    isSigner: false,
+    isWritable: false,
+  }));
+}
 
 describe("Protocol Contract - Error Coverage Tests", () => {
   let ctx: TestContext;
@@ -45,6 +117,16 @@ describe("Protocol Contract - Error Coverage Tests", () => {
 
       const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
       const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, user.user.publicKey);
+
+      // Get neighbor hints for second trove attempt
+      const neighborHints = await getNeighborHints(
+        ctx.provider.connection,
+        ctx.protocolProgram.programId,
+        user.user.publicKey,
+        new BN(5_000_000_000),
+        MIN_LOAN_AMOUNT,
+        SOL_DENOM
+      );
 
       try {
         // Try to open second trove
@@ -78,6 +160,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user.user])
           .rpc();
 
@@ -99,6 +182,16 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       
       const user = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
       const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
+
+      // Get neighbor hints for non-existent trove
+      const neighborHints = await getNeighborHints(
+        ctx.provider.connection,
+        ctx.protocolProgram.programId,
+        user.user.publicKey,
+        new BN(1_000_000_000),
+        MIN_LOAN_AMOUNT,
+        SOL_DENOM
+      );
 
       try {
         // Try to add collateral without opening trove
@@ -123,6 +216,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user.user])
           .rpc();
 
@@ -163,6 +257,16 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
       const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, user.user.publicKey);
 
+      // Get neighbor hints even for invalid amount (might fail for different reason)
+      const neighborHints = await getNeighborHints(
+        ctx.provider.connection,
+        ctx.protocolProgram.programId,
+        user.user.publicKey,
+        new BN(0),
+        MIN_LOAN_AMOUNT,
+        SOL_DENOM
+      );
+
       try {
         await ctx.protocolProgram.methods
           .openTrove({
@@ -194,6 +298,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user.user])
           .rpc();
 
@@ -216,6 +321,16 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       const user = await createTestUser(ctx.provider, ctx.collateralMint, new BN(10_000_000_000));
       const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
       const userStablecoinAccount = await getAssociatedTokenAddress(ctx.stablecoinMint, user.user.publicKey);
+
+      // Get neighbor hints for below-minimum collateral
+      const neighborHints = await getNeighborHints(
+        ctx.provider.connection,
+        ctx.protocolProgram.programId,
+        user.user.publicKey,
+        new BN(1_000_000_000),
+        MIN_LOAN_AMOUNT,
+        SOL_DENOM
+      );
 
       try {
         // Try to open trove with 1 SOL (below 5 SOL minimum)
@@ -249,6 +364,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
+          .remainingAccounts(neighborHints)
           .signers([user.user])
           .rpc();
 
@@ -272,6 +388,17 @@ describe("Protocol Contract - Error Coverage Tests", () => {
       await openTroveForUser(ctx, user.user, new BN(6_000_000_000), MIN_LOAN_AMOUNT, SOL_DENOM);
       
       const pdas = derivePDAs(SOL_DENOM, user.user.publicKey, ctx.protocolProgram.programId);
+
+      // Get neighbor hints for removal (calculate remaining collateral after removal)
+      // Current: 6 SOL, trying to remove 10 SOL -> would be negative, use 0 for calculation
+      const neighborHints = await getNeighborHints(
+        ctx.provider.connection,
+        ctx.protocolProgram.programId,
+        user.user.publicKey,
+        new BN(0), // Would be negative, use 0
+        MIN_LOAN_AMOUNT,
+        SOL_DENOM
+      );
 
       try {
         // Try to remove more collateral than available
@@ -298,6 +425,7 @@ describe("Protocol Contract - Error Coverage Tests", () => {
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
+          .remainingAccounts(neighborHints)
           .signers([user.user])
           .rpc();
 
