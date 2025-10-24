@@ -41,6 +41,41 @@ The Aerospacer Protocol is a decentralized lending platform on Solana. Its core 
 - All tests updated to use off-chain sorting pattern
 - Helper functions added to `protocol-test-utils.ts`: `fetchAllTrovesSimple()`, `sortTrovesByICR()`, `findNeighborAccountsSimple()`
 
+### PDA Verification Security Fix (2025-01-24)
+
+**CRITICAL SECURITY FIX**: Prevented fake account injection attacks in neighbor hint validation.
+
+**Vulnerability Identified:**
+- Off-chain sorting architecture accepts neighbor hints via `remainingAccounts`
+- Previous implementation only checked if accounts could deserialize as `LiquidityThreshold`
+- Attackers could create fake accounts with arbitrary ICR values to bypass ordering validation
+- This allowed malicious trove insertion at any position in the sorted list ❌
+
+**Solution Implemented:**
+- **Added PDA verification helper**: `verify_liquidity_threshold_pda()` in `sorted_troves.rs`
+- **PDA derivation check**: Verifies each neighbor account matches expected PDA: `[b"liquidity_threshold", owner.as_ref()]`
+- **Placement**: Verification happens AFTER deserialization (to get owner) but BEFORE using ICR values
+- **Complete protection**: Applied to all four trove mutation instructions
+
+**Security Benefits:**
+- ✅ Only legitimate protocol-generated LiquidityThreshold PDAs accepted as neighbor hints
+- ✅ Fake account injection attack vector completely closed
+- ✅ Maintains off-chain sorting performance while adding on-chain security
+- ✅ No impact on valid use cases (real PDAs pass verification transparently)
+
+**Architecture Changes:**
+- **Added**: `verify_liquidity_threshold_pda()` helper function in `sorted_troves.rs` (lines 183-208)
+- **Updated**: `open_trove.rs` - PDA verification for prev/next neighbors before ICR validation
+- **Updated**: `add_collateral.rs` - PDA verification for prev/next neighbors before ICR validation
+- **Updated**: `remove_collateral.rs` - PDA verification for prev/next neighbors before ICR validation
+- **Updated**: `borrow_loan.rs` - PDA verification for prev/next neighbors before ICR validation
+
+**Architect Review Result:**
+- ✅ **PASS** - Implementation correctly blocks fake accounts
+- ✅ Security: No concerns observed
+- ✅ Fully closes previously exploitable attack surface
+- Recommendation: Add negative-path tests for forged accounts (future work)
+
 ### Protocol Fee Integration Tests Fixed (2025-01-23)
 
 Implemented comprehensive fee integration tests in `tests/protocol-fees-integration.ts` following code reuse principles:
