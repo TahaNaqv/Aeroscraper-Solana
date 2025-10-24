@@ -218,8 +218,13 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
             let prev_lt = &ctx.remaining_accounts[0];
             let prev_data = prev_lt.try_borrow_data()?;
             let prev_threshold = LiquidityThreshold::try_deserialize(&mut &prev_data[..])?;
+            let prev_owner = prev_threshold.owner;
             let prev_ratio = prev_threshold.ratio;
             drop(prev_data);
+            
+            // Verify this is a real PDA, not a fake account
+            sorted_troves::verify_liquidity_threshold_pda(prev_lt, prev_owner, ctx.program_id)?;
+            
             Some(prev_ratio)
         } else {
             None
@@ -229,8 +234,13 @@ pub fn handler(ctx: Context<BorrowLoan>, params: BorrowLoanParams) -> Result<()>
             let next_lt = &ctx.remaining_accounts[1];
             let next_data = next_lt.try_borrow_data()?;
             let next_threshold = LiquidityThreshold::try_deserialize(&mut &next_data[..])?;
+            let next_owner = next_threshold.owner;
             let next_ratio = next_threshold.ratio;
             drop(next_data);
+            
+            // Verify this is a real PDA, not a fake account
+            sorted_troves::verify_liquidity_threshold_pda(next_lt, next_owner, ctx.program_id)?;
+            
             Some(next_ratio)
         } else {
             None

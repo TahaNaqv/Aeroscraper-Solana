@@ -177,6 +177,33 @@ pub fn get_icr_from_account(account: &AccountInfo, expected_owner: Pubkey) -> Re
     Ok(threshold.ratio)
 }
 
+/// Verify that a LiquidityThreshold account is a real PDA, not a fake account
+/// 
+/// # Arguments
+/// * `account` - The account to verify
+/// * `owner` - The expected owner (from deserializing the account)
+/// * `program_id` - The program ID for PDA derivation
+/// 
+/// # Returns
+/// Ok(()) if account is a valid PDA, Err otherwise
+pub fn verify_liquidity_threshold_pda(
+    account: &AccountInfo,
+    owner: Pubkey,
+    program_id: &Pubkey,
+) -> Result<()> {
+    let (expected_pda, _bump) = Pubkey::find_program_address(
+        &[b"liquidity_threshold", owner.as_ref()],
+        program_id,
+    );
+    
+    require!(
+        expected_pda == *account.key,
+        AerospacerProtocolError::InvalidList
+    );
+    
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
