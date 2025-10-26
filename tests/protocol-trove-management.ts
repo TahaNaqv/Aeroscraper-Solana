@@ -289,6 +289,11 @@ describe("Protocol Contract - Trove Management Tests", () => {
         protocolProgram.programId
       );
 
+      const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), user1.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
       const collateralAmount = new BN(10_000_000_000); // 10 SOL
       const loanAmount = new BN(1_000_000_000_000_000_000); // 1 aUSD
 
@@ -325,9 +330,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           protocolStablecoinAccount: protocolVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
-          liquidityThreshold: userDebtPda, // Use same PDA for now
-          node: userDebtPda, // Use same PDA for now
-          sortedTrovesState: userDebtPda, // Use same PDA for now
+          liquidityThreshold: liquidityThresholdPda,
           oracleProgram: oracleProgram.programId,
           oracleState: oracleState,
           pythPriceAccount: PYTH_ORACLE_ADDRESS,
