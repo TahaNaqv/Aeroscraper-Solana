@@ -550,6 +550,11 @@ describe("Protocol Contract - Trove Management Tests", () => {
         protocolProgram.programId
       );
 
+      const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), testUser.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
         admin.payer,
@@ -579,15 +584,26 @@ describe("Protocol Contract - Trove Management Tests", () => {
         })
         .accounts({
           state: protocolState,
-          userDebt: userDebtPda,
-          userCollateral: userCollateralPda,
-          totalCollateral: totalCollateralPda,
+          userDebtAmount: userDebtPda,
+          userCollateralAmount: userCollateralPda,
+          totalCollateralAmount: totalCollateralPda,
           user: testUser.publicKey,
           userCollateralAccount: testCollateralAccount,
-          protocolVault: protocolVault,
+          protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
+          protocolStablecoinAccount: protocolVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
+          liquidityThreshold: liquidityThresholdPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: feesProgram.programId,
+          feesState: feeState,
+          stabilityPoolTokenAccount: testStablecoinAccount,
+          feeAddress1TokenAccount: testStablecoinAccount,
+          feeAddress2TokenAccount: testStablecoinAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -619,17 +635,23 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       await protocolProgram.methods
         .addCollateral({
-          collateralAmount: addCollateralAmount,
-          denom: "SOL",
+          amount: addCollateralAmount,
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
-          userCollateral: userCollateralPda,
-          totalCollateral: totalCollateralPda,
-          user: testUser.publicKey,
+          userDebtAmount: userDebtPda,
+          userCollateralAmount: userCollateralPda,
+          liquidityThreshold: liquidityThresholdPda,
           userCollateralAccount: testCollateralAccount,
-          protocolVault: protocolVault,
           collateralMint: collateralMint,
+          protocolCollateralAccount: protocolVault,
+          totalCollateralAmount: totalCollateralPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          user: testUser.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
