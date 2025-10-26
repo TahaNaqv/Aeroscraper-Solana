@@ -720,6 +720,11 @@ describe("Protocol Contract - Trove Management Tests", () => {
         protocolProgram.programId
       );
 
+      const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), testUser.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
         admin.payer,
@@ -756,8 +761,19 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
+          protocolStablecoinAccount: protocolVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
+          liquidityThreshold: liquidityThresholdPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: feesProgram.programId,
+          feesState: feeState,
+          stabilityPoolTokenAccount: testStablecoinAccount,
+          feeAddress1TokenAccount: testStablecoinAccount,
+          feeAddress2TokenAccount: testStablecoinAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -786,15 +802,30 @@ describe("Protocol Contract - Trove Management Tests", () => {
       await protocolProgram.methods
         .borrowLoan({
           loanAmount: additionalLoan,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
           userDebtAmount: userDebtPda,
-          userCollateralAmount: userCollateralPda,
-          user: testUser.publicKey,
+          liquidityThreshold: liquidityThresholdPda,
           userStablecoinAccount: testStablecoinAccount,
           stableCoinMint: stablecoinMint,
+          protocolStablecoinAccount: protocolVault,
+          userCollateralAmount: userCollateralPda,
+          userCollateralAccount: testCollateralAccount,
+          collateralMint: collateralMint,
+          protocolCollateralAccount: protocolVault,
+          totalCollateralAmount: totalCollateralPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: feesProgram.programId,
+          feesState: feeState,
+          stabilityPoolTokenAccount: testStablecoinAccount,
+          feeAddress1TokenAccount: testStablecoinAccount,
+          feeAddress2TokenAccount: testStablecoinAccount,
+          user: testUser.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -860,6 +891,11 @@ describe("Protocol Contract - Trove Management Tests", () => {
         protocolProgram.programId
       );
 
+      const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("liquidity_threshold"), testUser.publicKey.toBuffer()],
+        protocolProgram.programId
+      );
+
       const testStablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
         admin.payer,
@@ -896,8 +932,19 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
+          protocolStablecoinAccount: protocolVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
+          liquidityThreshold: liquidityThresholdPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: feesProgram.programId,
+          feesState: feeState,
+          stabilityPoolTokenAccount: testStablecoinAccount,
+          feeAddress1TokenAccount: testStablecoinAccount,
+          feeAddress2TokenAccount: testStablecoinAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -913,14 +960,25 @@ describe("Protocol Contract - Trove Management Tests", () => {
       const repayAmount = new BN(1_000_000_000_000_000_000);
       await protocolProgram.methods
         .repayLoan({
-          repayAmount,
+          amount: repayAmount,
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
           userDebtAmount: userDebtPda,
-          user: testUser.publicKey,
+          userCollateralAmount: userCollateralPda,
+          liquidityThreshold: liquidityThresholdPda,
           userStablecoinAccount: testStablecoinAccount,
+          userCollateralAccount: testCollateralAccount,
+          collateralMint: collateralMint,
+          protocolCollateralAccount: protocolVault,
           stableCoinMint: stablecoinMint,
+          totalCollateralAmount: totalCollateralPda,
+          oracleProgram: oracleProgram.programId,
+          oracleState: oracleState,
+          pythPriceAccount: PYTH_ORACLE_ADDRESS,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          user: testUser.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
