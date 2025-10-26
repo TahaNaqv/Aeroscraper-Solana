@@ -62,8 +62,11 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       console.log("    - Stake enabled:", feeState.isStakeEnabled);
 
       // Open a trove to trigger fee distribution via CPI
+      // Loan amount must account for 5% protocol fee (minimum after fee: 1_000_000_000_000_000)
+      // We need: loan_amount * 0.95 >= MINIMUM_LOAN_AMOUNT
+      // So: loan_amount >= 1_000_000_000_000_000 / 0.95 ≈ 1_052_631_578_947_368
       const collateralAmount = new BN(2_000_000_000); // 2 SOL
-      const loanAmount = new BN(MIN_LOAN_AMOUNT);
+      const loanAmount = new BN(1_100_000_000_000_000); // 0.0011 aUSD (accounting for 5% fee)
 
       console.log("  📝 Opening trove to test CPI fee distribution...");
 
@@ -106,7 +109,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       const testUser2 = testUser2Setup.user;
 
       // Open trove with specific loan amount to test 5% fee
-      const testLoanAmount = new BN(MIN_LOAN_AMOUNT);
+      const testLoanAmount = new BN(1_100_000_000_000_000); // 0.0011 aUSD (accounting for 5% fee)
       const collateralAmount = new BN(3_000_000_000); // 3 SOL
 
       console.log("  Loan amount:", testLoanAmount.toString(), "aUSD");
@@ -186,7 +189,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       );
       const testUser3 = testUser3Setup.user;
       const collateralAmount = new BN(2_000_000_000);
-      const loanAmount = new BN(MIN_LOAN_AMOUNT);
+      const loanAmount = new BN(1_100_000_000_000_000); // 0.0011 aUSD (accounting for 5% fee)
 
       await openTroveForUser(
         ctx,
@@ -276,7 +279,7 @@ describe("Protocol Contract - Fees Integration Tests", () => {
       );
       const testUser4 = testUser4Setup.user;
       const collateralAmount = new BN(2_000_000_000);
-      const loanAmount = new BN(MIN_LOAN_AMOUNT);
+      const loanAmount = new BN(1_100_000_000_000_000); // 0.0011 aUSD (accounting for 5% fee)
 
       await openTroveForUser(
         ctx,
