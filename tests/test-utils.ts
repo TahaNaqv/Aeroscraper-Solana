@@ -303,8 +303,6 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     }
   }
 
-  const sortedTrovesState = derivePDAs(SOL_DENOM, admin.publicKey, protocolProgram.programId).sortedTrovesState;
-
   // STEP 7: Create fee-related token accounts (ATAs, not PDAs) - match protocol-core.ts lines 446-496
   const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
   const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
@@ -364,7 +362,6 @@ export async function setupTestEnvironment(): Promise<TestContext> {
     protocolState: protocolStatePDA,
     oracleState: oracleStatePDA,
     feeState: feesStatePDA,
-    sortedTrovesState,
     stabilityPoolTokenAccount,
     feeAddress1TokenAccount,
     feeAddress2TokenAccount,
