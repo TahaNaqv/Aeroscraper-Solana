@@ -105,6 +105,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   let oracleState: PublicKey;
   let feeState: PublicKey;
   let protocolVault: PublicKey;
+  let protocolStablecoinVault: PublicKey;
   let user1CollateralAccount: PublicKey;
   let user1StablecoinAccount: PublicKey;
   let user2CollateralAccount: PublicKey;
@@ -255,9 +256,15 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("✅ Protocol initialized");
     }
 
-    // Derive protocol vault
+    // Derive protocol collateral vault
     [protocolVault] = PublicKey.findProgramAddressSync(
       [Buffer.from("protocol_vault"), collateralMint.toBuffer()],
+      protocolProgram.programId
+    );
+
+    // Derive protocol stablecoin vault
+    [protocolStablecoinVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_stablecoin_vault"), stablecoinMint.toBuffer()],
       protocolProgram.programId
     );
 
@@ -327,7 +334,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: user1CollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: user1StablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -423,7 +430,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: user2CollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: user2StablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -474,7 +481,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
             userCollateralAccount: user2CollateralAccount,
             protocolCollateralAccount: protocolVault,
             userStablecoinAccount: user2StablecoinAccount,
-            protocolStablecoinAccount: protocolVault,
+            protocolStablecoinAccount: protocolStablecoinVault,
             stableCoinMint: stablecoinMint,
             collateralMint: collateralMint,
             liquidityThreshold: liquidityThresholdPda,
@@ -591,7 +598,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -761,7 +768,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -810,7 +817,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           liquidityThreshold: liquidityThresholdPda,
           userStablecoinAccount: testStablecoinAccount,
           stableCoinMint: stablecoinMint,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           userCollateralAmount: userCollateralPda,
           userCollateralAccount: testCollateralAccount,
           collateralMint: collateralMint,
@@ -932,7 +939,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1084,7 +1091,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1230,7 +1237,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1374,7 +1381,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1543,7 +1550,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1704,7 +1711,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
             userCollateralAccount: testCollateralAccount,
             protocolCollateralAccount: protocolVault,
             userStablecoinAccount: testStablecoinAccount,
-            protocolStablecoinAccount: protocolVault,
+            protocolStablecoinAccount: protocolStablecoinVault,
             stableCoinMint: stablecoinMint,
             collateralMint: collateralMint,
             liquidityThreshold: liquidityThresholdPda,
@@ -1821,7 +1828,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
@@ -1963,7 +1970,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userCollateralAccount: testCollateralAccount,
           protocolCollateralAccount: protocolVault,
           userStablecoinAccount: testStablecoinAccount,
-          protocolStablecoinAccount: protocolVault,
+          protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
           liquidityThreshold: liquidityThresholdPda,
