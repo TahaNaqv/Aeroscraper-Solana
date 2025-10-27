@@ -627,7 +627,6 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Add collateral
       const addCollateralAmount = new BN(5_000_000_000);
-      const currentDebt = initialDebt || loanAmount;
       const newTotalCollateral = openCollateralAmount.add(addCollateralAmount);
       
       const addCollateralRemainingAccounts = await getNeighborHints(
