@@ -323,7 +323,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount,
           loanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -419,7 +419,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: collateralAmount1,
           loanAmount: loanAmount1,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -470,7 +470,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           .openTrove({
             collateralAmount: collateralAmount2,
             loanAmount: loanAmount2,
-            denom: "SOL",
+            collateralDenom: "SOL",
           })
           .accounts({
             state: protocolState,
@@ -587,7 +587,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: openCollateralAmount,
           loanAmount: openLoanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -643,6 +643,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .addCollateral({
           amount: addCollateralAmount,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           state: protocolState,
@@ -756,7 +758,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: highCollateralAmount,
           loanAmount: initialLoanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -809,6 +811,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .borrowLoan({
           loanAmount: additionalLoan,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           state: protocolState,
@@ -927,7 +931,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: repayTestCollateralAmount,
           loanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -968,6 +972,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .repayLoan({
           amount: repayAmount,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           state: protocolState,
@@ -1079,7 +1085,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: fullRepayCollateralAmount,
           loanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -1117,6 +1123,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .repayLoan({
           amount: loanAmount,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           state: protocolState,
@@ -1225,7 +1233,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount,
           loanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -1369,7 +1377,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: excessCollateralAmount,
           loanAmount: removeLoanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -1425,6 +1433,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .removeCollateral({
           collateralAmount: removeAmount,
           collateralDenom: "SOL",
+          prevNodeId: null,
+          nextNodeId: null,
         })
         .accounts({
           state: protocolState,
@@ -1538,7 +1548,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: minimalCollateralAmount,
           loanAmount: minimalLoanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -1589,6 +1599,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
           .removeCollateral({
             collateralAmount: invalidRemoveAmount,
             collateralDenom: "SOL",
+            prevNodeId: null,
+            nextNodeId: null,
           })
           .accounts({
             state: protocolState,
@@ -1699,7 +1711,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
           .openTrove({
             collateralAmount: belowMinCollateralAmount,
             loanAmount: belowMinLoanAmount,
-            denom: "SOL",
+            collateralDenom: "SOL",
           })
           .accounts({
             state: protocolState,
@@ -1816,7 +1828,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: closeWithDebtCollateralAmount,
           loanAmount: closeWithDebtLoanAmount,
-          denom: "SOL",
+          collateralDenom: "SOL",
         })
         .accounts({
           state: protocolState,
@@ -1958,7 +1970,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         .openTrove({
           collateralAmount: usdcCollateralAmount,
           loanAmount: usdcLoanAmount,
-          denom: "USDC",
+          collateralDenom: "USDC",
         })
         .accounts({
           state: protocolState,

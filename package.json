@@ -7,6 +7,7 @@
     "add-assets-devnet": "ts-node scripts/add-assets-devnet.ts",
     "check-price-ids": "ts-node scripts/check-price-ids.ts",
     "fix-price-ids": "ts-node scripts/fix-price-ids.ts",
+    "fund-tokens": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json ts-node scripts/fund-collateral-tokens.ts",
     "init-protocol-devnet": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json ts-node scripts/init-protocol-devnet.ts",
     "update-protocol-addresses": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json ts-node scripts/update-protocol-addresses.ts",
     "transfer-mint-authority": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json ts-node scripts/transfer-mint-authority.ts",
