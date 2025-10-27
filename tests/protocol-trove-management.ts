@@ -64,7 +64,7 @@ async function getNeighborHints(
   // Insert this trove into sorted position to find neighbors
   let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
   if (insertIndex === -1) insertIndex = sortedTroves.length;
-  
+
   const newSortedTroves = [
     ...sortedTroves.slice(0, insertIndex),
     thisTrove,
@@ -76,7 +76,7 @@ async function getNeighborHints(
 
   // Build remainingAccounts array
   const neighborAccounts = buildNeighborAccounts(neighbors);
-  
+
   // Convert PublicKey[] to AccountMeta format
   return neighborAccounts.map((pubkey) => ({
     pubkey,
@@ -115,7 +115,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
     // Transfer minimal SOL for transaction fees and account creation
     const transferAmount = 1000000; // 0.001 SOL in lamports
-    
+
     const user1Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
@@ -302,7 +302,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       const collateralAmount = new BN(10_000_000_000); // 10 SOL
-      const loanAmount = new BN(1_000_000_000_000_000_000); // 1 aUSD
+      const loanAmount = new BN(1100000000000000); // 1 aUSD
 
       console.log("📋 Opening trove...");
       console.log("  Collateral:", collateralAmount.toString(), "lamports (10 SOL)");
@@ -403,8 +403,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // First trove opens successfully
       const collateralAmount1 = new BN(10_000_000_000);
-      const loanAmount1 = new BN(1_000_000_000_000_000_000);
-      
+      const loanAmount1 = new BN(1100000000000000);
+
       const remainingAccounts1 = await getNeighborHints(
         provider,
         protocolProgram,
@@ -455,7 +455,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       try {
         const collateralAmount2 = new BN(5_000_000_000);
         const loanAmount2 = new BN(500_000_000_000_000_000);
-        
+
         const remainingAccounts2 = await getNeighborHints(
           provider,
           protocolProgram,
@@ -571,8 +571,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove
       const openCollateralAmount = new BN(10_000_000_000);
-      const openLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const openLoanAmount = new BN(1100000000000000);
+
       const openRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -628,7 +628,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       // Add collateral
       const addCollateralAmount = new BN(5_000_000_000);
       const newTotalCollateral = openCollateralAmount.add(addCollateralAmount);
-      
+
       const addCollateralRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -740,8 +740,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove with high collateral
       const highCollateralAmount = new BN(20_000_000_000);
-      const initialLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const initialLoanAmount = new BN(1100000000000000);
+
       const highCollateralRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -794,7 +794,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       // Borrow more
       const additionalLoan = new BN(500_000_000_000_000_000);
       const newTotalDebt = initialLoanAmount.add(additionalLoan);
-      
+
       const borrowLoanRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -912,7 +912,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       // Open trove
       const loanAmount = new BN(2_000_000_000_000_000_000);
       const repayTestCollateralAmount = new BN(20_000_000_000);
-      
+
       const repayTestRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -963,7 +963,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial debt:", initialDebt.amount.toString());
 
       // Repay half
-      const repayAmount = new BN(1_000_000_000_000_000_000);
+      const repayAmount = new BN(1100000000000000);
       await protocolProgram.methods
         .repayLoan({
           amount: repayAmount,
@@ -1062,9 +1062,9 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
-      const loanAmount = new BN(1_000_000_000_000_000_000);
+      const loanAmount = new BN(1100000000000000);
       const fullRepayCollateralAmount = new BN(15_000_000_000);
-      
+
       const fullRepayRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -1207,7 +1207,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
         testUser.publicKey
       );
 
-      const loanAmount = new BN(1_000_000_000_000_000_000);
+      const loanAmount = new BN(1100000000000000);
       const collateralAmount = new BN(15_000_000_000);
 
       // Open trove
@@ -1353,8 +1353,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove with excess collateral
       const excessCollateralAmount = new BN(30_000_000_000);
-      const removeLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const removeLoanAmount = new BN(1100000000000000);
+
       const excessCollateralRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -1410,7 +1410,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       // Remove some collateral (maintaining MCR)
       const removeAmount = new BN(5_000_000_000);
       const newCollateralAmount = excessCollateralAmount.sub(removeAmount);
-      
+
       const removeCollateralRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -1522,8 +1522,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove with minimal collateral
       const minimalCollateralAmount = new BN(12_000_000_000);
-      const minimalLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const minimalLoanAmount = new BN(1100000000000000);
+
       const minimalCollateralRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -1574,7 +1574,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       try {
         const invalidRemoveAmount = new BN(10_000_000_000);
         const invalidNewCollateral = minimalCollateralAmount.sub(invalidRemoveAmount);
-        
+
         const invalidRemoveRemainingAccounts = await getNeighborHints(
           provider,
           protocolProgram,
@@ -1684,7 +1684,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       try {
         const belowMinCollateralAmount = new BN(10_000_000_000);
         const belowMinLoanAmount = new BN(100_000_000_000_000_000); // 0.1 aUSD (below 1 aUSD minimum)
-        
+
         const belowMinRemainingAccounts = await getNeighborHints(
           provider,
           protocolProgram,
@@ -1800,8 +1800,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove
       const closeWithDebtCollateralAmount = new BN(15_000_000_000);
-      const closeWithDebtLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const closeWithDebtLoanAmount = new BN(1100000000000000);
+
       const closeWithDebtRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
@@ -1942,8 +1942,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("📋 Opening trove with USDC collateral...");
 
       const usdcCollateralAmount = new BN(10_000_000_000);
-      const usdcLoanAmount = new BN(1_000_000_000_000_000_000);
-      
+      const usdcLoanAmount = new BN(1100000000000000);
+
       const usdcRemainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
