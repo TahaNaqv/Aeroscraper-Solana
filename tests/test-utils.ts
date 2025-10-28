@@ -307,26 +307,43 @@ export async function setupTestEnvironment(): Promise<TestContext> {
   const feeAddress1 = new PublicKey("8Lv4UrYHTrzvg9jPVVGNmxWyMrMvrZnCQLWucBzfJyyR");
   const feeAddress2 = new PublicKey("GcNwV1nA5bityjNYsWwPLHykpKuuhPzK1AQFBbrPopnX");
 
-  // Transfer SOL to fee addresses (0.1 SOL each, match protocol-core.ts line 456)
-  const feeTransferAmount = 100_000_000; // 0.1 SOL in lamports
+  // Transfer SOL to fee addresses only if not already funded (minimize SOL usage)
+  const minBalance = 10_000_000; // 0.01 SOL minimum
 
-  const fee1Tx = new anchor.web3.Transaction().add(
-    anchor.web3.SystemProgram.transfer({
-      fromPubkey: admin.publicKey,
-      toPubkey: feeAddress1,
-      lamports: feeTransferAmount,
-    })
-  );
-  await provider.sendAndConfirm(fee1Tx, [admin.payer]);
+  const fee1Balance = await provider.connection.getBalance(feeAddress1);
+  const fee2Balance = await provider.connection.getBalance(feeAddress2);
 
-  const fee2Tx = new anchor.web3.Transaction().add(
-    anchor.web3.SystemProgram.transfer({
-      fromPubkey: admin.publicKey,
-      toPubkey: feeAddress2,
-      lamports: feeTransferAmount,
-    })
-  );
-  await provider.sendAndConfirm(fee2Tx, [admin.payer]);
+  if (fee1Balance < minBalance) {
+    // Only transfer what's needed, not more
+    const feeTransferAmount = minBalance - fee1Balance;
+    const fee1Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: feeAddress1,
+        lamports: feeTransferAmount,
+      })
+    );
+    await provider.sendAndConfirm(fee1Tx, [admin.payer]);
+    console.log("✅ Funded feeAddress1 with", feeTransferAmount / 1e9, "SOL");
+  } else {
+    console.log("✅ FeeAddress1 already funded:", fee1Balance / 1e9, "SOL");
+  }
+
+  if (fee2Balance < minBalance) {
+    // Only transfer what's needed, not more
+    const feeTransferAmount = minBalance - fee2Balance;
+    const fee2Tx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: admin.publicKey,
+        toPubkey: feeAddress2,
+        lamports: feeTransferAmount,
+      })
+    );
+    await provider.sendAndConfirm(fee2Tx, [admin.payer]);
+    console.log("✅ Funded feeAddress2 with", feeTransferAmount / 1e9, "SOL");
+  } else {
+    console.log("✅ FeeAddress2 already funded:", fee2Balance / 1e9, "SOL");
+  }
 
   // Create token accounts for fee addresses
   const feeAddress1TokenAccount = await getAssociatedTokenAddress(stablecoinMint, feeAddress1);

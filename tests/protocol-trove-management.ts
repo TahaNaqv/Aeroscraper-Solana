@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
 import { fetchAllTroves, sortTrovesByICR, findNeighbors, buildNeighborAccounts, TroveData } from './trove-indexer';
+import { loadTestUsers } from "./test-utils";
 
 // Helper function to get neighbor hints for trove mutations
 async function getNeighborHints(
@@ -94,8 +95,12 @@ describe("Protocol Contract - Trove Management Tests", () => {
   const feesProgram = anchor.workspace.AerospacerFees as Program<AerospacerFees>;
 
   const admin = provider.wallet;
-  const user1 = Keypair.generate();
-  const user2 = Keypair.generate();
+  const { user3, user4 } = loadTestUsers();
+  const USER3 = user3.publicKey;
+  const USER4 = user4.publicKey;
+
+  console.log("user3:", user3.toString());
+  console.log("user4:", user4.toString());
 
   const PYTH_ORACLE_ADDRESS = new PublicKey("gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s");
 
@@ -106,56 +111,56 @@ describe("Protocol Contract - Trove Management Tests", () => {
   let feeState: PublicKey;
   let protocolVault: PublicKey;
   let protocolStablecoinVault: PublicKey;
-  let user1CollateralAccount: PublicKey;
-  let user1StablecoinAccount: PublicKey;
-  let user2CollateralAccount: PublicKey;
+  let user3CollateralAccount: PublicKey;
+  let user3StablecoinAccount: PublicKey;
+  let user4CollateralAccount: PublicKey;
 
   before(async () => {
     console.log("\n🚀 Setting up Trove Management Tests for devnet...");
 
     // Transfer minimal SOL for transaction fees and account creation
-    const transferAmount = 1000000; // 0.001 SOL in lamports
+    const transferAmount = 1000000000; // 1 SOL in lamports
 
-    const user1Tx = new anchor.web3.Transaction().add(
+    const user3Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
-        toPubkey: user1.publicKey,
+        toPubkey: user3.publicKey,
         lamports: transferAmount,
       })
     );
-    await provider.sendAndConfirm(user1Tx, [admin.payer]);
+    await provider.sendAndConfirm(user3Tx, [admin.payer]);
 
-    const user2Tx = new anchor.web3.Transaction().add(
+    const user4Tx = new anchor.web3.Transaction().add(
       anchor.web3.SystemProgram.transfer({
         fromPubkey: admin.publicKey,
-        toPubkey: user2.publicKey,
+        toPubkey: user4.publicKey,
         lamports: transferAmount,
       })
     );
-    await provider.sendAndConfirm(user2Tx, [admin.payer]);
+    await provider.sendAndConfirm(user4Tx, [admin.payer]);
 
     // Create mints
     stablecoinMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 18);
     collateralMint = await createMint(provider.connection, admin.payer, admin.publicKey, null, 9);
 
     // Create token accounts
-    user1CollateralAccount = await createAssociatedTokenAccount(
+    user3CollateralAccount = await createAssociatedTokenAccount(
       provider.connection,
       admin.payer,
       collateralMint,
-      user1.publicKey
+      user3.publicKey
     );
-    user1StablecoinAccount = await createAssociatedTokenAccount(
+    user3StablecoinAccount = await createAssociatedTokenAccount(
       provider.connection,
       admin.payer,
       stablecoinMint,
-      user1.publicKey
+      user3.publicKey
     );
-    user2CollateralAccount = await createAssociatedTokenAccount(
+    user4CollateralAccount = await createAssociatedTokenAccount(
       provider.connection,
       admin.payer,
       collateralMint,
-      user2.publicKey
+      user4.publicKey
     );
 
     // Mint collateral to users
@@ -163,7 +168,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       provider.connection,
       admin.payer,
       collateralMint,
-      user1CollateralAccount,
+      user3CollateralAccount,
       admin.publicKey,
       100_000_000_000
     );
@@ -171,7 +176,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       provider.connection,
       admin.payer,
       collateralMint,
-      user2CollateralAccount,
+      user4CollateralAccount,
       admin.publicKey,
       100_000_000_000
     );
@@ -258,7 +263,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
     // Derive protocol collateral vault
     [protocolVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("protocol_vault"), collateralMint.toBuffer()],
+      [Buffer.from("protocol_collateral_vault"), collateralMint.toBuffer()],
       protocolProgram.programId
     );
 
@@ -269,7 +274,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
     );
 
     console.log("✅ Setup complete");
-    console.log("  User1:", user1.publicKey.toString());
+    console.log("  user3:", user3.publicKey.toString());
     console.log("  Protocol State:", protocolState.toString());
     console.log("  Collateral Mint:", collateralMint.toString());
     console.log("  Stablecoin Mint:", stablecoinMint.toString());
@@ -278,14 +283,14 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.1: Open Trove with Valid Collateral", () => {
     it("Should successfully open trove with sufficient collateral", async () => {
       const [userDebtPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("user_debt_amount"), user1.publicKey.toBuffer()],
+        [Buffer.from("user_debt_amount"), user3.publicKey.toBuffer()],
         protocolProgram.programId
       );
 
       const [userCollateralPda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from("user_collateral_amount"),
-          user1.publicKey.toBuffer(),
+          user3.publicKey.toBuffer(),
           Buffer.from("SOL"),
         ],
         protocolProgram.programId
@@ -297,11 +302,11 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("liquidity_threshold"), user1.publicKey.toBuffer()],
+        [Buffer.from("liquidity_threshold"), user3.publicKey.toBuffer()],
         protocolProgram.programId
       );
 
-      const collateralAmount = new BN(10_000_000_000); // 10 SOL
+      const collateralAmount = new BN(10000000000); // 10 SOL
       const loanAmount = new BN(1100000000000000); // 1 aUSD
 
       console.log("📋 Opening trove...");
@@ -312,7 +317,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       const remainingAccounts = await getNeighborHints(
         provider,
         protocolProgram,
-        user1.publicKey,
+        user3.publicKey,
         collateralAmount,
         loanAmount,
         "SOL",
@@ -330,10 +335,10 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userDebtAmount: userDebtPda,
           userCollateralAmount: userCollateralPda,
           totalCollateralAmount: totalCollateralPda,
-          user: user1.publicKey,
-          userCollateralAccount: user1CollateralAccount,
+          user: user3.publicKey,
+          userCollateralAccount: user3CollateralAccount,
           protocolCollateralAccount: protocolVault,
-          userStablecoinAccount: user1StablecoinAccount,
+          userStablecoinAccount: user3StablecoinAccount,
           protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
@@ -344,14 +349,14 @@ describe("Protocol Contract - Trove Management Tests", () => {
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           feesProgram: feesProgram.programId,
           feesState: feeState,
-          stabilityPoolTokenAccount: user1StablecoinAccount, // Use user account for now
-          feeAddress1TokenAccount: user1StablecoinAccount, // Use user account for now
-          feeAddress2TokenAccount: user1StablecoinAccount, // Use user account for now
+          stabilityPoolTokenAccount: user3StablecoinAccount, // Use user account for now
+          feeAddress1TokenAccount: user3StablecoinAccount, // Use user account for now
+          feeAddress2TokenAccount: user3StablecoinAccount, // Use user account for now
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
         .remainingAccounts(remainingAccounts)
-        .signers([user1])
+        .signers([user3])
         .rpc();
 
       console.log("✅ Trove opened. TX:", tx);
@@ -371,14 +376,14 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.2: Reject Duplicate Trove Opening", () => {
     it("Should fail when user tries to open second trove", async () => {
       const [userDebtPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("user_debt_amount"), user2.publicKey.toBuffer()],
+        [Buffer.from("user_debt_amount"), user4.publicKey.toBuffer()],
         protocolProgram.programId
       );
 
       const [userCollateralPda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from("user_collateral_amount"),
-          user2.publicKey.toBuffer(),
+          user4.publicKey.toBuffer(),
           Buffer.from("SOL"),
         ],
         protocolProgram.programId
@@ -390,25 +395,25 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       const [liquidityThresholdPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("liquidity_threshold"), user2.publicKey.toBuffer()],
+        [Buffer.from("liquidity_threshold"), user4.publicKey.toBuffer()],
         protocolProgram.programId
       );
 
-      const user2StablecoinAccount = await createAssociatedTokenAccount(
+      const user4StablecoinAccount = await createAssociatedTokenAccount(
         provider.connection,
         admin.payer,
         stablecoinMint,
-        user2.publicKey
+        user4.publicKey
       );
 
       // First trove opens successfully
-      const collateralAmount1 = new BN(10_000_000_000);
+      const collateralAmount1 = new BN(10000000000);
       const loanAmount1 = new BN(1100000000000000);
 
       const remainingAccounts1 = await getNeighborHints(
         provider,
         protocolProgram,
-        user2.publicKey,
+        user4.publicKey,
         collateralAmount1,
         loanAmount1,
         "SOL",
@@ -426,10 +431,10 @@ describe("Protocol Contract - Trove Management Tests", () => {
           userDebtAmount: userDebtPda,
           userCollateralAmount: userCollateralPda,
           totalCollateralAmount: totalCollateralPda,
-          user: user2.publicKey,
-          userCollateralAccount: user2CollateralAccount,
+          user: user4.publicKey,
+          userCollateralAccount: user4CollateralAccount,
           protocolCollateralAccount: protocolVault,
-          userStablecoinAccount: user2StablecoinAccount,
+          userStablecoinAccount: user4StablecoinAccount,
           protocolStablecoinAccount: protocolStablecoinVault,
           stableCoinMint: stablecoinMint,
           collateralMint: collateralMint,
@@ -440,26 +445,26 @@ describe("Protocol Contract - Trove Management Tests", () => {
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
           feesProgram: feesProgram.programId,
           feesState: feeState,
-          stabilityPoolTokenAccount: user2StablecoinAccount,
-          feeAddress1TokenAccount: user2StablecoinAccount,
-          feeAddress2TokenAccount: user2StablecoinAccount,
+          stabilityPoolTokenAccount: user4StablecoinAccount,
+          feeAddress1TokenAccount: user4StablecoinAccount,
+          feeAddress2TokenAccount: user4StablecoinAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
         .remainingAccounts(remainingAccounts1)
-        .signers([user2])
+        .signers([user4])
         .rpc();
 
       console.log("🔒 Attempting to open duplicate trove...");
 
       try {
-        const collateralAmount2 = new BN(5_000_000_000);
-        const loanAmount2 = new BN(500_000_000_000_000_000);
+        const collateralAmount2 = new BN(5000000000);
+        const loanAmount2 = new BN(500000000000000000);
 
         const remainingAccounts2 = await getNeighborHints(
           provider,
           protocolProgram,
-          user2.publicKey,
+          user4.publicKey,
           collateralAmount2,
           loanAmount2,
           "SOL",
@@ -477,10 +482,10 @@ describe("Protocol Contract - Trove Management Tests", () => {
             userDebtAmount: userDebtPda,
             userCollateralAmount: userCollateralPda,
             totalCollateralAmount: totalCollateralPda,
-            user: user2.publicKey,
-            userCollateralAccount: user2CollateralAccount,
+            user: user4.publicKey,
+            userCollateralAccount: user4CollateralAccount,
             protocolCollateralAccount: protocolVault,
-            userStablecoinAccount: user2StablecoinAccount,
+            userStablecoinAccount: user4StablecoinAccount,
             protocolStablecoinAccount: protocolStablecoinVault,
             stableCoinMint: stablecoinMint,
             collateralMint: collateralMint,
@@ -491,14 +496,14 @@ describe("Protocol Contract - Trove Management Tests", () => {
             clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
             feesProgram: feesProgram.programId,
             feesState: feeState,
-            stabilityPoolTokenAccount: user2StablecoinAccount,
-            feeAddress1TokenAccount: user2StablecoinAccount,
-            feeAddress2TokenAccount: user2StablecoinAccount,
+            stabilityPoolTokenAccount: user4StablecoinAccount,
+            feeAddress1TokenAccount: user4StablecoinAccount,
+            feeAddress2TokenAccount: user4StablecoinAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })
           .remainingAccounts(remainingAccounts2)
-          .signers([user2])
+          .signers([user4])
           .rpc();
 
         assert.fail("Should have rejected duplicate trove");
@@ -512,7 +517,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.3: Add Collateral to Existing Trove", () => {
     it("Should successfully add collateral", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -570,7 +575,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
-      const openCollateralAmount = new BN(10_000_000_000);
+      const openCollateralAmount = new BN(10000000000);
       const openLoanAmount = new BN(1100000000000000);
 
       const openRemainingAccounts = await getNeighborHints(
@@ -626,7 +631,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial:", initialCollateral.amount.toString());
 
       // Add collateral
-      const addCollateralAmount = new BN(5_000_000_000);
+      const addCollateralAmount = new BN(5000000000);
       const newTotalCollateral = openCollateralAmount.add(addCollateralAmount);
 
       const addCollateralRemainingAccounts = await getNeighborHints(
@@ -673,7 +678,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       console.log("  Final:", finalCollateral.amount.toString());
 
-      const expected = initialCollateral.amount.add(new BN(5_000_000_000));
+      const expected = initialCollateral.amount.add(new BN(5000000000));
       assert.equal(finalCollateral.amount.toString(), expected.toString());
 
       console.log("✅ Collateral added successfully");
@@ -683,7 +688,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.4: Borrow Loan from Trove", () => {
     it("Should successfully borrow additional loan", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -741,7 +746,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with high collateral
-      const highCollateralAmount = new BN(20_000_000_000);
+      const highCollateralAmount = new BN(20000000000);
       const initialLoanAmount = new BN(1100000000000000);
 
       const highCollateralRemainingAccounts = await getNeighborHints(
@@ -794,7 +799,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial debt:", initialDebt.amount.toString());
 
       // Borrow more
-      const additionalLoan = new BN(500_000_000_000_000_000);
+      const additionalLoan = new BN(500000000000000000);
       const newTotalDebt = initialLoanAmount.add(additionalLoan);
 
       const borrowLoanRemainingAccounts = await getNeighborHints(
@@ -856,7 +861,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.5: Repay Loan Partially", () => {
     it("Should successfully repay part of the loan", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -914,8 +919,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
-      const loanAmount = new BN(2_000_000_000_000_000_000);
-      const repayTestCollateralAmount = new BN(20_000_000_000);
+      const loanAmount = new BN(2000000000000000000);
+      const repayTestCollateralAmount = new BN(20000000000);
 
       const repayTestRemainingAccounts = await getNeighborHints(
         provider,
@@ -1010,7 +1015,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.6: Repay Loan Fully", () => {
     it("Should successfully repay all debt", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1069,7 +1074,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       // Open trove
       const loanAmount = new BN(1100000000000000);
-      const fullRepayCollateralAmount = new BN(15_000_000_000);
+      const fullRepayCollateralAmount = new BN(15000000000);
 
       const fullRepayRemainingAccounts = await getNeighborHints(
         provider,
@@ -1158,7 +1163,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.7: Close Trove", () => {
     it("Should successfully close trove after full repayment", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1216,7 +1221,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       const loanAmount = new BN(1100000000000000);
-      const collateralAmount = new BN(15_000_000_000);
+      const collateralAmount = new BN(15000000000);
 
       // Open trove
       const closeTroveRemainingAccounts = await getNeighborHints(
@@ -1302,7 +1307,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.8: Remove Collateral (Maintaining MCR)", () => {
     it("Should successfully remove collateral while maintaining MCR", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1360,7 +1365,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with excess collateral
-      const excessCollateralAmount = new BN(30_000_000_000);
+      const excessCollateralAmount = new BN(30000000000);
       const removeLoanAmount = new BN(1100000000000000);
 
       const excessCollateralRemainingAccounts = await getNeighborHints(
@@ -1416,7 +1421,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("  Initial:", initialCollateral.amount.toString());
 
       // Remove some collateral (maintaining MCR)
-      const removeAmount = new BN(5_000_000_000);
+      const removeAmount = new BN(5000000000);
       const newCollateralAmount = excessCollateralAmount.sub(removeAmount);
 
       const removeCollateralRemainingAccounts = await getNeighborHints(
@@ -1463,7 +1468,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       console.log("  Final:", finalCollateral.amount.toString());
 
-      const expected = initialCollateral.amount.sub(new BN(5_000_000_000));
+      const expected = initialCollateral.amount.sub(new BN(5000000000));
       assert.equal(finalCollateral.amount.toString(), expected.toString());
 
       console.log("✅ Collateral removed successfully");
@@ -1473,7 +1478,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.9: Reject Collateral Removal Below MCR", () => {
     it("Should fail when removing collateral would violate MCR", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1531,7 +1536,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove with minimal collateral
-      const minimalCollateralAmount = new BN(12_000_000_000);
+      const minimalCollateralAmount = new BN(12000000000);
       const minimalLoanAmount = new BN(1100000000000000);
 
       const minimalCollateralRemainingAccounts = await getNeighborHints(
@@ -1582,7 +1587,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("🔒 Attempting to remove collateral below MCR...");
 
       try {
-        const invalidRemoveAmount = new BN(10_000_000_000);
+        const invalidRemoveAmount = new BN(10000000000);
         const invalidNewCollateral = minimalCollateralAmount.sub(invalidRemoveAmount);
 
         const invalidRemoveRemainingAccounts = await getNeighborHints(
@@ -1634,7 +1639,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.10: Reject Borrow Below Minimum Loan Amount", () => {
     it("Should fail when borrowing below minimum loan amount", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1694,8 +1699,8 @@ describe("Protocol Contract - Trove Management Tests", () => {
       console.log("🔒 Attempting to open trove with loan below minimum...");
 
       try {
-        const belowMinCollateralAmount = new BN(10_000_000_000);
-        const belowMinLoanAmount = new BN(100_000_000_000_000_000); // 0.1 aUSD (below 1 aUSD minimum)
+        const belowMinCollateralAmount = new BN(10000000000);
+        const belowMinLoanAmount = new BN(100000000000000000); // 0.1 aUSD (below 1 aUSD minimum)
 
         const belowMinRemainingAccounts = await getNeighborHints(
           provider,
@@ -1753,7 +1758,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.11: Reject Close Trove with Outstanding Debt", () => {
     it("Should fail when trying to close trove with debt", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1811,7 +1816,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
       );
 
       // Open trove
-      const closeWithDebtCollateralAmount = new BN(15_000_000_000);
+      const closeWithDebtCollateralAmount = new BN(15000000000);
       const closeWithDebtLoanAmount = new BN(1100000000000000);
 
       const closeWithDebtRemainingAccounts = await getNeighborHints(
@@ -1894,7 +1899,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
   describe("Test 2.12: Open Trove with Multiple Collateral Types", () => {
     it("Should support multiple collateral denominations", async () => {
       const testUser = Keypair.generate();
-      const transferAmount = 10000000; // 0.01 SOL in lamports
+      const transferAmount = 1000000000; // 0.01 SOL in lamports
       const testUserTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: admin.publicKey,
@@ -1953,7 +1958,7 @@ describe("Protocol Contract - Trove Management Tests", () => {
 
       console.log("📋 Opening trove with USDC collateral...");
 
-      const usdcCollateralAmount = new BN(10_000_000_000);
+      const usdcCollateralAmount = new BN(10000000000);
       const usdcLoanAmount = new BN(1100000000000000);
 
       const usdcRemainingAccounts = await getNeighborHints(
