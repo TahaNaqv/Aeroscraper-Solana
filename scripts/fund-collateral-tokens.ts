@@ -6,7 +6,7 @@ async function main() {
     console.log("\n💰 Funding Collateral Tokens\n");
 
     // Replace with YOUR wallet public key from frontend error
-    const recipientPublicKey = new PublicKey("8gn94gQopSaw6dcF2xBBi8UDTNd7zcjxoKnPdERud9SC");
+    const recipientPublicKey = new PublicKey("21AJoYVPj3TZbY2De3GfTVAtecsUHQ9oLUVoQNepssN5");
 
     // Devnet collateral mint (from protocol-core.ts line 218)
     const collateralMint = new PublicKey("Hygyfy8RBxLvoz5b3ffsg9PAvEkT3BJXXdTpVu6ftZYz");
