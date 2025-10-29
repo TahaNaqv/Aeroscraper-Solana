@@ -13,7 +13,7 @@ import {
 } from "@solana/spl-token";
 import { assert, expect } from "chai";
 import { setupTestEnvironment, TestContext, derivePDAs, getTokenBalance, loadTestUsers, openTroveForUser } from "./test-utils";
-import { fetchAllTroves, sortTrovesByICR, buildNeighborAccounts, TroveData } from "./trove-indexer";
+import { fetchAllTroves, sortTrovesByICR, buildNeighborAccounts, TroveData, findNeighbors } from "./trove-indexer";
 
 describe("Protocol Contract - Liquidation Tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -51,7 +51,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
     if (liquidatorBalance < minBalance) {
       const transferAmount = Math.min(minBalance - liquidatorBalance, Math.floor(adminBalance * 0.1));
       console.log("💰 Transferring", transferAmount / 1e9, "SOL to liquidator");
-      
+
       const liquidatorTx = new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: ctx.admin.publicKey,
@@ -67,24 +67,95 @@ describe("Protocol Contract - Liquidation Tests", () => {
     console.log("✅ Liquidation test setup complete");
   });
 
+  // Helper function to get neighbor hints for trove mutations (similar to protocol-core.ts)
+  async function getNeighborHints(
+    provider: anchor.AnchorProvider,
+    protocolProgram: Program<AerospacerProtocol>,
+    user: PublicKey,
+    collateralAmount: BN,
+    loanAmount: BN,
+    denom: string
+  ): Promise<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]> {
+    // Fetch and sort all existing troves
+    const allTroves = await fetchAllTroves(provider.connection, protocolProgram, denom);
+    const sortedTroves = sortTrovesByICR(allTroves);
+
+    // Calculate ICR for this trove (simplified - using estimated SOL price of $100)
+    // In production, this would fetch actual oracle price
+    // ICR = (collateral_value / debt) * 100
+    const estimatedSolPrice = BigInt(100); // $100 per SOL
+    const collateralValue = BigInt(collateralAmount.toString()) * estimatedSolPrice;
+    const debtValue = BigInt(loanAmount.toString());
+    const newICR = debtValue > BigInt(0) ? (collateralValue * BigInt(100)) / debtValue : BigInt(Number.MAX_SAFE_INTEGER);
+
+    // Create a temporary TroveData object for this trove
+    const [userDebtAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_debt_amount"), user.toBuffer()],
+      protocolProgram.programId
+    );
+    const [userCollateralAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_collateral_amount"), user.toBuffer(), Buffer.from(denom)],
+      protocolProgram.programId
+    );
+    const [liquidityThresholdAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidity_threshold"), user.toBuffer()],
+      protocolProgram.programId
+    );
+
+    const thisTrove: TroveData = {
+      owner: user,
+      debt: BigInt(loanAmount.toString()),
+      collateralAmount: BigInt(collateralAmount.toString()),
+      collateralDenom: denom,
+      icr: newICR,
+      debtAccount: userDebtAccount,
+      collateralAccount: userCollateralAccount,
+      liquidityThresholdAccount: liquidityThresholdAccount,
+    };
+
+    // Insert this trove into sorted position to find neighbors
+    let insertIndex = sortedTroves.findIndex((t) => t.icr > newICR);
+    if (insertIndex === -1) insertIndex = sortedTroves.length;
+
+    const newSortedTroves = [
+      ...sortedTroves.slice(0, insertIndex),
+      thisTrove,
+      ...sortedTroves.slice(insertIndex),
+    ];
+
+    // Find neighbors
+    const neighbors = findNeighbors(thisTrove, newSortedTroves);
+
+    // Build remainingAccounts array
+    const neighborAccounts = buildNeighborAccounts(neighbors);
+
+    // Convert PublicKey[] to AccountMeta format
+    return neighborAccounts.map((pubkey) => ({
+      pubkey,
+      isSigner: false,
+      isWritable: false,
+    }));
+  }
+
   // Helper function to create undercollateralized trove for liquidation testing
   async function createUndercollateralizedTroveForUser(
     user: Keypair,
     targetICR: number = 105
   ): Promise<void> {
     console.log(`Creating undercollateralized trove with ICR ${targetICR}%`);
-    
+
     // ICR = 105% means: collateral_value / debt_value = 1.05
     // Using SOL price = 100 USD for simplicity (from oracle)
     // For ICR = 105%: collateral_value = 105, debt = 100
-    // Debt = 50 aUSD = 50 * 10^18 lamports (reduced for low balance)
-    // Collateral = 0.525 SOL = 0.525 * 10^9 lamports (reduced)
-    const debt = new BN("50000000000000000000"); // 50 aUSD (18 decimals)
-    const collateralAmount = new BN("525000000"); // 0.525 SOL (9 decimals)
-    
+    // Scaled to fit u64: 5 aUSD = 5 * 10^18 (fits in u64), keep ~105% ICR by scaling collateral
+    // Debt = 5 aUSD = 5 * 10^18 lamports
+    // Collateral = 0.0525 SOL = 0.0525 * 10^9 lamports
+    const debt = new BN("5000000000000000000"); // 5 aUSD (18 decimals)
+    const collateralAmount = new BN("52500000"); // 0.0525 SOL (9 decimals)
+
     // Fund user with SOL for transaction fees (use liquidator as funder)
     const userBalance = await ctx.provider.connection.getBalance(user.publicKey);
-    const minUserBalance = 5_000_000; // 0.005 SOL (reduced for low balance scenario)
+    const minUserBalance = 5_000_000; // 0.005 SOL
     if (userBalance < minUserBalance) {
       // Use liquidator to fund the user (liquidator has sufficient balance)
       const transferAmount = minUserBalance - userBalance;
@@ -98,75 +169,152 @@ describe("Protocol Contract - Liquidation Tests", () => {
       await ctx.provider.sendAndConfirm(fundTx, [liquidator]);
       console.log(`  Funded user with ${transferAmount / 1e9} SOL from liquidator`);
     }
-    
-    // Create a new collateral mint for testing (to avoid mint authority issues)
-    const testCollateralMint = await createMint(
-      ctx.provider.connection,
-      liquidator, // Use liquidator as mint authority
-      liquidator.publicKey, // Use liquidator as mint authority
-      null, // No freeze authority
-      9 // SOL decimals
-    );
-    console.log(`  Created test collateral mint: ${testCollateralMint.toString()}`);
-    
-    // Create user's collateral token account for the new mint
+
+    // ✅ CRITICAL FIX: Use ctx.collateralMint (existing protocol mint) instead of creating new one
+    const collateralMint = ctx.collateralMint;
+    console.log(`  Using protocol collateral mint: ${collateralMint.toString()}`);
+
+    // Get user's collateral token account (ATA)
     const userCollateralAccount = await getAssociatedTokenAddress(
-      testCollateralMint,
+      collateralMint,
       user.publicKey
     );
-    
+    console.log(`  User collateral ATA: ${userCollateralAccount.toString()}`);
+
+    // Create user's collateral token account if it doesn't exist
     try {
       await createAssociatedTokenAccount(
         ctx.provider.connection,
-        liquidator, // Use liquidator as payer
-        testCollateralMint,
+        ctx.admin.payer, // Use admin as payer
+        collateralMint,
         user.publicKey
       );
-      console.log("  Created user collateral token account");
+      console.log("  ✅ Created user collateral token account");
     } catch (error) {
       // Account might already exist
+      console.log("  ✅ User collateral token account already exists");
     }
-    
-    // Mint collateral tokens to user
-    await mintTo(
-      ctx.provider.connection,
-      liquidator, // Use liquidator as mint authority
-      testCollateralMint,
-      userCollateralAccount,
-      liquidator.publicKey, // Use liquidator as mint authority
-      collateralAmount.toNumber()
-    );
-    console.log(`  Minted ${collateralAmount.toString()} collateral tokens to user`);
-    
-    // Open trove with these amounts (ICR = 105% < 110% threshold = liquidatable)
-    // Note: We'll use the existing collateral mint from ctx for the protocol, but our test mint for the user
-    const pdas = derivePDAs("SOL", user.publicKey, ctx.protocolProgram.programId);
-    
+
+    // ✅ Check if we can mint tokens (if mint authority is available)
+    const mintInfo = await ctx.provider.connection.getParsedAccountInfo(collateralMint);
+    let canMint = false;
+    if (mintInfo.value && 'parsed' in mintInfo.value.data) {
+      const mintAuthority = mintInfo.value.data.parsed.info.mintAuthority;
+      canMint = mintAuthority !== null &&
+        mintAuthority !== undefined &&
+        new PublicKey(mintAuthority).equals(ctx.admin.publicKey);
+    }
+
+    if (canMint) {
+      // We control the mint - mint collateral tokens to user
+      console.log("  ✅ Minting collateral tokens to user...");
+      await mintTo(
+        ctx.provider.connection,
+        ctx.admin.payer, // Use admin as mint authority
+        collateralMint,
+        userCollateralAccount,
+        ctx.admin.publicKey, // Mint authority
+        collateralAmount.toNumber()
+      );
+      console.log(`  ✅ Minted ${collateralAmount.toString()} collateral tokens to user`);
+    } else {
+      // Existing devnet mint - check if user already has tokens
+      console.log("  ⚠️  Using existing devnet collateral mint - checking user balance...");
+      try {
+        const userBalance = await ctx.provider.connection.getTokenAccountBalance(userCollateralAccount);
+        const balanceNum = parseFloat(String(userBalance.value.uiAmount || "0"));
+        const requiredAmount = parseFloat(collateralAmount.toString()) / 1e9;
+
+        if (balanceNum < requiredAmount) {
+          throw new Error(`User has insufficient collateral (${balanceNum} < ${requiredAmount}). Please fund user's collateral account on devnet.`);
+        }
+        console.log(`  ✅ User has sufficient collateral: ${balanceNum} tokens (required: ${requiredAmount})`);
+      } catch (error: any) {
+        if (error.message.includes("Invalid param: could not find account")) {
+          throw new Error(`User collateral token account does not exist and cannot be created (devnet mint authority not available). Please fund user's collateral account manually.`);
+        }
+        throw error;
+      }
+    }
+
+    // Get user's stablecoin token account
     const userStablecoinAccount = await getAssociatedTokenAddress(
       ctx.stablecoinMint,
       user.publicKey
     );
-    
+
     // Create stablecoin token account if it doesn't exist
     try {
       await createAssociatedTokenAccount(
         ctx.provider.connection,
-        liquidator, // Use liquidator as payer
+        ctx.admin.payer, // Use admin as payer
         ctx.stablecoinMint,
         user.publicKey
       );
+      console.log("  ✅ Created user stablecoin token account");
     } catch (error) {
       // Account might already exist
+      console.log("  ✅ User stablecoin token account already exists");
     }
-    
-    // For now, let's skip the trove opening and just test the liquidation infrastructure
-    // The trove opening requires the protocol to recognize our custom mint
-    console.log(`  Skipping trove opening due to custom mint - testing liquidation infrastructure only`);
-    console.log(`  Would open trove with debt: ${debt.toString()}, collateral: ${collateralAmount.toString()}`);
-    
-    // Instead, let's create a mock trove by directly setting up the accounts
-    // This is a simplified approach for testing the liquidation mechanism
-    throw new Error("Trove opening requires protocol integration - skipping for now");
+
+    // ✅ Get neighbor hints for sorted troves (like protocol-core.ts)
+    console.log("  Generating neighbor hints for sorted troves...");
+    const neighborHints = await getNeighborHints(
+      ctx.provider,
+      ctx.protocolProgram,
+      user.publicKey,
+      collateralAmount,
+      debt,
+      "SOL"
+    );
+    console.log(`  ✅ Generated ${neighborHints.length} neighbor hints for sorted troves`);
+
+    // Derive PDAs
+    const pdas = derivePDAs("SOL", user.publicKey, ctx.protocolProgram.programId);
+
+    // ✅ Actually open the trove (like protocol-core.ts)
+    console.log("  Opening trove with undercollateralized ICR (105%)...");
+    try {
+      await ctx.protocolProgram.methods
+        .openTrove({
+          loanAmount: debt,
+          collateralDenom: "SOL",
+          collateralAmount: collateralAmount,
+        })
+        .accounts({
+          user: user.publicKey,
+          userDebtAmount: pdas.userDebtAmount,
+          liquidityThreshold: pdas.liquidityThreshold,
+          userCollateralAmount: pdas.userCollateralAmount,
+          userCollateralAccount: userCollateralAccount,
+          collateralMint: collateralMint, // ✅ Use ctx.collateralMint
+          protocolCollateralAccount: pdas.protocolCollateralAccount,
+          totalCollateralAmount: pdas.totalCollateralAmount,
+          state: ctx.protocolState,
+          userStablecoinAccount: userStablecoinAccount,
+          protocolStablecoinAccount: pdas.protocolStablecoinAccount,
+          stableCoinMint: ctx.stablecoinMint,
+          oracleProgram: ctx.oracleProgram.programId,
+          oracleState: ctx.oracleState,
+          pythPriceAccount: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), // SOL price feed
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          feesProgram: ctx.feesProgram.programId,
+          feesState: ctx.feeState,
+          stabilityPoolTokenAccount: ctx.stabilityPoolTokenAccount,
+          feeAddress1TokenAccount: ctx.feeAddress1TokenAccount,
+          feeAddress2TokenAccount: ctx.feeAddress2TokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .remainingAccounts(neighborHints)
+        .signers([user])
+        .rpc();
+
+      console.log("  ✅ Trove opened successfully with ICR 105% (liquidatable)");
+    } catch (error) {
+      console.log("  ❌ Trove opening failed:", error);
+      throw error;
+    }
   }
 
   // Helper function to liquidate troves
@@ -178,15 +326,20 @@ describe("Protocol Contract - Liquidation Tests", () => {
     const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, collateralDenom);
     const sortedTroves = sortTrovesByICR(allTroves);
 
-    // Filter to only liquidatable troves
-    const liquidatableTroves = sortedTroves.filter(t => t.icr < BigInt(110)); // 110% threshold
-
     // Build remaining accounts: [UserDebtAmount, UserCollateralAmount, LiquidityThreshold, TokenAccount] per trove
     const remainingAccounts: Array<{ pubkey: PublicKey; isWritable: boolean; isSigner: boolean }> = [];
 
     for (const userPubkey of liquidationList) {
-      const trove = liquidatableTroves.find(t => t.owner.equals(userPubkey));
-      if (!trove) throw new Error(`Trove not found or not liquidatable: ${userPubkey.toString()}`);
+      // Find trove by owner (don't filter by liquidatable - we already verified it)
+      const trove = sortedTroves.find(t => t.owner.equals(userPubkey));
+      if (!trove) {
+        throw new Error(`Trove not found for owner: ${userPubkey.toString()}`);
+      }
+
+      // Verify trove is liquidatable (ICR < 110% = 110000000 in micro-percent)
+      if (trove.icr >= BigInt(110000000)) {
+        throw new Error(`Trove for owner ${userPubkey.toString()} is not liquidatable (ICR: ${Number(trove.icr) / 1_000_000}% >= 110%)`);
+      }
 
       remainingAccounts.push({ pubkey: trove.debtAccount, isWritable: true, isSigner: false });
       remainingAccounts.push({ pubkey: trove.collateralAccount, isWritable: true, isSigner: false });
@@ -228,9 +381,9 @@ describe("Protocol Contract - Liquidation Tests", () => {
       console.log("📋 Querying liquidatable troves...");
 
       try {
-        // Fetch all troves and manually filter liquidatable ones (ICR < 110%)
+        // Fetch all troves and manually filter liquidatable ones (ICR < 110%) in micro-percent
         const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
-        const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110));
+        const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110000000));
 
         console.log(`  Found ${liquidatableTroves.length} liquidatable trove(s) out of ${allTroves.length} total`);
 
@@ -249,82 +402,55 @@ describe("Protocol Contract - Liquidation Tests", () => {
   describe("Test 4.2: Liquidate Single Undercollateralized Trove", () => {
     it("Should liquidate trove when ICR falls below MCR", async () => {
       console.log("📋 Testing single trove liquidation...");
-      
-      // Create a test user for the undercollateralized trove
-      const testUser = Keypair.generate();
-      console.log("  Created test user:", testUser.publicKey.toString());
-      
-      try {
-        // Create undercollateralized trove (ICR = 105% < 110% threshold)
-        await createUndercollateralizedTroveForUser(testUser, 105);
-      } catch (error) {
-        console.log("  ⚠️ Trove creation failed:", error.message);
-        console.log("  This is expected due to mint authority issues on devnet");
-        console.log("  Testing liquidation infrastructure instead...");
-        
-        // Test the liquidation helper function structure
-        console.log("  ✅ Testing liquidation helper function...");
-        
-        // Verify liquidation helper can be called (even if it fails due to no troves)
-        try {
-          await liquidateTrovesHelper([testUser.publicKey], "SOL");
-        } catch (error) {
-          console.log("  ✅ Liquidation helper structure verified (expected to fail with no troves)");
-          console.log("  Error:", error.message);
-        }
-        
-        // Test query functionality
-        console.log("  ✅ Testing query functionality...");
-        const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
-        const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110));
-        console.log(`  Found ${liquidatableTroves.length} liquidatable trove(s) out of ${allTroves.length} total`);
-        
-        console.log("✅ Liquidation infrastructure test PASSED");
-        return; // Exit early since we can't create a real trove
-      }
-      
-      // If we get here, trove creation succeeded (unlikely on devnet)
-      console.log("  ✅ Trove creation succeeded - proceeding with liquidation test");
-      
-      // Query troves and verify the trove is liquidatable
+
+      // Step 1: Fetch existing liquidatable troves from the network
+      console.log("  Step 1: Fetching liquidatable troves from network...");
       const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
-      const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110));
-      
+      const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110000000)); // 110% in micro-percent
+
       console.log(`  Found ${liquidatableTroves.length} liquidatable trove(s) out of ${allTroves.length} total`);
-      
-      // Find our test user's trove
-      const testUserTrove = liquidatableTroves.find(t => t.owner.equals(testUser.publicKey));
-      expect(testUserTrove).to.not.be.undefined;
-      console.log(`  Test user trove ICR: ${testUserTrove!.icr}% (should be < 110%)`);
-      
-      // Verify trove is indeed liquidatable
-      expect(Number(testUserTrove!.icr)).to.be.lessThan(110);
-      
-      // Execute liquidation
-      console.log("  Executing liquidation...");
-      await liquidateTrovesHelper([testUser.publicKey], "SOL");
-      
-      // Verify liquidation results
-      console.log("  Verifying liquidation results...");
-      
+      expect(liquidatableTroves.length).to.be.greaterThan(0, "No liquidatable troves found on network");
+
+      const target = liquidatableTroves[0];
+      const targetOwner = target.owner;
+      const targetOwnerStr = targetOwner.toString();
+      const targetICR = Number(target.icr) / 1_000_000;
+      console.log(`  Target trove owner: ${targetOwnerStr}, ICR: ${targetICR.toFixed(2)}% (< 110%)`);
+
+      // Step 2: Execute liquidation for the selected trove
+      console.log("  Step 2: Executing liquidation...");
+      try {
+        await liquidateTrovesHelper([targetOwner], "SOL");
+        console.log("  ✅ Liquidation transaction completed");
+      } catch (e: any) {
+        console.log("  ❌ Liquidation transaction failed:", e);
+        throw e;
+      }
+
+      // Wait a bit for accounts to update after liquidation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Step 3: Verify liquidation results
+      console.log("  Step 3: Verifying liquidation results...");
+
       // Check that trove debt is now 0
-      const pdas = derivePDAs("SOL", testUser.publicKey, ctx.protocolProgram.programId);
+      const pdas = derivePDAs("SOL", targetOwner, ctx.protocolProgram.programId);
       const userDebtAccount = await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount);
       expect(userDebtAccount.amount.toString()).to.equal("0");
       console.log("  ✅ Trove debt is now 0");
-      
+
       // Check that trove collateral is now 0
       const userCollateralAccount = await ctx.protocolProgram.account.userCollateralAmount.fetch(pdas.userCollateralAmount);
       expect(userCollateralAccount.amount.toString()).to.equal("0");
       console.log("  ✅ Trove collateral is now 0");
-      
+
       // Verify trove no longer appears in liquidatable list
       const trovesAfterLiquidation = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
-      const liquidatableAfterLiquidation = trovesAfterLiquidation.filter(t => t.icr < BigInt(110));
-      const testUserTroveAfter = liquidatableAfterLiquidation.find(t => t.owner.equals(testUser.publicKey));
-      expect(testUserTroveAfter).to.be.undefined;
+      const liquidatableAfterLiquidation = trovesAfterLiquidation.filter(t => t.icr < BigInt(110000000));
+      const targetAfter = liquidatableAfterLiquidation.find(t => t.owner.equals(targetOwner));
+      expect(targetAfter).to.be.undefined;
       console.log("  ✅ Trove no longer appears in liquidatable list");
-      
+
       console.log("✅ Single trove liquidation test PASSED");
     });
   });
