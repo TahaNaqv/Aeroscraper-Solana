@@ -465,6 +465,103 @@ describe("Protocol Contract - Liquidation Tests", () => {
     });
   });
 
+  describe("Single Trove Liquidation (liquidate_trove)", () => {
+    it("Should liquidate a single undercollateralized trove using named accounts", async () => {
+      console.log("📋 Starting single trove liquidation (liquidate_trove) test...");
+
+      // Step 1: Fetch all troves and find the first undercollateralized one
+      const allTroves = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
+      const liquidatableTroves = allTroves.filter(t => t.icr < BigInt(110000000));
+      if (liquidatableTroves.length === 0) {
+        console.log("❌ No liquidatable troves found; skipping test.");
+        return;
+      }
+      const target = liquidatableTroves[0];
+      const targetOwner = target.owner;
+
+      console.log(`  Found liquidatable trove: ${targetOwner.toBase58()}, ICR: ${Number(target.icr) / 1_000_000}%`);
+
+      // Step 2: Derive all required accounts for the instruction
+      const pdas = derivePDAs("SOL", targetOwner, ctx.protocolProgram.programId);
+
+      // Protocol-wide accounts
+      const state = ctx.protocolState;
+      const stableCoinMint = ctx.stablecoinMint;
+      const [protocolStablecoinVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_stablecoin_vault")],
+        ctx.protocolProgram.programId
+      );
+      const [protocolCollateralVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_collateral_vault"), Buffer.from("SOL")],
+        ctx.protocolProgram.programId
+      );
+      const [totalCollateralAmountPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("total_collateral_amount"), Buffer.from("SOL")],
+        ctx.protocolProgram.programId
+      );
+
+      // User's associated token account for the collateral (SOL)
+      const userCollateralTokenAccount = await getAssociatedTokenAddress(
+        ctx.collateralMint,
+        targetOwner,
+      );
+
+      // Oracle context
+      const oracleProgramId = ctx.oracleProgram.programId;
+      const oracleState = ctx.oracleState;
+      const pythPriceAccount = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
+      const clock = anchor.web3.SYSVAR_CLOCK_PUBKEY;
+
+      // Step 3: Call the liquidate_trove instruction from liquidator
+      await ctx.protocolProgram.methods
+        .liquidateTrove({
+          targetUser: targetOwner,
+          collateralDenom: "SOL",
+        })
+        .accounts({
+          liquidator: liquidator.publicKey,
+          state: state,
+          stableCoinMint: stableCoinMint,
+          protocolStablecoinVault: protocolStablecoinVault,
+          protocolCollateralVault: protocolCollateralVault,
+          totalCollateralAmount: totalCollateralAmountPda,
+
+          userDebtAmount: pdas.userDebtAmount,
+          userCollateralAmount: pdas.userCollateralAmount,
+          liquidityThreshold: pdas.liquidityThreshold,
+          userCollateralTokenAccount: userCollateralTokenAccount,
+
+          oracleProgram: oracleProgramId,
+          oracleState: oracleState,
+          pythPriceAccount: pythPriceAccount,
+          clock: clock,
+
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        } as any)
+        .signers([liquidator])
+        .rpc();
+
+      console.log("  ✅ Liquidation transaction completed!");
+
+      // Step 4: Check trove's accounts are zero
+      const userDebt = await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount);
+      expect(userDebt.amount.toString()).to.equal("0");
+      const userCollateral = await ctx.protocolProgram.account.userCollateralAmount.fetch(pdas.userCollateralAmount);
+      expect(userCollateral.amount.toString()).to.equal("0");
+      console.log("  ✅ Trove debt/collateral are now 0");
+
+      // Step 5: Check trove no longer appears in risky list
+      const trovesAfter = await fetchAllTroves(ctx.provider.connection, ctx.protocolProgram, "SOL");
+      const stillLiquidatable = trovesAfter.filter(t => t.icr < BigInt(110000000));
+      const targetAfter = stillLiquidatable.find(t => t.owner.equals(targetOwner));
+      expect(targetAfter).to.be.undefined;
+      console.log("  ✅ Trove no longer appears undercollateralized");
+
+      console.log("✅ Single trove liquidation with named accounts PASSED!");
+    });
+  });
+
   describe("Test 4.4: Liquidation with Stability Pool Coverage", () => {
     it("Should use stability pool to cover liquidated debt", async () => {
       console.log("📋 Testing stability pool coverage...");
