@@ -6,6 +6,7 @@ pub mod borrow_loan;
 pub mod repay_loan;
 pub mod close_trove;
 pub mod liquidate_troves;
+pub mod liquidate_trove;
 pub mod query_liquidatable_troves;
 pub mod stake;
 pub mod unstake;
@@ -30,6 +31,8 @@ pub use repay_loan::*;
 pub use close_trove::*;
 #[allow(ambiguous_glob_reexports)]
 pub use liquidate_troves::*;
+#[allow(ambiguous_glob_reexports)]
+pub use liquidate_trove::*;
 #[allow(ambiguous_glob_reexports)]
 pub use query_liquidatable_troves::*;
 #[allow(ambiguous_glob_reexports)]

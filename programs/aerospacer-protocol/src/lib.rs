@@ -77,6 +77,11 @@ pub mod aerospacer_protocol {
         instructions::liquidate_troves::handler(ctx, params)
     }
 
+    // Liquidate a single undercollateralized trove (no remaining_accounts)
+    pub fn liquidate_trove(ctx: Context<LiquidateTrove>, params: LiquidateTroveParams) -> Result<()> {
+        instructions::liquidate_trove::handler(ctx, params)
+    }
+
     // Query liquidatable troves (read-only helper for finding troves with ICR < threshold)
     pub fn query_liquidatable_troves(ctx: Context<QueryLiquidatableTroves>, params: QueryLiquidatableTrovesParams) -> Result<()> {
         instructions::query_liquidatable_troves::handler(ctx, params)

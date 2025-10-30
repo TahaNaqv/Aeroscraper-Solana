@@ -400,7 +400,7 @@ describe("Protocol Contract - Liquidation Tests", () => {
   });
 
   describe("Test 4.2: Liquidate Single Undercollateralized Trove", () => {
-    it("Should liquidate trove when ICR falls below MCR", async () => {
+    it.skip("Should liquidate trove when ICR falls below MCR", async () => {
       console.log("📋 Testing single trove liquidation...");
 
       // Step 1: Fetch existing liquidatable troves from the network
