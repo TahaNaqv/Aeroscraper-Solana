@@ -512,6 +512,48 @@ describe("Protocol Contract - Liquidation Tests", () => {
       const pythPriceAccount = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix");
       const clock = anchor.web3.SYSVAR_CLOCK_PUBKEY;
 
+      // In tests/protocol-liquidation.ts, before .liquidateTrove(...)
+      const targetDebt = (await ctx.protocolProgram.account.userDebtAmount.fetch(pdas.userDebtAmount)).amount;
+
+      // Prepare a staker (user1) and ensure they have aUSD by opening a small trove first
+      const { user1 } = loadTestUsers();
+
+      // Open a small trove for user1 to mint aUSD (meets minimums; adjust if needed for devnet)
+      // 2 aUSD (18 decimals) and 0.3 SOL (9 decimals) as collateral
+      // await openTroveForUser(
+      //   ctx,
+      //   user1,
+      //   new BN("300000000"),                // 0.300000000 SOL
+      //   new BN("2000000000000000000"),     // 2.0 aUSD
+      //   "SOL"
+      // );
+
+      // Derive PDAs for user1 stake and protocol vault
+      const user1Pdas = derivePDAs("SOL", user1.publicKey, ctx.protocolProgram.programId);
+
+      // user1's aUSD ATA
+      const user1StablecoinAccount = await getAssociatedTokenAddress(
+        ctx.stablecoinMint,
+        user1.publicKey
+      );
+
+      // Stake enough aUSD to cover the target trove's debt (cap by user1 balance if needed)
+      // For simplicity, stake exactly targetDebt; if user1 has less, the stake will fail.
+      await ctx.protocolProgram.methods
+        .stake({ amount: targetDebt })
+        .accounts({
+          user: user1.publicKey,
+          userStakeAmount: user1Pdas.userStakeAmount,
+          state: ctx.protocolState,
+          userStablecoinAccount: user1StablecoinAccount,
+          protocolStablecoinAccount: user1Pdas.protocolStablecoinAccount,
+          stableCoinMint: ctx.stablecoinMint,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc();
+
       // Step 3: Call the liquidate_trove instruction from liquidator
       await ctx.protocolProgram.methods
         .liquidateTrove({
